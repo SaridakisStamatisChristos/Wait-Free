@@ -8,7 +8,7 @@ The queue is fixed-capacity, allocation-free on the hot path, uses raw object st
 
 ## What is implemented
 
-- C++23 header-only `spsc_queue<T, Capacity, CacheLine, Index>`.
+- C++20 header-only `spsc_queue<T, Capacity, CacheLine, Index>`; CI also qualifies C++23 consumers.
 - Power-of-two bounded ring, preallocated storage, no mutexes, no CAS/RMW in the queue hot path.
 - Producer/consumer private cursors with cached remote indices.
 - Release publication of constructed elements and consumed slots; acquire observation on the opposite side.
@@ -54,6 +54,8 @@ std::size_t size_approx() const noexcept; // advisory; always <= capacity()
 `T` must be nothrow destructible because successful `try_pop()` and queue destruction destroy live elements on `noexcept` paths. The destructor also requires **external quiescence**: no producer or consumer operation may overlap queue destruction. See [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md) for the complete production contract.
 
 ## Build and test
+
+The public library target requires C++20 or newer. Normal CI compiles and tests the production surface under both C++20 and C++23 with GCC and Clang.
 
 ```bash
 cmake --preset dev
