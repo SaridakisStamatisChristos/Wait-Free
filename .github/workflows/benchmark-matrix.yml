@@ -1,0 +1,99 @@
+name: Hosted Performance Matrix
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 4 * * 3'
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    name: ${{ matrix.arch }} / ${{ matrix.compiler }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: linux-x64
+            compiler: gcc
+            cc: gcc
+            cxx: g++
+          - runner: ubuntu-24.04
+            arch: linux-x64
+            compiler: clang
+            cc: clang
+            cxx: clang++
+          - runner: ubuntu-24.04-arm
+            arch: linux-arm64
+            compiler: gcc
+            cc: gcc
+            cxx: g++
+          - runner: ubuntu-24.04-arm
+            arch: linux-arm64
+            compiler: clang
+            cc: clang
+            cxx: clang++
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install benchmark dependencies
+        run: sudo apt-get update && sudo apt-get install -y libboost-dev ninja-build
+      - name: Capture machine and runner context
+        run: |
+          mkdir -p evidence/hosted-matrix
+          {
+            echo "github_sha=$GITHUB_SHA"
+            echo "github_run_id=$GITHUB_RUN_ID"
+            echo "github_run_attempt=$GITHUB_RUN_ATTEMPT"
+            echo "runner_name=$RUNNER_NAME"
+            echo "runner_os=$RUNNER_OS"
+            echo "runner_arch=$RUNNER_ARCH"
+            echo "matrix_arch=${{ matrix.arch }}"
+            echo "matrix_compiler=${{ matrix.compiler }}"
+            "$CXX" --version | head -1
+          } > evidence/hosted-matrix/run-context.txt
+          tools/collect_machine_info.sh > evidence/hosted-matrix/machine.txt
+          python tools/topology_matrix.py > evidence/hosted-matrix/topology-matrix.json
+      - name: Configure comparative laboratory
+        run: >-
+          cmake -S . -B build/bench-matrix -G Ninja -DCMAKE_BUILD_TYPE=Release
+          -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF
+          -DVERIQUEUE_BUILD_BENCHMARKS=OFF -DVERIQUEUE_BUILD_BASELINES=ON
+      - name: Build comparative laboratory
+        run: cmake --build build/bench-matrix --target bench_compare -j2
+      - name: Full declared capacity/payload matrix
+        run: |
+          python tools/run_compare_campaign.py \
+            --program build/bench-matrix/bench_compare \
+            --capacities 2,64,256,1024,65536 \
+            --payloads 8,16,64,256 \
+            --transfers 100000 \
+            --warmups 1 \
+            --repetitions 5 \
+            --seed 20261009 \
+            --output evidence/hosted-matrix/raw-compare.jsonl
+      - name: Paired analysis
+        run: |
+          python tools/analyze_compare_campaign.py \
+            evidence/hosted-matrix/raw-compare.jsonl \
+            --json-output evidence/hosted-matrix/summary.json \
+            --markdown-output evidence/hosted-matrix/summary.md \
+            --bootstrap-seed 20261009
+          cat evidence/hosted-matrix/summary.md
+      - name: Assembly audit
+        if: always()
+        run: CXX="$CXX" tools/audit_assembly.sh evidence/hosted-matrix/assembly.s | tee evidence/hosted-matrix/assembly-audit.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hosted-performance-${{ matrix.arch }}-${{ matrix.compiler }}
+          path: evidence/hosted-matrix/
