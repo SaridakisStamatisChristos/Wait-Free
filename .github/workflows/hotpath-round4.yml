@@ -1,0 +1,148 @@
+name: Hot-path Round 4 Storage Striping
+
+on:
+  pull_request:
+    paths:
+      - 'bench/experimental_spsc_round4.hpp'
+      - 'bench/bench_hotpath_round4.cpp'
+      - 'tools/run_hotpath_round4.py'
+      - 'tools/test_hotpath_round4_layout.cpp'
+      - 'tools/analyze_hotpath_v2.py'
+      - '.github/workflows/hotpath-round4.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mandatory-cells:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: x64-gcc
+            runner: ubuntu-24.04
+            cc: gcc
+            cxx: g++
+            topology_policy: x64-diagnostic
+          - name: x64-clang
+            runner: ubuntu-24.04
+            cc: clang
+            cxx: clang++
+            topology_policy: x64-diagnostic
+          - name: arm64-gcc
+            runner: ubuntu-24.04-arm
+            cc: gcc
+            cxx: g++
+            topology_policy: default
+          - name: arm64-clang
+            runner: ubuntu-24.04-arm
+            cc: clang
+            cxx: clang++
+            topology_policy: default
+    name: mandatory / ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Record environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/hotpath-round4
+          {
+            echo "commit=$GITHUB_SHA"
+            echo "runner_os=$RUNNER_OS"
+            echo "runner_arch=$RUNNER_ARCH"
+            echo "platform=${{ matrix.name }}"
+            echo "observer_counter_policy=final-only"
+            echo "phase=mandatory-cells-only"
+            "$CXX" --version | head -1
+            uname -a
+            python tools/topology_matrix.py
+          } | tee evidence/hotpath-round4/environment.txt
+
+      - name: Validate Python tooling
+        run: >-
+          python -m py_compile
+          tools/topology_matrix.py
+          tools/run_hotpath_round4.py
+          tools/analyze_hotpath_v2.py
+
+      - name: Build round-4 benchmark and layout verifier
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          "$CXX" -std=c++20 -O3 -DNDEBUG -pthread -Wall -Wextra -Wpedantic -Werror \
+            -Iinclude -Ibench bench/bench_hotpath_round4.cpp bench/environment.cpp \
+            -o build/bench_hotpath_round4
+          "$CXX" -std=c++20 -O2 -Wall -Wextra -Wpedantic -Werror \
+            -Iinclude -Ibench tools/test_hotpath_round4_layout.cpp \
+            -o build/test_hotpath_round4_layout
+
+      - name: Verify footprint and stripe permutation
+        run: ./build/test_hotpath_round4_layout
+
+      - name: Correctness and affinity smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          for payload in 8 16; do
+            for variant in \
+              production \
+              stripe2 \
+              stripe4 \
+              stripe8 \
+              stripe16 \
+              adaptive_full \
+              adaptive_half; do
+              ./build/bench_hotpath_round4 "$variant" "$payload" 50000
+            done
+          done
+
+      - name: Run mandatory paired campaigns
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/hotpath-round4/raw
+          python tools/run_hotpath_round4.py \
+            --program build/bench_hotpath_round4 \
+            --payload 8 \
+            --transfers 400000 \
+            --warmups 5 \
+            --repetitions 30 \
+            --seed 20261040 \
+            --topology-policy '${{ matrix.topology_policy }}' \
+            --output evidence/hotpath-round4/raw/c1024-p8.jsonl
+          python tools/run_hotpath_round4.py \
+            --program build/bench_hotpath_round4 \
+            --payload 16 \
+            --transfers 400000 \
+            --warmups 5 \
+            --repetitions 30 \
+            --seed 20261041 \
+            --topology-policy '${{ matrix.topology_policy }}' \
+            --output evidence/hotpath-round4/raw/c1024-p16.jsonl
+
+      - name: Analyze mandatory cells
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/analyze_hotpath_v2.py evidence/hotpath-round4/raw/*.jsonl \
+            --require-repetitions 30 \
+            --bootstrap-seed 20261040 \
+            --json-output evidence/hotpath-round4/summary.json \
+            --markdown-output evidence/hotpath-round4/summary.md
+          cat evidence/hotpath-round4/summary.md
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hotpath-round4-${{ matrix.name }}
+          path: evidence/hotpath-round4/
+          if-no-files-found: error
