@@ -123,7 +123,11 @@ jobs:
       - name: Build Windows qualification
         if: matrix.family == 'windows'
         shell: pwsh
-        run: cmake --build build/portability --config Debug --parallel 2
+        run: |
+          cmake --build build/portability --config Debug --parallel 2 2>&1 |
+            Tee-Object -FilePath evidence/portability/build.log
+          $buildExit = $LASTEXITCODE
+          if ($buildExit -ne 0) { exit $buildExit }
 
       - name: Test Windows qualification
         if: matrix.family == 'windows'
@@ -131,7 +135,8 @@ jobs:
         run: |
           ctest --test-dir build/portability -C Debug --output-on-failure 2>&1 |
             Tee-Object -FilePath evidence/portability/ctest.log
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $testExit = $LASTEXITCODE
+          if ($testExit -ne 0) { exit $testExit }
 
       - uses: actions/upload-artifact@v4
         if: always()
