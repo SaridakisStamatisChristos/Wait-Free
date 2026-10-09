@@ -15,12 +15,31 @@ import sys
 import tempfile
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import zipfile
 
 API_VERSION = "2022-11-28"
 MAX_FILE_BYTES = 95 * 1024 * 1024
 MAX_CAMPAIGN_BYTES = 2 * 1024 * 1024 * 1024
+
+
+class _CredentialStrippingRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Do not forward GitHub credentials to signed cross-host artifact URLs."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if redirected is None:
+            return None
+        old_host = urllib.parse.urlsplit(req.full_url).netloc.lower()
+        new_host = urllib.parse.urlsplit(newurl).netloc.lower()
+        if old_host != new_host:
+            for header in ("Authorization", "X-GitHub-Api-Version", "Accept"):
+                redirected.remove_header(header)
+        return redirected
+
+
+_OPENER = urllib.request.build_opener(_CredentialStrippingRedirectHandler())
 
 
 def _slug(value: str) -> str:
@@ -64,7 +83,7 @@ def _request(url: str, token: str, *, binary: bool) -> bytes | dict:
     last_error: Exception | None = None
     for attempt in range(4):
         try:
-            with urllib.request.urlopen(request, timeout=60) as response:
+            with _OPENER.open(request, timeout=60) as response:
                 payload = response.read()
                 if binary:
                     return payload
@@ -230,8 +249,7 @@ def _benchmark_context(root: pathlib.Path) -> dict:
     contexts: dict[str, dict] = {}
     for raw_path in sorted(root.rglob("raw-compare.jsonl")):
         relative = raw_path.relative_to(root)
-        key_parts = list(relative.parts[:-1])
-        key = "/".join(key_parts)
+        key = "/".join(relative.parts[:-1])
         records = []
         for line in raw_path.read_text(encoding="utf-8").splitlines():
             if line.strip():
