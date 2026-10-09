@@ -13,7 +13,11 @@ struct alignas(128) over_aligned final {
     std::uint64_t value{0};
     std::array<std::byte, 120> padding{};
 
-    explicit over_aligned(std::uint64_t v = 0) noexcept : value(v) {
+    over_aligned() noexcept {
+        check_alignment();
+    }
+
+    explicit over_aligned(std::uint64_t v) noexcept : value(v) {
         check_alignment();
     }
 
