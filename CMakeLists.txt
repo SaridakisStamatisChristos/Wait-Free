@@ -73,7 +73,7 @@ endif()
 
 if(VERIQUEUE_BUILD_BENCHMARKS)
   find_package(Threads REQUIRED)
-  foreach(bench_name IN ITEMS bench_throughput bench_latency bench_bursts bench_payload bench_hotpath_variants)
+  foreach(bench_name IN ITEMS bench_throughput bench_latency bench_bursts bench_payload bench_hotpath_variants bench_bulk)
     add_executable(${bench_name} bench/${bench_name}.cpp bench/environment.cpp)
     target_link_libraries(${bench_name} PRIVATE veriqueue::veriqueue Threads::Threads)
     target_include_directories(${bench_name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/bench)
