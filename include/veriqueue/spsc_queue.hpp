@@ -23,6 +23,17 @@ namespace veriqueue {
 #pragma warning(disable : 4324) // Cache-line alignas intentionally adds tail padding.
 #endif
 
+// The controlled hot-path ablation showed broad scalar wins on tested AArch64
+// GitHub runners, while an unconditional switch materially regressed GCC/x86-64
+// cells. Keep the proven legacy owner-local cursor on non-ARM64 targets and use
+// the published atomic itself as the owner cursor on ARM64. Peer synchronization
+// remains acquire/release on both paths.
+#if defined(__aarch64__) || defined(_M_ARM64)
+#define VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR 1
+#else
+#define VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR 0
+#endif
+
 template <
     class T,
     std::size_t Capacity,
@@ -55,15 +66,25 @@ class spsc_queue final {
     static constexpr Index mask_index = static_cast<Index>(Capacity - 1);
 
     struct alignas(control_alignment) producer_state final {
+#if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
+        std::atomic<Index> published_tail{0};
+        Index cached_head{0};
+#else
         Index local_tail{0};
         Index cached_head{0};
         std::atomic<Index> published_tail{0};
+#endif
     };
 
     struct alignas(control_alignment) consumer_state final {
+#if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
+        std::atomic<Index> published_head{0};
+        Index cached_tail{0};
+#else
         Index local_head{0};
         Index cached_tail{0};
         std::atomic<Index> published_head{0};
+#endif
     };
 
 public:
@@ -79,8 +100,15 @@ public:
 
     ~spsc_queue() noexcept {
         // Contract: external quiescence. No producer/consumer operation may overlap destruction.
+        // On ARM64 the owner cursor is the published atomic itself. Once externally quiescent,
+        // relaxed loads are sufficient because destruction is not a synchronization edge.
+#if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
+        Index head = consumer_.published_head.load(std::memory_order_relaxed);
+        const Index tail = producer_.published_tail.load(std::memory_order_relaxed);
+#else
         Index head = consumer_.local_head;
         const Index tail = producer_.local_tail;
+#endif
         while (head != tail) {
             std::destroy_at(slot_for(head).live_ptr());
             ++head;
@@ -90,7 +118,11 @@ public:
     template <class... Args>
         requires std::constructible_from<T, Args...>
     [[nodiscard]] bool try_emplace(Args&&... args) {
+#if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
+        Index tail = producer_.published_tail.load(std::memory_order_relaxed);
+#else
         Index tail = producer_.local_tail;
+#endif
 
         if (distance(tail, producer_.cached_head) == capacity_index) {
             producer_.cached_head =
@@ -102,7 +134,9 @@ public:
 
         std::construct_at(slot_for(tail).storage_ptr(), std::forward<Args>(args)...);
         ++tail;
+#if !VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
         producer_.local_tail = tail;
+#endif
         producer_.published_tail.store(tail, std::memory_order_release);
         return true;
     }
@@ -124,7 +158,11 @@ public:
     {
         if (values.empty()) return 0;
 
+#if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
+        Index tail = producer_.published_tail.load(std::memory_order_relaxed);
+#else
         Index tail = producer_.local_tail;
+#endif
         Index used = distance(tail, producer_.cached_head);
         Index available = static_cast<Index>(capacity_index - used);
         const std::size_t target = (std::min)(values.size(), Capacity);
@@ -145,7 +183,9 @@ public:
             ++tail;
         }
 
+#if !VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
         producer_.local_tail = tail;
+#endif
         producer_.published_tail.store(tail, std::memory_order_release);
         return count;
     }
@@ -153,7 +193,11 @@ public:
     [[nodiscard]] bool try_pop(T& output) noexcept
         requires std::is_nothrow_move_assignable_v<T>
     {
+#if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
+        Index head = consumer_.published_head.load(std::memory_order_relaxed);
+#else
         Index head = consumer_.local_head;
+#endif
 
         if (head == consumer_.cached_tail) {
             consumer_.cached_tail =
@@ -167,7 +211,9 @@ public:
         output = std::move(*source);
         std::destroy_at(source);
         ++head;
+#if !VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
         consumer_.local_head = head;
+#endif
         consumer_.published_head.store(head, std::memory_order_release);
         return true;
     }
@@ -177,7 +223,11 @@ public:
     {
         if (output.empty()) return 0;
 
+#if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
+        Index head = consumer_.published_head.load(std::memory_order_relaxed);
+#else
         Index head = consumer_.local_head;
+#endif
         Index available = distance(consumer_.cached_tail, head);
         const std::size_t target = (std::min)(output.size(), Capacity);
 
@@ -197,7 +247,9 @@ public:
             ++head;
         }
 
+#if !VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
         consumer_.local_head = head;
+#endif
         consumer_.published_head.store(head, std::memory_order_release);
         return count;
     }
@@ -205,7 +257,11 @@ public:
     template <class F>
         requires std::is_nothrow_invocable_v<F, T&>
     [[nodiscard]] bool try_consume(F&& consumer) noexcept {
+#if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
+        Index head = consumer_.published_head.load(std::memory_order_relaxed);
+#else
         Index head = consumer_.local_head;
+#endif
 
         if (head == consumer_.cached_tail) {
             consumer_.cached_tail =
@@ -219,7 +275,9 @@ public:
         std::invoke(std::forward<F>(consumer), *source);
         std::destroy_at(source);
         ++head;
+#if !VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
         consumer_.local_head = head;
+#endif
         consumer_.published_head.store(head, std::memory_order_release);
         return true;
     }
@@ -258,6 +316,17 @@ public:
     };
 
     [[nodiscard]] test_snapshot testing_snapshot() const noexcept {
+#if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
+        const Index tail = producer_.published_tail.load(std::memory_order_relaxed);
+        const Index head = consumer_.published_head.load(std::memory_order_relaxed);
+        return {
+            tail,
+            producer_.cached_head,
+            head,
+            consumer_.cached_tail,
+            tail,
+            head};
+#else
         return {
             producer_.local_tail,
             producer_.cached_head,
@@ -265,6 +334,7 @@ public:
             consumer_.cached_tail,
             producer_.published_tail.load(std::memory_order_relaxed),
             consumer_.published_head.load(std::memory_order_relaxed)};
+#endif
     }
 #endif
 
@@ -285,6 +355,8 @@ private:
     consumer_state consumer_{};
     alignas(storage_alignment) std::array<detail::slot<T>, Capacity> slots_;
 };
+
+#undef VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
 
 #if defined(_MSC_VER)
 #pragma warning(pop)
