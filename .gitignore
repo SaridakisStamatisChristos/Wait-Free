@@ -1,0 +1,13 @@
+build/
+cmake-build-*/
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.exe
+*.profraw
+*.profdata
+history.json
+history.html
+.DS_Store
