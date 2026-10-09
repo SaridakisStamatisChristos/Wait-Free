@@ -23,7 +23,8 @@ int main() {
         std::atomic<bool> failed{false};
 
         std::thread producer([&] {
-            for (std::uint64_t value = 1; value <= transfers;) {
+            for (std::uint64_t value = 1;
+                 value <= transfers && !failed.load(std::memory_order_relaxed);) {
                 if (q.try_push(value)) {
                     ++value;
                 } else {
@@ -34,7 +35,8 @@ int main() {
         });
 
         std::thread consumer([&] {
-            for (std::uint64_t expected = 1; expected <= transfers;) {
+            for (std::uint64_t expected = 1;
+                 expected <= transfers && !failed.load(std::memory_order_relaxed);) {
                 std::uint64_t out = 0;
                 if (q.try_pop(out)) {
                     if (out != expected) {
