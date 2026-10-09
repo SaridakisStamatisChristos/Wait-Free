@@ -1,0 +1,81 @@
+name: Evidence Freezer Tests
+
+on:
+  pull_request:
+    paths:
+      - 'tools/freeze_github_evidence.py'
+      - 'tools/verify_frozen_evidence.py'
+      - 'tools/test_evidence_freezer.py'
+      - '.github/workflows/evidence-freezer.yml'
+      - '.github/workflows/evidence-freezer-tests.yml'
+      - 'evidence/**'
+  push:
+    branches: [main]
+    paths:
+      - 'tools/freeze_github_evidence.py'
+      - 'tools/verify_frozen_evidence.py'
+      - 'tools/test_evidence_freezer.py'
+      - '.github/workflows/evidence-freezer.yml'
+      - '.github/workflows/evidence-freezer-tests.yml'
+      - 'evidence/**'
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  adversarial-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile freezer tooling
+        run: >-
+          python -m py_compile
+          tools/freeze_github_evidence.py
+          tools/verify_frozen_evidence.py
+          tools/test_evidence_freezer.py
+      - name: Run adversarial freezer/verifier tests
+        run: python -m unittest -v tools/test_evidence_freezer.py
+
+  github-artifact-integration:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Resolve successful base-commit Model Check run
+        id: source
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_id="$(gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${BASE_SHA}&status=success&per_page=100" \
+            --jq '.workflow_runs[] | select(.name == "Model Check") | .id' | head -n 1)"
+          [[ -n "$run_id" ]] || {
+            echo "No successful Model Check run found for base SHA $BASE_SHA" >&2
+            exit 1
+          }
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+      - name: Freeze real GitHub Actions artifacts to temporary storage
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >-
+          python tools/freeze_github_evidence.py
+          --repository "$GITHUB_REPOSITORY"
+          --run-ids "${{ steps.source.outputs.run_id }}"
+          --output-base /tmp/veriqueue-freeze/campaigns
+          --result-json /tmp/veriqueue-freeze/result.json
+      - name: Independently verify temporary freeze
+        shell: bash
+        run: |
+          set -euo pipefail
+          campaign_root="$(python -c 'import json; print(json.load(open("/tmp/veriqueue-freeze/result.json"))["campaign_root"])')"
+          python tools/verify_frozen_evidence.py "$campaign_root"
