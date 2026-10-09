@@ -107,3 +107,29 @@ jobs:
           cat /tmp/veriqueue-paired/summary.md
       - name: Assembly audit
         run: CXX=c++ tools/audit_assembly.sh /tmp/veriqueue-assembly.s
+
+  qualification-evidence:
+    needs: [format, build-test, clang-tidy, benchmark-build]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Write CI qualification manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/qualification
+          cat > evidence/qualification/ci.json <<EOF
+          {
+            "workflow": "CI",
+            "github_sha": "$GITHUB_SHA",
+            "github_run_id": "$GITHUB_RUN_ID",
+            "github_run_attempt": "$GITHUB_RUN_ATTEMPT",
+            "format": "success",
+            "build_test_matrix": "success",
+            "clang_tidy": "success",
+            "benchmark_build": "success"
+          }
+          EOF
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ci-qualification-evidence
+          path: evidence/qualification/ci.json

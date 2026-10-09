@@ -1,0 +1,203 @@
+name: Final Performance Campaign
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_index:
+        description: 'Independent final campaign run index'
+        required: true
+        type: choice
+        options: ['1', '2', '3', '4', '5']
+  pull_request:
+    paths:
+      - '.github/workflows/final-performance-campaign.yml'
+      - '.github/workflows/finalize-sota-campaign.yml'
+      - 'tools/validate_final_campaign.py'
+      - 'tools/test_final_campaign.py'
+      - 'docs/FINAL_SOTA_CAMPAIGN.md'
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile final campaign tooling
+        run: >-
+          python -m py_compile
+          tools/validate_final_campaign.py
+          tools/test_final_campaign.py
+          tools/freeze_github_evidence.py
+      - name: Run final campaign validation tests
+        run: python -m unittest -v tools/test_final_campaign.py
+
+  benchmark:
+    name: ${{ matrix.arch }} / ${{ matrix.compiler }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: linux-x64
+            compiler: gcc
+            cc: gcc
+            cxx: g++
+          - runner: ubuntu-24.04
+            arch: linux-x64
+            compiler: clang
+            cc: clang
+            cxx: clang++
+          - runner: ubuntu-24.04-arm
+            arch: linux-arm64
+            compiler: gcc
+            cc: gcc
+            cxx: g++
+          - runner: ubuntu-24.04-arm
+            arch: linux-arm64
+            compiler: clang
+            cc: clang
+            cxx: clang++
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install benchmark dependencies
+        run: sudo apt-get update && sudo apt-get install -y libboost-dev ninja-build
+      - name: Resolve campaign protocol
+        id: protocol
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            run_index='${{ inputs.run_index }}'
+            echo 'full=true' >> "$GITHUB_OUTPUT"
+            echo 'capacities=2,64,256,1024,65536' >> "$GITHUB_OUTPUT"
+            echo 'payloads=8,16,64,256' >> "$GITHUB_OUTPUT"
+            echo 'transfers=100000' >> "$GITHUB_OUTPUT"
+            echo 'warmups=5' >> "$GITHUB_OUTPUT"
+            echo 'repetitions=30' >> "$GITHUB_OUTPUT"
+            echo "run_index=$run_index" >> "$GITHUB_OUTPUT"
+            echo "seed=$((20261009 + run_index))" >> "$GITHUB_OUTPUT"
+          else
+            echo 'full=false' >> "$GITHUB_OUTPUT"
+            echo 'capacities=64' >> "$GITHUB_OUTPUT"
+            echo 'payloads=8' >> "$GITHUB_OUTPUT"
+            echo 'transfers=10000' >> "$GITHUB_OUTPUT"
+            echo 'warmups=0' >> "$GITHUB_OUTPUT"
+            echo 'repetitions=2' >> "$GITHUB_OUTPUT"
+            echo 'run_index=0' >> "$GITHUB_OUTPUT"
+            echo 'seed=20261009' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Capture environment and fixed protocol
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/final-performance
+          stdlib="$($CXX -dM -E -x c++ /dev/null | grep -E '__GLIBCXX__|_LIBCPP_VERSION' | tr '\n' ';' || true)"
+          {
+            echo "github_sha=$GITHUB_SHA"
+            echo "github_run_id=$GITHUB_RUN_ID"
+            echo "github_run_attempt=$GITHUB_RUN_ATTEMPT"
+            echo "event_name=$GITHUB_EVENT_NAME"
+            echo "campaign_run_index=${{ steps.protocol.outputs.run_index }}"
+            echo "runner_name=$RUNNER_NAME"
+            echo "runner_os=$RUNNER_OS"
+            echo "runner_arch=$RUNNER_ARCH"
+            echo "runner_image_os=${ImageOS:-unknown}"
+            echo "runner_image_version=${ImageVersion:-unknown}"
+            echo "matrix_arch=${{ matrix.arch }}"
+            echo "matrix_compiler=${{ matrix.compiler }}"
+            echo "compiler_path=$(command -v "$CXX")"
+            echo "stdlib=${stdlib:-unknown}"
+            "$CXX" --version | head -1 | sed 's/^/compiler_version=/'
+          } > evidence/final-performance/run-context.txt
+          tools/collect_machine_info.sh > evidence/final-performance/machine.txt
+          python tools/topology_matrix.py > evidence/final-performance/topology-matrix.json
+          python - <<'PY' > evidence/final-performance/protocol.json
+          import json
+          print(json.dumps({
+              "mode": "full" if "${{ steps.protocol.outputs.full }}" == "true" else "pull-request-smoke",
+              "run_index": int("${{ steps.protocol.outputs.run_index }}"),
+              "capacities": [int(x) for x in "${{ steps.protocol.outputs.capacities }}".split(',')],
+              "payload_bytes": [int(x) for x in "${{ steps.protocol.outputs.payloads }}".split(',')],
+              "transfers": int("${{ steps.protocol.outputs.transfers }}"),
+              "warmups": int("${{ steps.protocol.outputs.warmups }}"),
+              "repetitions": int("${{ steps.protocol.outputs.repetitions }}"),
+              "campaign_seed": int("${{ steps.protocol.outputs.seed }}"),
+              "bootstrap_seed": int("${{ steps.protocol.outputs.seed }}"),
+              "win_ci_lower_gt": 1.03,
+              "loss_ci_upper_lt": 0.97,
+          }, indent=2, sort_keys=True))
+          PY
+      - name: Configure complete benchmark laboratory
+        run: >-
+          cmake -S . -B build/final -G Ninja -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF
+          -DVERIQUEUE_BUILD_BENCHMARKS=ON -DVERIQUEUE_BUILD_BASELINES=ON
+      - name: Build complete benchmark laboratory
+        run: cmake --build build/final -j2
+      - name: Preserve exact compiler commands
+        run: cp build/final/compile_commands.json evidence/final-performance/compile_commands.json
+      - name: Run comparative campaign
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/run_compare_campaign.py \
+            --program build/final/bench_compare \
+            --capacities '${{ steps.protocol.outputs.capacities }}' \
+            --payloads '${{ steps.protocol.outputs.payloads }}' \
+            --transfers '${{ steps.protocol.outputs.transfers }}' \
+            --warmups '${{ steps.protocol.outputs.warmups }}' \
+            --repetitions '${{ steps.protocol.outputs.repetitions }}' \
+            --seed '${{ steps.protocol.outputs.seed }}' \
+            --output evidence/final-performance/raw-compare.jsonl
+      - name: Analyze paired comparative campaign
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/analyze_compare_campaign.py \
+            evidence/final-performance/raw-compare.jsonl \
+            --json-output evidence/final-performance/summary.json \
+            --markdown-output evidence/final-performance/summary.md \
+            --bootstrap-seed '${{ steps.protocol.outputs.seed }}'
+          cat evidence/final-performance/summary.md
+      - name: Run characterization harnesses
+        if: steps.protocol.outputs.full == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERIQUEUE_TRANSFERS=500000 build/final/bench_throughput \
+            > evidence/final-performance/characterization-throughput.jsonl
+          build/final/bench_bursts \
+            > evidence/final-performance/characterization-bursts.jsonl
+          build/final/bench_latency \
+            > evidence/final-performance/characterization-latency.jsonl
+          build/final/bench_payload \
+            > evidence/final-performance/characterization-payload.jsonl
+          build/final/bench_bulk 1000000 \
+            > evidence/final-performance/characterization-bulk.jsonl
+      - name: Bulk correctness smoke in PR mode
+        if: steps.protocol.outputs.full != 'true'
+        run: build/final/bench_bulk 10000 > evidence/final-performance/characterization-bulk.jsonl
+      - name: Assembly audit
+        if: always()
+        shell: bash
+        run: CXX="$CXX" tools/audit_assembly.sh evidence/final-performance/assembly.s | tee evidence/final-performance/assembly-audit.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hosted-performance-${{ matrix.arch }}-${{ matrix.compiler }}
+          path: evidence/final-performance/
