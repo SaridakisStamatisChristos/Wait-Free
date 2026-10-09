@@ -292,8 +292,10 @@ int dispatch(std::string_view variant, std::size_t capacity, std::size_t payload
 
 int main(int argc, char** argv) {
     if (argc < 4 || argc > 7) {
-        std::cerr << "usage: bench_hotpath_variants <variant> <capacity> [payload_bytes] <transfers> [scalar|bulk] [batch_size]\n"
-                  << "variants: veriqueue single_owner_cursor cached_limit split_control split_cached_limit\n";
+        std::cerr << "usage: bench_hotpath_variants <variant> <capacity> "
+                     "[payload_bytes] <transfers> [scalar|bulk] [batch_size]\n"
+                  << "variants: veriqueue single_owner_cursor cached_limit split_control "
+                     "split_cached_limit\n";
         return 2;
     }
     try {
