@@ -1,6 +1,7 @@
 #include "affinity.hpp"
 #include "environment.hpp"
 #include "experimental_spsc_v2.hpp"
+#include "experimental_spsc_round2.hpp"
 #include "veriqueue/spsc_queue.hpp"
 
 #include <algorithm>
@@ -239,6 +240,41 @@ result run_variant(std::string_view variant, std::string_view mode, std::size_t 
         auto q = std::make_unique<vqbench::experimental::v2::uint32_cursor<value_type, Capacity>>();
         return measure<PayloadBytes>(*q, mode, batch_width, transfers, cpus);
     }
+    if (variant == "split_atomic_owner") {
+        auto q = std::make_unique<
+            vqbench::experimental::round2::split_atomic_owner<value_type, Capacity>>();
+        return measure<PayloadBytes>(*q, mode, batch_width, transfers, cpus);
+    }
+    if (variant == "split_atomic_cached_limit") {
+        auto q = std::make_unique<
+            vqbench::experimental::round2::split_atomic_cached_limit<value_type, Capacity>>();
+        return measure<PayloadBytes>(*q, mode, batch_width, transfers, cpus);
+    }
+    if (variant == "split_local_owner") {
+        auto q = std::make_unique<
+            vqbench::experimental::round2::split_local_owner<value_type, Capacity>>();
+        return measure<PayloadBytes>(*q, mode, batch_width, transfers, cpus);
+    }
+    if (variant == "split_local_cached_limit") {
+        auto q = std::make_unique<
+            vqbench::experimental::round2::split_local_cached_limit<value_type, Capacity>>();
+        return measure<PayloadBytes>(*q, mode, batch_width, transfers, cpus);
+    }
+    if (variant == "split_atomic_owner_128") {
+        auto q = std::make_unique<
+            vqbench::experimental::round2::split_atomic_owner_128<value_type, Capacity>>();
+        return measure<PayloadBytes>(*q, mode, batch_width, transfers, cpus);
+    }
+    if (variant == "single_owner_u32") {
+        auto q = std::make_unique<
+            vqbench::experimental::round2::single_owner_u32<value_type, Capacity>>();
+        return measure<PayloadBytes>(*q, mode, batch_width, transfers, cpus);
+    }
+    if (variant == "single_owner_narrow") {
+        auto q = std::make_unique<
+            vqbench::experimental::round2::single_owner_narrow<value_type, Capacity>>();
+        return measure<PayloadBytes>(*q, mode, batch_width, transfers, cpus);
+    }
     throw std::invalid_argument("unknown variant: " + std::string(variant));
 }
 
@@ -274,8 +310,10 @@ result dispatch_payload(std::string_view variant, std::string_view mode, std::si
     return 0;
 }
 
-[[nodiscard]] unsigned index_bits_for(std::string_view variant) noexcept {
-    return variant == "uint32_cursor" ? 32U : static_cast<unsigned>(sizeof(std::size_t) * 8U);
+[[nodiscard]] unsigned index_bits_for(std::string_view variant, std::size_t capacity) noexcept {
+    if (variant == "uint32_cursor" || variant == "single_owner_u32") return 32U;
+    if (variant == "single_owner_narrow") return capacity <= 32767U ? 16U : 32U;
+    return static_cast<unsigned>(sizeof(std::size_t) * 8U);
 }
 
 } // namespace
@@ -313,7 +351,7 @@ int main(int argc, char** argv) {
                   << ",\"payload_bytes\":" << payload_bytes
                   << ",\"capacity\":" << capacity
                   << ",\"slot_padding_bytes\":" << padding_for(variant)
-                  << ",\"index_bits\":" << index_bits_for(variant)
+                  << ",\"index_bits\":" << index_bits_for(variant, capacity)
                   << ",\"producer_cpu\":" << cpus.producer
                   << ",\"consumer_cpu\":" << cpus.consumer
                   << ",\"topology\":\"" << vqbench::topology_label()

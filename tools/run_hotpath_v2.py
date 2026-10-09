@@ -22,6 +22,13 @@ DEFAULT_VARIANTS = [
     "guard128",
     "guard64_skew32",
     "uint32_cursor",
+    "split_atomic_owner",
+    "split_atomic_cached_limit",
+    "split_local_owner",
+    "split_local_cached_limit",
+    "split_atomic_owner_128",
+    "single_owner_u32",
+    "single_owner_narrow",
 ]
 VALID_CAPACITIES = (2, 64, 256, 1024, 65536)
 VALID_PAYLOADS = (8, 16, 64, 256)

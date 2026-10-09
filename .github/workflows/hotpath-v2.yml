@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'bench/experimental_spsc_v2.hpp'
+      - 'bench/experimental_spsc_round2.hpp'
       - 'bench/bench_hotpath_v2.cpp'
       - 'tools/run_hotpath_v2.py'
       - 'tools/analyze_hotpath_v2.py'
@@ -93,17 +94,23 @@ jobs:
       - name: Verify uint32 cursor rollover
         run: ./build/test_hotpath_v2_wrap
 
-      - name: Correctness and affinity smoke
+      - name: Round-2 correctness and affinity smoke
         shell: bash
         run: |
           set -euo pipefail
-          ./build/bench_hotpath_v2 production 64 8 10000 scalar 1
-          ./build/bench_hotpath_v2 single_owner_cached_limit 64 8 10000 scalar 1
-          ./build/bench_hotpath_v2 single_owner_cached_limit_unlikely 64 8 10000 scalar 1
-          ./build/bench_hotpath_v2 guard64 64 8 10000 scalar 1
-          ./build/bench_hotpath_v2 guard128 64 8 10000 scalar 1
-          ./build/bench_hotpath_v2 guard64_skew32 64 8 10000 scalar 1
-          ./build/bench_hotpath_v2 uint32_cursor 64 8 10000 scalar 1
+          for variant in \
+            production \
+            split_atomic_owner \
+            split_atomic_cached_limit \
+            split_local_owner \
+            split_local_cached_limit \
+            split_atomic_owner_128 \
+            single_owner_u32 \
+            single_owner_narrow; do
+            ./build/bench_hotpath_v2 "$variant" 64 8 10000 scalar 1
+          done
+          # At capacity 1024 this uses uint16_t and 100k transfers crosses wrap.
+          ./build/bench_hotpath_v2 single_owner_narrow 1024 8 100000 scalar 1
 
       - name: Generate and audit assembly
         shell: bash
@@ -124,7 +131,7 @@ jobs:
               --markdown-output "evidence/hotpath-v2/assembly/payload-${payload}.md"
           done
 
-      - name: Run focused scalar campaign
+      - name: Run round-2 focused scalar campaign
         shell: bash
         run: |
           set -euo pipefail
@@ -142,15 +149,24 @@ jobs:
               --warmups 5 \
               --repetitions 30 \
               --seed "$seed" \
+              --variants \
+                production \
+                split_atomic_owner \
+                split_atomic_cached_limit \
+                split_local_owner \
+                split_local_cached_limit \
+                split_atomic_owner_128 \
+                single_owner_u32 \
+                single_owner_narrow \
               --topology-policy '${{ matrix.topology_policy }}' \
               --output "evidence/hotpath-v2/raw/c${capacity}-p${payload}.jsonl"
           }
-          run_cell 1024 8 20261010
-          run_cell 1024 16 20261011
-          run_cell 1024 256 20261012
-          run_cell 64 8 20261013
-          run_cell 256 8 20261014
-          run_cell 65536 8 20261015
+          run_cell 1024 8 20261020
+          run_cell 1024 16 20261021
+          run_cell 1024 256 20261022
+          run_cell 64 8 20261023
+          run_cell 256 8 20261024
+          run_cell 65536 8 20261025
 
       - name: Analyze paired campaign
         shell: bash
@@ -158,19 +174,27 @@ jobs:
           set -euo pipefail
           python tools/analyze_hotpath_v2.py evidence/hotpath-v2/raw/*.jsonl \
             --require-repetitions 30 \
-            --bootstrap-seed 20261010 \
+            --bootstrap-seed 20261020 \
             --json-output evidence/hotpath-v2/summary.json \
             --markdown-output evidence/hotpath-v2/summary.md
           cat evidence/hotpath-v2/summary.md
 
-      - name: Bulk correctness smoke
+      - name: Round-2 bulk correctness smoke
         shell: bash
         run: |
           set -euo pipefail
           for batch in 4 16 64; do
-            ./build/bench_hotpath_v2 production 1024 8 10000 bulk "$batch"
-            ./build/bench_hotpath_v2 single_owner_cached_limit 1024 8 10000 bulk "$batch"
-            ./build/bench_hotpath_v2 guard64_skew32 1024 8 10000 bulk "$batch"
+            for variant in \
+              production \
+              split_atomic_owner \
+              split_atomic_cached_limit \
+              split_local_owner \
+              split_local_cached_limit \
+              split_atomic_owner_128 \
+              single_owner_u32 \
+              single_owner_narrow; do
+              ./build/bench_hotpath_v2 "$variant" 1024 8 10000 bulk "$batch"
+            done
           done
 
       - uses: actions/upload-artifact@v4
