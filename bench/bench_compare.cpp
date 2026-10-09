@@ -165,7 +165,7 @@ void emit(std::string_view name, const run_result& result, std::uint64_t transfe
               << ",\"checksum\":" << result.checksum
               << ",\"transfers_per_second\":" << result.rate
               << ",\"boost_version\":" << BOOST_VERSION
-              << "\",\"rigtorp_commit\":\"" << rigtorp_commit
+              << ",\"rigtorp_commit\":\"" << rigtorp_commit
               << "\",\"moodycamel_commit\":\"" << moodycamel_commit
               << "\",\"drogalis_commit\":\"" << drogalis_commit
               << "\",\"environment\":" << vqbench::environment_json() << "}\n";
