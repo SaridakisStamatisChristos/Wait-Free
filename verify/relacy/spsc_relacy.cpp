@@ -37,6 +37,10 @@ public:
         return true;
     }
 
+    unsigned final_size() {
+        return producer_tail_($) - consumer_head_($);
+    }
+
 private:
     VAR_T(unsigned) producer_tail_{0};
     VAR_T(unsigned) producer_cached_head_{0};
@@ -49,25 +53,75 @@ private:
 
 template <std::size_t Capacity>
 struct correct_test : rl::test_suite<correct_test<Capacity>, 2> {
+    static constexpr int operation_count = 5;
+
     queue<Capacity> q;
-    VAR_T(int) popped{0};
+    bool pushed[operation_count]{};
+    int popped_values[operation_count]{};
+    int push_count{0};
+    int pop_count{0};
+    int failed_push_count{0};
+    int failed_pop_count{0};
+
+    void before() {
+        for (int i = 0; i < operation_count; ++i) {
+            pushed[i] = false;
+            popped_values[i] = 0;
+        }
+        push_count = 0;
+        pop_count = 0;
+        failed_push_count = 0;
+        failed_pop_count = 0;
+    }
 
     void thread(unsigned index) {
         if (index == 0) {
-            static_cast<void>(q.push(1));
-            static_cast<void>(q.push(2));
-            static_cast<void>(q.push(3));
+            for (int value = 1; value <= operation_count; ++value) {
+                const bool ok = q.push(value);
+                pushed[value - 1] = ok;
+                if (ok) {
+                    ++push_count;
+                } else {
+                    ++failed_push_count;
+                }
+            }
         } else {
-            int last = 0;
-            int value = 0;
-            for (int i = 0; i < 3; ++i) {
+            // More attempts than values deliberately exercise both successful and
+            // empty observations without adding a retry loop to the modeled queue.
+            for (int attempt = 0; attempt < operation_count + static_cast<int>(Capacity); ++attempt) {
+                int value = 0;
                 if (q.pop(value)) {
-                    RL_ASSERT(value > last);
-                    last = value;
-                    popped($) += 1;
+                    RL_ASSERT(pop_count < operation_count);
+                    popped_values[pop_count] = value;
+                    ++pop_count;
+                } else {
+                    ++failed_pop_count;
                 }
             }
         }
+    }
+
+    void after() {
+        RL_ASSERT(push_count + failed_push_count == operation_count);
+        RL_ASSERT(pop_count + failed_pop_count == operation_count + static_cast<int>(Capacity));
+        RL_ASSERT(pop_count <= push_count);
+
+        // Successful pops must be exactly the FIFO prefix of successful pushes.
+        // Failed pushes are absent from the abstract queue, so skip them when
+        // reconstructing the expected sequence.
+        int expected_index = 0;
+        for (int i = 0; i < pop_count; ++i) {
+            while (expected_index < operation_count && !pushed[expected_index]) {
+                ++expected_index;
+            }
+            RL_ASSERT(expected_index < operation_count);
+            RL_ASSERT(popped_values[i] == expected_index + 1);
+            ++expected_index;
+        }
+
+        const unsigned logical_size = q.final_size();
+        RL_ASSERT(logical_size <= Capacity);
+        RL_ASSERT(logical_size == static_cast<unsigned>(push_count - pop_count));
     }
 };
 
@@ -76,5 +130,6 @@ struct correct_test : rl::test_suite<correct_test<Capacity>, 2> {
 int main() {
     const bool one = rl::simulate<correct_test<1>>();
     const bool two = rl::simulate<correct_test<2>>();
-    return (one && two) ? 0 : 1;
+    const bool four = rl::simulate<correct_test<4>>();
+    return (one && two && four) ? 0 : 1;
 }
