@@ -26,13 +26,20 @@ struct padding_block final {
 template <>
 struct padding_block<0> final {};
 
-// The storage region itself starts on a cache-line boundary. Padding is placed
-// inside that region, before the slot array, so 64/128-byte guards move cache-set
-// placement while a 96-byte guard produces the requested 64+32 phase skew for
-// normally aligned payloads. The compiler may add only the extra padding required
-// to preserve alignof(slot<T>) for over-aligned T.
+template <class T>
+inline constexpr std::size_t storage_alignment =
+    cache_line > alignof(veriqueue::detail::slot<T>)
+        ? cache_line
+        : alignof(veriqueue::detail::slot<T>);
+
+// The storage region itself starts on at least a cache-line boundary and retains
+// stricter slot<T> alignment for over-aligned T. Padding is placed inside that
+// region, before the slot array, so 64/128-byte guards move cache-set placement
+// while a 96-byte guard produces the requested 64+32 phase skew for normally
+// aligned payloads. The compiler may add only the extra padding required to
+// preserve alignof(slot<T>) for over-aligned T.
 template <class T, std::size_t Capacity, std::size_t PaddingBytes>
-struct alignas(cache_line) slot_storage final {
+struct alignas(storage_alignment<T>) slot_storage final {
     [[no_unique_address]] padding_block<PaddingBytes> padding{};
     std::array<veriqueue::detail::slot<T>, Capacity> slots{};
 };
