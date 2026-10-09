@@ -12,8 +12,8 @@ This ledger prevents experimental language from silently becoming marketing lang
 | No detected ASan/UBSan issue | empirically validated for tested executions | sanitizer run `37925976467`, artifact `11613633175` |
 | No detected TSan race | empirically validated for tested executions | sanitizer run `37925976467`, artifact `11614500625` |
 | Small weak-memory protocol executions satisfy assertions | model-checked for configured Relacy search | model-check run `37925976310`; committed `evidence/relacy/relacy.log` |
-| 64 sampled short histories are linearizable | empirically validated | Porcupine run `37925976310`; committed summary + artifact `11614266051` |
-| Curated verifier mutation kill rate is 100% | verified for MUT-01..MUT-08 | 8/8 killed; `VERIFIER_EFFECTIVENESS.md` + artifact `11613968321` |
+| 256 sampled short histories are linearizable | empirically validated | Model Check run `37971003906`; capacities 1/2/4/8 × uniform/burst/producer-heavy/consumer-heavy × scalar/mixed × seeds 1..8, all PASS; artifact `11635467682` |
+| Curated verifier mutation kill rate is 100% | verified for MUT-01..MUT-32 | Model Check run `37971003906`; 32/32 explicitly reported KILLED; artifact `11635572702` |
 | Coverage-guided fuzz smoke completed without discovered failure | empirically validated for campaign budget | fuzz run `37925976391`, artifact `11614332252` |
 | Rigtorp/Boost comparison laboratory builds | verified | benchmark-build job in CI run `37925976300` |
 | Representative hot path has no detected mutex/allocation/CAS/locked instruction | assembly-audited for representative specialization/compiler | CI run `37925976300`; repeated PASS in benchmark run `37928700809` |
