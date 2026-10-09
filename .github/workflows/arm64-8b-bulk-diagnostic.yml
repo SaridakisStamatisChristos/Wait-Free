@@ -9,6 +9,9 @@ on:
 permissions:
   contents: read
 
+env:
+  PRE_OPT_BASELINE: d1382588262b2275ecde9bf1a6948e67fcd056f3
+
 jobs:
   qualify:
     strategy:
@@ -26,21 +29,31 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 40
     steps:
-      - name: Checkout candidate
+      - name: Checkout exact candidate
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           path: candidate
-      - name: Checkout production reference
+      - name: Checkout identical current harness for reference
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.base.sha }}
           path: reference
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y ninja-build clang
+      - name: Inject only the pre-optimization queue header into reference
+        run: |
+          git -C reference fetch --no-tags --depth=1 origin "$PRE_OPT_BASELINE"
+          git -C reference show FETCH_HEAD:include/veriqueue/spsc_queue.hpp > /tmp/pre_opt_spsc_queue.hpp
+          cp /tmp/pre_opt_spsc_queue.hpp reference/include/veriqueue/spsc_queue.hpp
+          test "$(git -C reference diff --name-only)" = "include/veriqueue/spsc_queue.hpp"
+          cmp candidate/bench/bench_hotpath_variants.cpp reference/bench/bench_hotpath_variants.cpp
+          cmp candidate/tools/run_regression_campaign.py reference/tools/run_regression_campaign.py
+          cmp candidate/tools/analyze_regression_campaign.py reference/tools/analyze_regression_campaign.py
       - name: Configure and build identical harnesses
         env:
           CC: ${{ matrix.cc }}
@@ -63,38 +76,38 @@ jobs:
               chmod +x "build/${role}/bench_bulk_${batch}"
             done
           done
-      - name: Run scalar control
+      - name: Run scalar control vs pre-optimization baseline
         run: |
-          OUT="candidate/evidence/arm64-8b-gated/${{ matrix.compiler }}"
+          OUT="candidate/evidence/arm64-8b-vs-preopt/${{ matrix.compiler }}"
           mkdir -p "$OUT"
           python candidate/tools/run_regression_campaign.py \
             --candidate "$GITHUB_WORKSPACE/build/candidate/bench_hotpath_variants" \
             --reference "$GITHUB_WORKSPACE/build/reference/bench_hotpath_variants" \
             --capacities 256,1024 --payloads 8 --transfers 600000 \
-            --warmups 3 --repetitions 40 --seed 20261301 \
+            --warmups 3 --repetitions 40 --seed 20261401 \
             --output "$OUT/scalar-raw.jsonl"
           python candidate/tools/analyze_regression_campaign.py "$OUT/scalar-raw.jsonl" \
             --json-output "$OUT/scalar-summary.json" \
-            --markdown-output "$OUT/scalar-summary.md" --bootstrap-seed 20261301 || true
+            --markdown-output "$OUT/scalar-summary.md" --bootstrap-seed 20261401 || true
           cat "$OUT/scalar-summary.md"
-      - name: Run bulk matrix
+      - name: Run bulk matrix vs pre-optimization baseline
         run: |
-          OUT="candidate/evidence/arm64-8b-gated/${{ matrix.compiler }}"
+          OUT="candidate/evidence/arm64-8b-vs-preopt/${{ matrix.compiler }}"
           for batch in 4 16 64; do
             python candidate/tools/run_regression_campaign.py \
               --candidate "$GITHUB_WORKSPACE/build/candidate/bench_bulk_${batch}" \
               --reference "$GITHUB_WORKSPACE/build/reference/bench_bulk_${batch}" \
               --capacities 256,1024 --payloads 8 --transfers 600000 \
-              --warmups 3 --repetitions 40 --seed "$((20261310 + batch))" \
+              --warmups 3 --repetitions 40 --seed "$((20261410 + batch))" \
               --output "$OUT/bulk${batch}-raw.jsonl"
             python candidate/tools/analyze_regression_campaign.py "$OUT/bulk${batch}-raw.jsonl" \
               --json-output "$OUT/bulk${batch}-summary.json" \
               --markdown-output "$OUT/bulk${batch}-summary.md" \
-              --bootstrap-seed "$((20261310 + batch))" || true
+              --bootstrap-seed "$((20261410 + batch))" || true
             cat "$OUT/bulk${batch}-summary.md"
           done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: arm64-8b-gated-${{ matrix.compiler }}
-          path: candidate/evidence/arm64-8b-gated/${{ matrix.compiler }}/
+          name: arm64-8b-vs-preopt-${{ matrix.compiler }}
+          path: candidate/evidence/arm64-8b-vs-preopt/${{ matrix.compiler }}/
