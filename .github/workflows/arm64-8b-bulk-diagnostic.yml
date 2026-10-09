@@ -3,8 +3,8 @@ name: ARM64 8B Bulk Diagnostic
 on:
   pull_request:
     paths:
-      - 'include/veriqueue/spsc_queue.hpp'
       - '.github/workflows/arm64-8b-bulk-diagnostic.yml'
+      - 'include/veriqueue/spsc_queue.hpp'
 
 permissions:
   contents: read
@@ -13,7 +13,7 @@ env:
   PRE_OPT_BASELINE: d1382588262b2275ecde9bf1a6948e67fcd056f3
 
 jobs:
-  qualify:
+  isolate:
     strategy:
       fail-fast: false
       matrix:
@@ -27,48 +27,55 @@ jobs:
             cc: clang
             cxx: clang++
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 40
+    timeout-minutes: 45
     steps:
-      - name: Checkout exact candidate
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          path: candidate
-      - name: Checkout identical current harness for reference
+      - name: Checkout current production harness
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.base.sha }}
-          path: reference
+          path: current
+      - name: Checkout identical harness for old-header reference
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: old
           fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y ninja-build clang
-      - name: Inject only the pre-optimization queue header into reference
+      - name: Inject old queue header only
         run: |
-          git -C reference fetch --no-tags --depth=1 origin "$PRE_OPT_BASELINE"
-          git -C reference show FETCH_HEAD:include/veriqueue/spsc_queue.hpp > /tmp/pre_opt_spsc_queue.hpp
-          cp /tmp/pre_opt_spsc_queue.hpp reference/include/veriqueue/spsc_queue.hpp
-          test "$(git -C reference diff --name-only)" = "include/veriqueue/spsc_queue.hpp"
-          cmp candidate/bench/bench_hotpath_variants.cpp reference/bench/bench_hotpath_variants.cpp
-          cmp candidate/tools/run_regression_campaign.py reference/tools/run_regression_campaign.py
-          cmp candidate/tools/analyze_regression_campaign.py reference/tools/analyze_regression_campaign.py
-      - name: Configure and build identical harnesses
+          git -C old fetch --no-tags --depth=1 origin "$PRE_OPT_BASELINE"
+          git -C old show FETCH_HEAD:include/veriqueue/spsc_queue.hpp > /tmp/old.hpp
+          cp /tmp/old.hpp old/include/veriqueue/spsc_queue.hpp
+          test "$(git -C old diff --name-only)" = "include/veriqueue/spsc_queue.hpp"
+          cmp current/bench/bench_hotpath_variants.cpp old/bench/bench_hotpath_variants.cpp
+          cmp current/tools/run_regression_campaign.py old/tools/run_regression_campaign.py
+          cmp current/tools/analyze_regression_campaign.py old/tools/analyze_regression_campaign.py
+      - name: Build default, forced-dual, and old-header queues
         env:
           CC: ${{ matrix.cc }}
           CXX: ${{ matrix.cxx }}
         run: |
-          for role in candidate reference; do
-            cmake -S "$role" -B "build/$role" -G Ninja -DCMAKE_BUILD_TYPE=Release \
-              -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF \
-              -DVERIQUEUE_BUILD_BENCHMARKS=ON -DVERIQUEUE_BUILD_BASELINES=OFF
-            cmake --build "build/$role" --target bench_hotpath_variants -j2
-          done
+          cmake -S current -B build/current -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF \
+            -DVERIQUEUE_BUILD_BENCHMARKS=ON -DVERIQUEUE_BUILD_BASELINES=OFF
+          cmake -S current -B build/dual -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_FLAGS=-DVERIQUEUE_FORCE_DUAL_OWNER_CURSOR \
+            -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF \
+            -DVERIQUEUE_BUILD_BENCHMARKS=ON -DVERIQUEUE_BUILD_BASELINES=OFF
+          cmake -S old -B build/old -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF \
+            -DVERIQUEUE_BUILD_BENCHMARKS=ON -DVERIQUEUE_BUILD_BASELINES=OFF
+          cmake --build build/current --target bench_hotpath_variants -j2
+          cmake --build build/dual --target bench_hotpath_variants -j2
+          cmake --build build/old --target bench_hotpath_variants -j2
       - name: Make bulk wrappers
         run: |
-          for role in candidate reference; do
-            for batch in 4 16 64; do
+          for role in current dual old; do
+            for batch in 4 64; do
               cat > "build/${role}/bench_bulk_${batch}" <<EOF
           #!/usr/bin/env bash
           exec "$GITHUB_WORKSPACE/build/${role}/bench_hotpath_variants" "\$1" "\$2" "\$3" "\$4" bulk ${batch}
@@ -76,38 +83,38 @@ jobs:
               chmod +x "build/${role}/bench_bulk_${batch}"
             done
           done
-      - name: Run scalar control vs pre-optimization baseline
+      - name: Compare current and forced-dual directly to old baseline
         run: |
-          OUT="candidate/evidence/arm64-8b-vs-preopt/${{ matrix.compiler }}"
-          mkdir -p "$OUT"
-          python candidate/tools/run_regression_campaign.py \
-            --candidate "$GITHUB_WORKSPACE/build/candidate/bench_hotpath_variants" \
-            --reference "$GITHUB_WORKSPACE/build/reference/bench_hotpath_variants" \
-            --capacities 256,1024 --payloads 8 --transfers 600000 \
-            --warmups 3 --repetitions 40 --seed 20261401 \
-            --output "$OUT/scalar-raw.jsonl"
-          python candidate/tools/analyze_regression_campaign.py "$OUT/scalar-raw.jsonl" \
-            --json-output "$OUT/scalar-summary.json" \
-            --markdown-output "$OUT/scalar-summary.md" --bootstrap-seed 20261401 || true
-          cat "$OUT/scalar-summary.md"
-      - name: Run bulk matrix vs pre-optimization baseline
-        run: |
-          OUT="candidate/evidence/arm64-8b-vs-preopt/${{ matrix.compiler }}"
-          for batch in 4 16 64; do
-            python candidate/tools/run_regression_campaign.py \
-              --candidate "$GITHUB_WORKSPACE/build/candidate/bench_bulk_${batch}" \
-              --reference "$GITHUB_WORKSPACE/build/reference/bench_bulk_${batch}" \
-              --capacities 256,1024 --payloads 8 --transfers 600000 \
-              --warmups 3 --repetitions 40 --seed "$((20261410 + batch))" \
-              --output "$OUT/bulk${batch}-raw.jsonl"
-            python candidate/tools/analyze_regression_campaign.py "$OUT/bulk${batch}-raw.jsonl" \
-              --json-output "$OUT/bulk${batch}-summary.json" \
-              --markdown-output "$OUT/bulk${batch}-summary.md" \
-              --bootstrap-seed "$((20261410 + batch))" || true
-            cat "$OUT/bulk${batch}-summary.md"
+          ROOT="current/evidence/owner-isolation/${{ matrix.compiler }}"
+          mkdir -p "$ROOT"
+          for role in current dual; do
+            OUT="$ROOT/${role}-vs-old"
+            mkdir -p "$OUT"
+            python current/tools/run_regression_campaign.py \
+              --candidate "$GITHUB_WORKSPACE/build/${role}/bench_hotpath_variants" \
+              --reference "$GITHUB_WORKSPACE/build/old/bench_hotpath_variants" \
+              --capacities 256,1024 --payloads 8 --transfers 800000 \
+              --warmups 4 --repetitions 50 --seed "$((20261500 + (role == 'dual' ? 1 : 0)))" \
+              --output "$OUT/scalar-raw.jsonl"
+            python current/tools/analyze_regression_campaign.py "$OUT/scalar-raw.jsonl" \
+              --json-output "$OUT/scalar-summary.json" --markdown-output "$OUT/scalar-summary.md" \
+              --bootstrap-seed 20261501 || true
+            cat "$OUT/scalar-summary.md"
+            for batch in 4 64; do
+              python current/tools/run_regression_campaign.py \
+                --candidate "$GITHUB_WORKSPACE/build/${role}/bench_bulk_${batch}" \
+                --reference "$GITHUB_WORKSPACE/build/old/bench_bulk_${batch}" \
+                --capacities 256,1024 --payloads 8 --transfers 800000 \
+                --warmups 4 --repetitions 50 --seed "$((20261510 + batch + (role == 'dual' ? 100 : 0)))" \
+                --output "$OUT/bulk${batch}-raw.jsonl"
+              python current/tools/analyze_regression_campaign.py "$OUT/bulk${batch}-raw.jsonl" \
+                --json-output "$OUT/bulk${batch}-summary.json" --markdown-output "$OUT/bulk${batch}-summary.md" \
+                --bootstrap-seed "$((20261510 + batch))" || true
+              cat "$OUT/bulk${batch}-summary.md"
+            done
           done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: arm64-8b-vs-preopt-${{ matrix.compiler }}
-          path: candidate/evidence/arm64-8b-vs-preopt/${{ matrix.compiler }}/
+          name: owner-isolation-${{ matrix.compiler }}
+          path: current/evidence/owner-isolation/${{ matrix.compiler }}/
