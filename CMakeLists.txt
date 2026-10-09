@@ -17,7 +17,7 @@ add_library(veriqueue::veriqueue ALIAS veriqueue)
 target_include_directories(veriqueue INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>)
-target_compile_features(veriqueue INTERFACE cxx_std_23)
+target_compile_features(veriqueue INTERFACE cxx_std_20)
 if(VERIQUEUE_DISABLE_PADDING)
   target_compile_definitions(veriqueue INTERFACE VERIQUEUE_DISABLE_PADDING=1)
 endif()
