@@ -8,6 +8,7 @@ on:
         required: true
         type: choice
         options: ['1', '2', '3', '4', '5']
+  create:
   pull_request:
     paths:
       - '.github/workflows/final-performance-campaign.yml'
@@ -38,6 +39,9 @@ jobs:
         run: python -m unittest -v tools/test_final_campaign.py
 
   benchmark:
+    if: >-
+      github.event_name != 'create' ||
+      (github.event.ref_type == 'branch' && startsWith(github.event.ref, 'final-campaign/run-'))
     name: ${{ matrix.arch }} / ${{ matrix.compiler }}
     strategy:
       fail-fast: false
@@ -80,26 +84,39 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
-            run_index='${{ inputs.run_index }}'
-            echo 'full=true' >> "$GITHUB_OUTPUT"
-            echo 'capacities=2,64,256,1024,65536' >> "$GITHUB_OUTPUT"
-            echo 'payloads=8,16,64,256' >> "$GITHUB_OUTPUT"
-            echo 'transfers=100000' >> "$GITHUB_OUTPUT"
-            echo 'warmups=5' >> "$GITHUB_OUTPUT"
-            echo 'repetitions=30' >> "$GITHUB_OUTPUT"
-            echo "run_index=$run_index" >> "$GITHUB_OUTPUT"
-            echo "seed=$((20261009 + run_index))" >> "$GITHUB_OUTPUT"
-          else
-            echo 'full=false' >> "$GITHUB_OUTPUT"
-            echo 'capacities=64' >> "$GITHUB_OUTPUT"
-            echo 'payloads=8' >> "$GITHUB_OUTPUT"
-            echo 'transfers=10000' >> "$GITHUB_OUTPUT"
-            echo 'warmups=0' >> "$GITHUB_OUTPUT"
-            echo 'repetitions=2' >> "$GITHUB_OUTPUT"
-            echo 'run_index=0' >> "$GITHUB_OUTPUT"
-            echo 'seed=20261009' >> "$GITHUB_OUTPUT"
-          fi
+          case "$GITHUB_EVENT_NAME" in
+            workflow_dispatch)
+              run_index='${{ inputs.run_index }}'
+              ;;
+            create)
+              branch='${{ github.event.ref }}'
+              if [[ ! "$branch" =~ ^final-campaign/run-([1-5])$ ]]; then
+                echo "Create-triggered full campaign requires final-campaign/run-[1-5], got '$branch'." >&2
+                exit 1
+              fi
+              run_index="${BASH_REMATCH[1]}"
+              ;;
+            *)
+              echo 'full=false' >> "$GITHUB_OUTPUT"
+              echo 'capacities=64' >> "$GITHUB_OUTPUT"
+              echo 'payloads=8' >> "$GITHUB_OUTPUT"
+              echo 'transfers=10000' >> "$GITHUB_OUTPUT"
+              echo 'warmups=0' >> "$GITHUB_OUTPUT"
+              echo 'repetitions=2' >> "$GITHUB_OUTPUT"
+              echo 'run_index=0' >> "$GITHUB_OUTPUT"
+              echo 'seed=20261009' >> "$GITHUB_OUTPUT"
+              exit 0
+              ;;
+          esac
+
+          echo 'full=true' >> "$GITHUB_OUTPUT"
+          echo 'capacities=2,64,256,1024,65536' >> "$GITHUB_OUTPUT"
+          echo 'payloads=8,16,64,256' >> "$GITHUB_OUTPUT"
+          echo 'transfers=100000' >> "$GITHUB_OUTPUT"
+          echo 'warmups=5' >> "$GITHUB_OUTPUT"
+          echo 'repetitions=30' >> "$GITHUB_OUTPUT"
+          echo "run_index=$run_index" >> "$GITHUB_OUTPUT"
+          echo "seed=$((20261009 + run_index))" >> "$GITHUB_OUTPUT"
       - name: Capture environment and fixed protocol
         shell: bash
         run: |
@@ -111,6 +128,7 @@ jobs:
             echo "github_run_id=$GITHUB_RUN_ID"
             echo "github_run_attempt=$GITHUB_RUN_ATTEMPT"
             echo "event_name=$GITHUB_EVENT_NAME"
+            echo "trigger_ref=${GITHUB_REF_NAME:-unknown}"
             echo "campaign_run_index=${{ steps.protocol.outputs.run_index }}"
             echo "runner_name=$RUNNER_NAME"
             echo "runner_os=$RUNNER_OS"
