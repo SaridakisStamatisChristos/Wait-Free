@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  diagnose:
+  qualify:
     strategy:
       fail-fast: false
       matrix:
@@ -26,31 +26,35 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout candidate
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
+          path: candidate
+      - name: Checkout production reference
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: reference
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y ninja-build clang
-      - name: Configure production and contiguous-bulk builds
+      - name: Configure and build identical harnesses
         env:
           CC: ${{ matrix.cc }}
           CXX: ${{ matrix.cxx }}
         run: |
-          cmake -S . -B build/default -G Ninja -DCMAKE_BUILD_TYPE=Release \
-            -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF \
-            -DVERIQUEUE_BUILD_BENCHMARKS=ON -DVERIQUEUE_BUILD_BASELINES=OFF
-          cmake -S . -B build/contig -G Ninja -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_CXX_FLAGS=-DVERIQUEUE_EXPERIMENTAL_ARM64_8B_CONTIGUOUS_BULK=1 \
-            -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF \
-            -DVERIQUEUE_BUILD_BENCHMARKS=ON -DVERIQUEUE_BUILD_BASELINES=OFF
-          cmake --build build/default --target bench_hotpath_variants -j2
-          cmake --build build/contig --target bench_hotpath_variants -j2
+          for role in candidate reference; do
+            cmake -S "$role" -B "build/$role" -G Ninja -DCMAKE_BUILD_TYPE=Release \
+              -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF \
+              -DVERIQUEUE_BUILD_BENCHMARKS=ON -DVERIQUEUE_BUILD_BASELINES=OFF
+            cmake --build "build/$role" --target bench_hotpath_variants -j2
+          done
       - name: Make bulk wrappers
         run: |
-          for role in default contig; do
+          for role in candidate reference; do
             for batch in 4 16 64; do
               cat > "build/${role}/bench_bulk_${batch}" <<EOF
           #!/usr/bin/env bash
@@ -61,36 +65,36 @@ jobs:
           done
       - name: Run scalar control
         run: |
-          OUT="evidence/arm64-8b-contiguous/${{ matrix.compiler }}"
+          OUT="candidate/evidence/arm64-8b-gated/${{ matrix.compiler }}"
           mkdir -p "$OUT"
-          python tools/run_regression_campaign.py \
-            --candidate "$GITHUB_WORKSPACE/build/contig/bench_hotpath_variants" \
-            --reference "$GITHUB_WORKSPACE/build/default/bench_hotpath_variants" \
+          python candidate/tools/run_regression_campaign.py \
+            --candidate "$GITHUB_WORKSPACE/build/candidate/bench_hotpath_variants" \
+            --reference "$GITHUB_WORKSPACE/build/reference/bench_hotpath_variants" \
             --capacities 256,1024 --payloads 8 --transfers 600000 \
-            --warmups 3 --repetitions 40 --seed 20261201 \
+            --warmups 3 --repetitions 40 --seed 20261301 \
             --output "$OUT/scalar-raw.jsonl"
-          python tools/analyze_regression_campaign.py "$OUT/scalar-raw.jsonl" \
+          python candidate/tools/analyze_regression_campaign.py "$OUT/scalar-raw.jsonl" \
             --json-output "$OUT/scalar-summary.json" \
-            --markdown-output "$OUT/scalar-summary.md" --bootstrap-seed 20261201 || true
+            --markdown-output "$OUT/scalar-summary.md" --bootstrap-seed 20261301 || true
           cat "$OUT/scalar-summary.md"
       - name: Run bulk matrix
         run: |
-          OUT="evidence/arm64-8b-contiguous/${{ matrix.compiler }}"
+          OUT="candidate/evidence/arm64-8b-gated/${{ matrix.compiler }}"
           for batch in 4 16 64; do
-            python tools/run_regression_campaign.py \
-              --candidate "$GITHUB_WORKSPACE/build/contig/bench_bulk_${batch}" \
-              --reference "$GITHUB_WORKSPACE/build/default/bench_bulk_${batch}" \
+            python candidate/tools/run_regression_campaign.py \
+              --candidate "$GITHUB_WORKSPACE/build/candidate/bench_bulk_${batch}" \
+              --reference "$GITHUB_WORKSPACE/build/reference/bench_bulk_${batch}" \
               --capacities 256,1024 --payloads 8 --transfers 600000 \
-              --warmups 3 --repetitions 40 --seed "$((20261210 + batch))" \
+              --warmups 3 --repetitions 40 --seed "$((20261310 + batch))" \
               --output "$OUT/bulk${batch}-raw.jsonl"
-            python tools/analyze_regression_campaign.py "$OUT/bulk${batch}-raw.jsonl" \
+            python candidate/tools/analyze_regression_campaign.py "$OUT/bulk${batch}-raw.jsonl" \
               --json-output "$OUT/bulk${batch}-summary.json" \
               --markdown-output "$OUT/bulk${batch}-summary.md" \
-              --bootstrap-seed "$((20261210 + batch))" || true
+              --bootstrap-seed "$((20261310 + batch))" || true
             cat "$OUT/bulk${batch}-summary.md"
           done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: arm64-8b-contiguous-${{ matrix.compiler }}
-          path: evidence/arm64-8b-contiguous/${{ matrix.compiler }}/
+          name: arm64-8b-gated-${{ matrix.compiler }}
+          path: candidate/evidence/arm64-8b-gated/${{ matrix.compiler }}/
