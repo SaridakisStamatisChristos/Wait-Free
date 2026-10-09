@@ -1,0 +1,20 @@
+{
+  "evidence_code_commit": "d051ba8c362259e46ada68c2fb9b25e60725eb26",
+  "workflow_run": 37925976310,
+  "artifact_id": 11613968321,
+  "artifact_digest": "sha256:81d9de510c8cccc8962c95013d8af5e24646922b0691474d7cfccc8889f7a048",
+  "mutants_total": 8,
+  "mutants_killed": 8,
+  "kill_rate": 1.0,
+  "results": [
+    {"mutant": "MUT-01", "killed": true},
+    {"mutant": "MUT-02", "killed": true},
+    {"mutant": "MUT-03", "killed": true},
+    {"mutant": "MUT-04", "killed": true},
+    {"mutant": "MUT-05", "killed": true},
+    {"mutant": "MUT-06", "killed": true},
+    {"mutant": "MUT-07", "killed": true},
+    {"mutant": "MUT-08", "killed": true}
+  ],
+  "scope_note": "100% applies only to the curated MUT-01..MUT-08 catalogue."
+}

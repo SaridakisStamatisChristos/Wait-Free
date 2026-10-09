@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python tools/check_format.py
+
+  build-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure compiler
+        run: |
+          if [ "${{ matrix.compiler }}" = gcc ]; then
+            echo 'CC=gcc' >> "$GITHUB_ENV"
+            echo 'CXX=g++' >> "$GITHUB_ENV"
+          else
+            echo 'CC=clang' >> "$GITHUB_ENV"
+            echo 'CXX=clang++' >> "$GITHUB_ENV"
+          fi
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+      - name: Build
+        run: cmake --build build -j2
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  clang-tidy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install clang-tidy
+        run: sudo apt-get update && sudo apt-get install -y clang-tidy ninja-build
+      - name: Configure compile database
+        run: cmake -S . -B build/tidy -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DVERIQUEUE_BUILD_STRESS=OFF
+      - name: Analyze public header consumers
+        run: |
+          clang-tidy tests/unit/test_basic.cpp tests/unit/test_lifetime.cpp tests/unit/test_wraparound.cpp \
+            -p build/tidy
+  benchmark-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install baseline dependency
+        run: sudo apt-get update && sudo apt-get install -y libboost-dev
+      - name: Configure all benchmark targets
+        run: >-
+          cmake -S . -B build/bench -G Ninja -DCMAKE_BUILD_TYPE=Release
+          -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF
+          -DVERIQUEUE_BUILD_BENCHMARKS=ON -DVERIQUEUE_BUILD_BASELINES=ON
+      - name: Build benchmark laboratory
+        run: cmake --build build/bench -j2
+      - name: Assembly audit
+        run: CXX=c++ tools/audit_assembly.sh /tmp/veriqueue-assembly.s

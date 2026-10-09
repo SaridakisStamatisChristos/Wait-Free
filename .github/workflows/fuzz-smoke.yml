@@ -1,0 +1,42 @@
+name: Fuzz Smoke
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '17 2 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure fuzzers
+        env:
+          CC: clang
+          CXX: clang++
+        run: >-
+          cmake -S . -B build/fuzz -G Ninja
+          -DVERIQUEUE_BUILD_TESTS=OFF
+          -DVERIQUEUE_BUILD_STRESS=OFF
+          -DVERIQUEUE_BUILD_FUZZERS=ON
+      - name: Build
+        run: cmake --build build/fuzz -j2
+      - name: Fuzz
+        run: |
+          mkdir -p evidence/fuzz fuzz/corpus
+          seconds=20
+          if [ "${{ github.event_name }}" = schedule ]; then seconds=300; fi
+          for target in fuzz_model fuzz_lifetime fuzz_wraparound; do
+            ./build/fuzz/$target -max_total_time=$seconds -artifact_prefix=evidence/fuzz/ fuzz/corpus \
+              2>&1 | tee "evidence/fuzz/${target}.log"
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fuzz-evidence
+          path: evidence/fuzz/

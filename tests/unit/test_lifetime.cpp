@@ -1,0 +1,83 @@
+#include "test_support.hpp"
+#include "veriqueue/spsc_queue.hpp"
+
+#include <atomic>
+#include <cstdint>
+#include <utility>
+
+struct tracked final {
+    static inline std::atomic<int> constructed{0};
+    static inline std::atomic<int> destroyed{0};
+    static inline std::atomic<int> live{0};
+    static inline std::atomic<bool> violation{false};
+
+    std::uint64_t id{0};
+    bool valid{true};
+
+    explicit tracked(std::uint64_t value) noexcept : id(value) {
+        ++constructed;
+        ++live;
+    }
+
+    tracked(tracked&& other) noexcept : id(other.id) {
+        if (!other.valid) violation = true;
+        other.valid = false;
+        ++constructed;
+        ++live;
+    }
+
+    tracked& operator=(tracked&& other) noexcept {
+        if (!valid || !other.valid) violation = true;
+        id = other.id;
+        other.valid = false;
+        return *this;
+    }
+
+    tracked(const tracked&) = delete;
+    tracked& operator=(const tracked&) = delete;
+
+    ~tracked() noexcept {
+        ++destroyed;
+        --live;
+    }
+
+    static void reset() noexcept {
+        constructed = 0;
+        destroyed = 0;
+        live = 0;
+        violation = false;
+    }
+};
+
+int main() {
+    vqtest::run("drained lifetime", [] {
+        tracked::reset();
+        {
+            veriqueue::spsc_queue<tracked, 8> q;
+            VQ_CHECK(q.try_emplace(1));
+            VQ_CHECK(q.try_emplace(2));
+            tracked out{999};
+            VQ_CHECK(q.try_pop(out));
+            VQ_CHECK(out.id == 1);
+            VQ_CHECK(q.try_pop(out));
+            VQ_CHECK(out.id == 2);
+        }
+        VQ_CHECK(tracked::live.load() == 0);
+        VQ_CHECK(tracked::constructed.load() == tracked::destroyed.load());
+        VQ_CHECK(!tracked::violation.load());
+    });
+
+    vqtest::run("quiescent destructor destroys queued objects", [] {
+        tracked::reset();
+        {
+            veriqueue::spsc_queue<tracked, 8> q;
+            VQ_CHECK(q.try_emplace(11));
+            VQ_CHECK(q.try_emplace(12));
+            VQ_CHECK(q.try_emplace(13));
+            VQ_CHECK(tracked::live.load() == 3);
+        }
+        VQ_CHECK(tracked::live.load() == 0);
+        VQ_CHECK(tracked::constructed.load() == tracked::destroyed.load());
+        VQ_CHECK(!tracked::violation.load());
+    });
+}
