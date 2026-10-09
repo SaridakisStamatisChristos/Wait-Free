@@ -1,0 +1,48 @@
+name: Performance Scoreboard
+
+on:
+  pull_request:
+    paths:
+      - 'evidence/campaigns/**'
+      - 'tools/generate_performance_scoreboard.py'
+      - 'tools/test_performance_scoreboard.py'
+      - 'tools/verify_frozen_evidence.py'
+      - 'docs/PERFORMANCE_SCOREBOARD.md'
+      - '.github/workflows/performance-scoreboard.yml'
+      - '.github/workflows/evidence-freezer.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'evidence/campaigns/**'
+      - 'tools/generate_performance_scoreboard.py'
+      - 'tools/test_performance_scoreboard.py'
+      - 'tools/verify_frozen_evidence.py'
+      - 'docs/PERFORMANCE_SCOREBOARD.md'
+      - '.github/workflows/performance-scoreboard.yml'
+      - '.github/workflows/evidence-freezer.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  scoreboard:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile scoreboard tooling
+        run: >-
+          python -m py_compile
+          tools/generate_performance_scoreboard.py
+          tools/test_performance_scoreboard.py
+          tools/verify_frozen_evidence.py
+      - name: Run scoreboard tests
+        run: python -m unittest -v tools/test_performance_scoreboard.py
+      - name: Verify generated scoreboard is current
+        run: >-
+          python tools/generate_performance_scoreboard.py
+          --evidence-root evidence/campaigns
+          --output docs/PERFORMANCE_SCOREBOARD.md
+          --check
