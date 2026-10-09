@@ -3,6 +3,7 @@ name: ARM64 8B Bulk Diagnostic
 on:
   pull_request:
     paths:
+      - 'include/veriqueue/spsc_queue.hpp'
       - '.github/workflows/arm64-8b-bulk-diagnostic.yml'
       - '.github/workflows/performance-regression.yml'
 
@@ -16,88 +17,85 @@ jobs:
       matrix:
         include:
           - runner: ubuntu-24.04-arm
-            arch: linux-arm64
             compiler: gcc
             cc: gcc
             cxx: g++
           - runner: ubuntu-24.04-arm
-            arch: linux-arm64
             compiler: clang
             cc: clang
             cxx: clang++
-          - runner: ubuntu-24.04
-            arch: linux-x64
-            compiler: gcc
-            cc: gcc
-            cxx: g++
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: ${{ github.event.pull_request.head.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y ninja-build clang
-      - name: Configure default and forced-dual builds
+      - name: Configure production and shadow variants
         env:
           CC: ${{ matrix.cc }}
           CXX: ${{ matrix.cxx }}
         run: |
-          cmake -S . -B build/default -G Ninja -DCMAKE_BUILD_TYPE=Release \
-            -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF \
-            -DVERIQUEUE_BUILD_BENCHMARKS=ON -DVERIQUEUE_BUILD_BASELINES=OFF
-          cmake -S . -B build/dual -G Ninja -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_CXX_FLAGS=-DVERIQUEUE_FORCE_DUAL_OWNER_CURSOR \
-            -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF \
-            -DVERIQUEUE_BUILD_BENCHMARKS=ON -DVERIQUEUE_BUILD_BASELINES=OFF
-          cmake --build build/default --target bench_hotpath_variants -j2
-          cmake --build build/dual --target bench_hotpath_variants -j2
+          for mode in 0 1 2 3; do
+            extra=""
+            if [ "$mode" != 0 ]; then
+              extra="-DVERIQUEUE_EXPERIMENTAL_ARM64_8B_BULK_SHADOW_MODE=$mode"
+            fi
+            cmake -S . -B "build/mode${mode}" -G Ninja -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_CXX_FLAGS="$extra" \
+              -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF \
+              -DVERIQUEUE_BUILD_BENCHMARKS=ON -DVERIQUEUE_BUILD_BASELINES=OFF
+            cmake --build "build/mode${mode}" --target bench_hotpath_variants -j2
+          done
       - name: Make bulk wrappers
         run: |
-          for batch in 4 16 64; do
-            for role in default dual; do
-              cat > "build/${role}/bench_bulk_${batch}" <<EOF
+          for mode in 0 1 2 3; do
+            for batch in 4 16 64; do
+              cat > "build/mode${mode}/bench_bulk_${batch}" <<EOF
           #!/usr/bin/env bash
-          exec "$GITHUB_WORKSPACE/build/${role}/bench_hotpath_variants" "\$1" "\$2" "\$3" "\$4" bulk ${batch}
+          exec "$GITHUB_WORKSPACE/build/mode${mode}/bench_hotpath_variants" "\$1" "\$2" "\$3" "\$4" bulk ${batch}
           EOF
-              chmod +x "build/${role}/bench_bulk_${batch}"
+              chmod +x "build/mode${mode}/bench_bulk_${batch}"
             done
           done
-      - name: Run scalar diagnostic
+      - name: Run variant matrix
         run: |
-          OUT="evidence/arm64-8b-bulk-diagnostic/${{ matrix.arch }}-${{ matrix.compiler }}"
-          mkdir -p "$OUT"
-          python tools/run_regression_campaign.py \
-            --candidate "$GITHUB_WORKSPACE/build/dual/bench_hotpath_variants" \
-            --reference "$GITHUB_WORKSPACE/build/default/bench_hotpath_variants" \
-            --capacities 256,1024 --payloads 8 --transfers 500000 \
-            --warmups 3 --repetitions 35 --seed 20261011 \
-            --output "$OUT/scalar-raw.jsonl"
-          python tools/analyze_regression_campaign.py "$OUT/scalar-raw.jsonl" \
-            --json-output "$OUT/scalar-summary.json" \
-            --markdown-output "$OUT/scalar-summary.md" --bootstrap-seed 20261011 || true
-          cat "$OUT/scalar-summary.md"
-      - name: Run bulk diagnostic
-        run: |
-          OUT="evidence/arm64-8b-bulk-diagnostic/${{ matrix.arch }}-${{ matrix.compiler }}"
-          for batch in 4 16 64; do
+          ROOT="evidence/arm64-8b-bulk-shadow/${{ matrix.compiler }}"
+          mkdir -p "$ROOT"
+          for mode in 1 2 3; do
+            OUT="$ROOT/mode${mode}"
+            mkdir -p "$OUT"
             python tools/run_regression_campaign.py \
-              --candidate "$GITHUB_WORKSPACE/build/dual/bench_bulk_${batch}" \
-              --reference "$GITHUB_WORKSPACE/build/default/bench_bulk_${batch}" \
+              --candidate "$GITHUB_WORKSPACE/build/mode${mode}/bench_hotpath_variants" \
+              --reference "$GITHUB_WORKSPACE/build/mode0/bench_hotpath_variants" \
               --capacities 256,1024 --payloads 8 --transfers 500000 \
-              --warmups 3 --repetitions 35 --seed "$((20261011 + batch))" \
-              --output "$OUT/bulk${batch}-raw.jsonl"
-            python tools/analyze_regression_campaign.py "$OUT/bulk${batch}-raw.jsonl" \
-              --json-output "$OUT/bulk${batch}-summary.json" \
-              --markdown-output "$OUT/bulk${batch}-summary.md" \
-              --bootstrap-seed "$((20261011 + batch))" || true
-            cat "$OUT/bulk${batch}-summary.md"
+              --warmups 3 --repetitions 35 --seed "$((20261020 + mode))" \
+              --output "$OUT/scalar-raw.jsonl"
+            python tools/analyze_regression_campaign.py "$OUT/scalar-raw.jsonl" \
+              --json-output "$OUT/scalar-summary.json" \
+              --markdown-output "$OUT/scalar-summary.md" \
+              --bootstrap-seed "$((20261020 + mode))" || true
+            cat "$OUT/scalar-summary.md"
+            for batch in 4 16 64; do
+              python tools/run_regression_campaign.py \
+                --candidate "$GITHUB_WORKSPACE/build/mode${mode}/bench_bulk_${batch}" \
+                --reference "$GITHUB_WORKSPACE/build/mode0/bench_bulk_${batch}" \
+                --capacities 256,1024 --payloads 8 --transfers 500000 \
+                --warmups 3 --repetitions 35 --seed "$((20261100 + mode * 100 + batch))" \
+                --output "$OUT/bulk${batch}-raw.jsonl"
+              python tools/analyze_regression_campaign.py "$OUT/bulk${batch}-raw.jsonl" \
+                --json-output "$OUT/bulk${batch}-summary.json" \
+                --markdown-output "$OUT/bulk${batch}-summary.md" \
+                --bootstrap-seed "$((20261100 + mode * 100 + batch))" || true
+              cat "$OUT/bulk${batch}-summary.md"
+            done
           done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: arm64-8b-bulk-diagnostic-${{ matrix.arch }}-${{ matrix.compiler }}
-          path: evidence/arm64-8b-bulk-diagnostic/${{ matrix.arch }}-${{ matrix.compiler }}/
+          name: arm64-8b-bulk-shadow-${{ matrix.compiler }}
+          path: evidence/arm64-8b-bulk-shadow/${{ matrix.compiler }}/
