@@ -15,6 +15,11 @@
 
 namespace veriqueue {
 
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4324) // Cache-line alignas intentionally adds tail padding.
+#endif
+
 template <
     class T,
     std::size_t Capacity,
@@ -46,10 +51,6 @@ class spsc_queue final {
     static constexpr Index capacity_index = static_cast<Index>(Capacity);
     static constexpr Index mask_index = static_cast<Index>(Capacity - 1);
 
-#if defined(_MSC_VER)
-#pragma warning(push)
-#pragma warning(disable : 4324) // Intentional cache-line tail padding from alignas.
-#endif
     struct alignas(control_alignment) producer_state final {
         Index local_tail{0};
         Index cached_head{0};
@@ -61,9 +62,6 @@ class spsc_queue final {
         Index cached_tail{0};
         std::atomic<Index> published_head{0};
     };
-#if defined(_MSC_VER)
-#pragma warning(pop)
-#endif
 
 public:
     using value_type = T;
@@ -201,5 +199,9 @@ private:
     consumer_state consumer_{};
     alignas(storage_alignment) std::array<detail::slot<T>, Capacity> slots_;
 };
+
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
 
 } // namespace veriqueue
