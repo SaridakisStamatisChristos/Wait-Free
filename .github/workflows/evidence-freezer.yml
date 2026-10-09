@@ -77,6 +77,13 @@ jobs:
         shell: bash
         run: python tools/verify_frozen_evidence.py "${{ steps.freeze.outputs.campaign_root }}"
 
+      - name: Regenerate performance scoreboard
+        shell: bash
+        run: >-
+          python tools/generate_performance_scoreboard.py
+          --evidence-root evidence/campaigns
+          --output docs/PERFORMANCE_SCOREBOARD.md
+
       - name: Reject oversized Git objects
         shell: bash
         run: |
@@ -101,7 +108,7 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git switch -c "$branch"
-          git add "$CAMPAIGN_ROOT"
+          git add "$CAMPAIGN_ROOT" docs/PERFORMANCE_SCOREBOARD.md
           git diff --cached --quiet && {
             echo 'Evidence freezer produced no repository changes.' >&2
             exit 1
@@ -123,8 +130,9 @@ jobs:
           - GitHub-provided artifact archive digests where available
           - a complete \`SHA256SUMS.txt\` ledger
           - independent freeze verification before commit
+          - a regenerated \`docs/PERFORMANCE_SCOREBOARD.md\` derived only from checksum-valid frozen benchmark summaries
 
-          No benchmark value or qualification result is manually edited by this workflow.
+          No benchmark value, verdict, or qualification result is manually edited by this workflow.
           EOF
 
           gh pr create \
