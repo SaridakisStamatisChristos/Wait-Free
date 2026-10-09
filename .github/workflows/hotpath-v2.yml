@@ -1,0 +1,174 @@
+name: Hot-path V2 Ablation
+
+on:
+  pull_request:
+    paths:
+      - 'bench/experimental_spsc_v2.hpp'
+      - 'bench/bench_hotpath_v2.cpp'
+      - 'tools/run_hotpath_v2.py'
+      - 'tools/analyze_hotpath_v2.py'
+      - 'tools/assembly_hotpath_v2_probe.cpp'
+      - 'tools/analyze_hotpath_v2_assembly.py'
+      - '.github/workflows/hotpath-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  focused-ablation:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: x64-gcc
+            runner: ubuntu-24.04
+            cc: gcc
+            cxx: g++
+            arch: x64
+            topology_policy: x64-diagnostic
+          - name: x64-clang
+            runner: ubuntu-24.04
+            cc: clang
+            cxx: clang++
+            arch: x64
+            topology_policy: x64-diagnostic
+          - name: arm64-gcc
+            runner: ubuntu-24.04-arm
+            cc: gcc
+            cxx: g++
+            arch: arm64
+            topology_policy: default
+          - name: arm64-clang
+            runner: ubuntu-24.04-arm
+            cc: clang
+            cxx: clang++
+            arch: arm64
+            topology_policy: default
+    name: focused / ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Record environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/hotpath-v2
+          {
+            echo "commit=$GITHUB_SHA"
+            echo "runner_os=$RUNNER_OS"
+            echo "runner_arch=$RUNNER_ARCH"
+            echo "platform=${{ matrix.name }}"
+            "$CXX" --version | head -1
+            uname -a
+            python tools/topology_matrix.py
+          } | tee evidence/hotpath-v2/environment.txt
+
+      - name: Validate Python tooling
+        run: >-
+          python -m py_compile
+          tools/topology_matrix.py
+          tools/run_hotpath_v2.py
+          tools/analyze_hotpath_v2.py
+          tools/analyze_hotpath_v2_assembly.py
+
+      - name: Build experimental benchmark
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          "$CXX" -std=c++20 -O3 -DNDEBUG -pthread -Wall -Wextra -Wpedantic -Werror \
+            -Iinclude -Ibench bench/bench_hotpath_v2.cpp bench/environment.cpp \
+            -o build/bench_hotpath_v2
+
+      - name: Correctness and affinity smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./build/bench_hotpath_v2 production 64 8 10000 scalar 1
+          ./build/bench_hotpath_v2 single_owner_cached_limit 64 8 10000 scalar 1
+          ./build/bench_hotpath_v2 single_owner_cached_limit_unlikely 64 8 10000 scalar 1
+          ./build/bench_hotpath_v2 guard64 64 8 10000 scalar 1
+          ./build/bench_hotpath_v2 guard128 64 8 10000 scalar 1
+          ./build/bench_hotpath_v2 guard64_skew32 64 8 10000 scalar 1
+          ./build/bench_hotpath_v2 uint32_cursor 64 8 10000 scalar 1
+
+      - name: Generate and audit assembly
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/hotpath-v2/assembly
+          for payload in 8 16 64 256; do
+            "$CXX" -std=c++20 -O3 -DNDEBUG -S \
+              -DVQ_PAYLOAD_BYTES="$payload" -Iinclude -Ibench \
+              tools/assembly_hotpath_v2_probe.cpp \
+              -o "evidence/hotpath-v2/assembly/payload-${payload}.s"
+            python tools/analyze_hotpath_v2_assembly.py \
+              "evidence/hotpath-v2/assembly/payload-${payload}.s" \
+              --arch '${{ matrix.arch }}' \
+              --compiler '${{ matrix.cxx }}' \
+              --payload "$payload" \
+              --json-output "evidence/hotpath-v2/assembly/payload-${payload}.json" \
+              --markdown-output "evidence/hotpath-v2/assembly/payload-${payload}.md"
+          done
+
+      - name: Run focused scalar campaign
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/hotpath-v2/raw
+          run_cell() {
+            local capacity="$1"
+            local payload="$2"
+            local seed="$3"
+            python tools/run_hotpath_v2.py \
+              --program build/bench_hotpath_v2 \
+              --capacities "$capacity" \
+              --payloads "$payload" \
+              --mode scalar \
+              --transfers 100000 \
+              --warmups 5 \
+              --repetitions 30 \
+              --seed "$seed" \
+              --topology-policy '${{ matrix.topology_policy }}' \
+              --output "evidence/hotpath-v2/raw/c${capacity}-p${payload}.jsonl"
+          }
+          run_cell 1024 8 20261010
+          run_cell 1024 16 20261011
+          run_cell 1024 256 20261012
+          run_cell 64 8 20261013
+          run_cell 256 8 20261014
+          run_cell 65536 8 20261015
+
+      - name: Analyze paired campaign
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/analyze_hotpath_v2.py evidence/hotpath-v2/raw/*.jsonl \
+            --require-repetitions 30 \
+            --bootstrap-seed 20261010 \
+            --json-output evidence/hotpath-v2/summary.json \
+            --markdown-output evidence/hotpath-v2/summary.md
+          cat evidence/hotpath-v2/summary.md
+
+      - name: Bulk correctness smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          for batch in 4 16 64; do
+            ./build/bench_hotpath_v2 production 1024 8 10000 bulk "$batch"
+            ./build/bench_hotpath_v2 single_owner_cached_limit 1024 8 10000 bulk "$batch"
+            ./build/bench_hotpath_v2 guard64_skew32 1024 8 10000 bulk "$batch"
+          done
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hotpath-v2-${{ matrix.name }}
+          path: evidence/hotpath-v2/
+          if-no-files-found: error
