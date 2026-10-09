@@ -88,28 +88,30 @@ jobs:
           ROOT="current/evidence/owner-isolation/${{ matrix.compiler }}"
           mkdir -p "$ROOT"
           for role in current dual; do
+            offset=0
+            if [ "$role" = "dual" ]; then offset=100; fi
             OUT="$ROOT/${role}-vs-old"
             mkdir -p "$OUT"
             python current/tools/run_regression_campaign.py \
               --candidate "$GITHUB_WORKSPACE/build/${role}/bench_hotpath_variants" \
               --reference "$GITHUB_WORKSPACE/build/old/bench_hotpath_variants" \
               --capacities 256,1024 --payloads 8 --transfers 800000 \
-              --warmups 4 --repetitions 50 --seed "$((20261500 + (role == 'dual' ? 1 : 0)))" \
+              --warmups 4 --repetitions 50 --seed "$((20261500 + offset))" \
               --output "$OUT/scalar-raw.jsonl"
             python current/tools/analyze_regression_campaign.py "$OUT/scalar-raw.jsonl" \
               --json-output "$OUT/scalar-summary.json" --markdown-output "$OUT/scalar-summary.md" \
-              --bootstrap-seed 20261501 || true
+              --bootstrap-seed "$((20261501 + offset))" || true
             cat "$OUT/scalar-summary.md"
             for batch in 4 64; do
               python current/tools/run_regression_campaign.py \
                 --candidate "$GITHUB_WORKSPACE/build/${role}/bench_bulk_${batch}" \
                 --reference "$GITHUB_WORKSPACE/build/old/bench_bulk_${batch}" \
                 --capacities 256,1024 --payloads 8 --transfers 800000 \
-                --warmups 4 --repetitions 50 --seed "$((20261510 + batch + (role == 'dual' ? 100 : 0)))" \
+                --warmups 4 --repetitions 50 --seed "$((20261510 + batch + offset))" \
                 --output "$OUT/bulk${batch}-raw.jsonl"
               python current/tools/analyze_regression_campaign.py "$OUT/bulk${batch}-raw.jsonl" \
                 --json-output "$OUT/bulk${batch}-summary.json" --markdown-output "$OUT/bulk${batch}-summary.md" \
-                --bootstrap-seed "$((20261510 + batch))" || true
+                --bootstrap-seed "$((20261510 + batch + offset))" || true
               cat "$OUT/bulk${batch}-summary.md"
             done
           done
