@@ -25,7 +25,7 @@ public:
         const unsigned full_limit =
             VERIQUEUE_RELACY_MUTATION_ID == 8 ? static_cast<unsigned>(Capacity + 1) : static_cast<unsigned>(Capacity);
         if (tail - producer_cached_head_($) == full_limit) {
-            producer_cached_head_($) = head_.load(head_load_order);
+            producer_cached_head_($) = head_.load(head_load_order, $);
             if (tail - producer_cached_head_($) == full_limit) return false;
         }
 
@@ -37,12 +37,12 @@ public:
 
         if constexpr (VERIQUEUE_RELACY_MUTATION_ID == 5) {
             producer_tail_($) = tail;
-            tail_.store(tail, tail_store_order);
+            tail_.store(tail, tail_store_order, $);
             slots_[slot]($) = value;
         } else {
             slots_[slot]($) = value;
             producer_tail_($) = tail;
-            tail_.store(tail, tail_store_order);
+            tail_.store(tail, tail_store_order, $);
         }
         return true;
     }
@@ -50,7 +50,7 @@ public:
     bool pop(int& value) {
         unsigned head = consumer_head_($);
         if (head == consumer_cached_tail_($)) {
-            consumer_cached_tail_($) = tail_.load(tail_load_order);
+            consumer_cached_tail_($) = tail_.load(tail_load_order, $);
             if (head == consumer_cached_tail_($)) return false;
         }
 
@@ -61,12 +61,12 @@ public:
         ++head;
         if constexpr (VERIQUEUE_RELACY_MUTATION_ID == 6) {
             consumer_head_($) = head;
-            head_.store(head, head_store_order);
+            head_.store(head, head_store_order, $);
             value = slots_[slot]($);
         } else {
             value = slots_[slot]($);
             consumer_head_($) = head;
-            head_.store(head, head_store_order);
+            head_.store(head, head_store_order, $);
         }
         return true;
     }

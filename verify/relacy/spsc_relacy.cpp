@@ -14,26 +14,26 @@ public:
     bool push(int value) {
         unsigned tail = producer_tail_($);
         if (tail - producer_cached_head_($) == Capacity) {
-            producer_cached_head_($) = head_.load(HeadLoad);
+            producer_cached_head_($) = head_.load(HeadLoad, $);
             if (tail - producer_cached_head_($) == Capacity) return false;
         }
         slots_[tail & (Capacity - 1)]($) = value;
         ++tail;
         producer_tail_($) = tail;
-        tail_.store(tail, TailStore);
+        tail_.store(tail, TailStore, $);
         return true;
     }
 
     bool pop(int& value) {
         unsigned head = consumer_head_($);
         if (head == consumer_cached_tail_($)) {
-            consumer_cached_tail_($) = tail_.load(TailLoad);
+            consumer_cached_tail_($) = tail_.load(TailLoad, $);
             if (head == consumer_cached_tail_($)) return false;
         }
         value = slots_[head & (Capacity - 1)]($);
         ++head;
         consumer_head_($) = head;
-        head_.store(head, HeadStore);
+        head_.store(head, HeadStore, $);
         return true;
     }
 

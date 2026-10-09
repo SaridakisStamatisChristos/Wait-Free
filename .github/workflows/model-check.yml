@@ -51,7 +51,7 @@ jobs:
           for seed in $(seq 1 64); do
             h="verify/histories/corpus/history-${seed}.json"
             ./build/lin/history_generator "$h" "$seed" >> evidence/linearizability/summary.log
-            (cd verify/linearizability && go run . "../../$h") >> evidence/linearizability/summary.log
+            (cd verify/linearizability && go run -mod=mod . "../../$h") >> evidence/linearizability/summary.log
           done
       - uses: actions/upload-artifact@v4
         if: always()

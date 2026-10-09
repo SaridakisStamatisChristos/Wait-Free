@@ -101,13 +101,15 @@ if(VERIQUEUE_BUILD_RELACY)
   FetchContent_MakeAvailable(relacy)
   add_executable(spsc_relacy verify/relacy/spsc_relacy.cpp)
   target_link_libraries(spsc_relacy PRIVATE relacy::relacy)
-  veriqueue_apply_warnings(spsc_relacy)
+  target_compile_features(spsc_relacy PRIVATE cxx_std_23)
+  # Relacy is a third-party header-only model checker. Keep project warning policy
+  # on production/tests, but do not promote warnings originating inside Relacy to errors.
   add_test(NAME spsc_relacy COMMAND spsc_relacy)
 
   add_executable(mutation_relacy verify/relacy/mutation_relacy.cpp)
   target_link_libraries(mutation_relacy PRIVATE relacy::relacy)
+  target_compile_features(mutation_relacy PRIVATE cxx_std_23)
   target_compile_definitions(mutation_relacy PRIVATE VERIQUEUE_RELACY_MUTATION_ID=${VERIQUEUE_RELACY_MUTATION_ID})
-  veriqueue_apply_warnings(mutation_relacy)
 endif()
 
 if(VERIQUEUE_BUILD_LINEARIZABILITY)

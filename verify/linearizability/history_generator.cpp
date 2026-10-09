@@ -1,3 +1,6 @@
+//go:build ignore
+// +build ignore
+
 #include "recorder.hpp"
 #include "veriqueue/spsc_queue.hpp"
 
