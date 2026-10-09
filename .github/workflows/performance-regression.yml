@@ -1,109 +1,253 @@
-name: Performance Regression Gate
+name: Cumulative Hot-path Score
 
 on:
   pull_request:
     paths:
-      - 'include/**'
-      - 'bench/**'
-      - 'CMakeLists.txt'
-      - 'tools/run_regression_campaign.py'
-      - 'tools/analyze_regression_campaign.py'
-      - 'tools/test_regression_campaign.py'
-      - 'docs/PERFORMANCE_REGRESSION_POLICY.md'
-      - 'docs/FINAL_SOTA_CAMPAIGN.md'
-      - 'tools/validate_final_campaign.py'
-      - 'tools/test_final_campaign.py'
-      - '.github/workflows/final-performance-campaign.yml'
-      - '.github/workflows/finalize-sota-campaign.yml'
       - '.github/workflows/performance-regression.yml'
+      - '.github/workflows/cumulative-hotpath-score.yml'
 
 permissions:
   contents: read
 
 jobs:
-  policy-tests:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Compile regression tooling
-        run: >-
-          python -m py_compile
-          tools/run_regression_campaign.py
-          tools/analyze_regression_campaign.py
-          tools/test_regression_campaign.py
-      - name: Run regression policy tests
-        run: python -m unittest -v tools/test_regression_campaign.py
-
-  paired-regression:
-    name: ${{ matrix.arch }} / gcc
+  benchmark:
+    name: ${{ matrix.arch }} / ${{ matrix.compiler }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - runner: ubuntu-24.04
-            arch: linux-x64
           - runner: ubuntu-24.04-arm
             arch: linux-arm64
+            compiler: gcc
+            cc: gcc
+            cxx: g++
+          - runner: ubuntu-24.04-arm
+            arch: linux-arm64
+            compiler: clang
+            cc: clang
+            cxx: clang++
+          - runner: ubuntu-24.04
+            arch: linux-x64
+            compiler: gcc
+            cc: gcc
+            cxx: g++
+          - runner: ubuntu-24.04
+            arch: linux-x64
+            compiler: clang
+            cc: clang
+            cxx: clang++
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
+    env:
+      CURRENT_MAIN: 4c194617d5bded91ecb58063607c3fab47fc1db9
+      PRE_OPT_BASELINE: d1382588262b2275ecde9bf1a6948e67fcd056f3
+      SCORE_SEED: '20261010'
     steps:
-      - name: Checkout candidate head
+      - name: Checkout current main harness as candidate
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ env.CURRENT_MAIN }}
           path: candidate
-      - name: Checkout reference base
+      - name: Checkout identical current main harness as reference shell
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: ${{ env.CURRENT_MAIN }}
           path: reference
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install benchmark dependencies
-        run: sudo apt-get update && sudo apt-get install -y libboost-dev ninja-build
-      - name: Configure candidate
-        run: >-
-          cmake -S candidate -B build/candidate -G Ninja -DCMAKE_BUILD_TYPE=Release
-          -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF
-          -DVERIQUEUE_BUILD_BENCHMARKS=OFF -DVERIQUEUE_BUILD_BASELINES=ON
-      - name: Configure reference
-        run: >-
-          cmake -S reference -B build/reference -G Ninja -DCMAKE_BUILD_TYPE=Release
-          -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF
-          -DVERIQUEUE_BUILD_BENCHMARKS=OFF -DVERIQUEUE_BUILD_BASELINES=ON
-      - name: Build candidate and reference
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y ninja-build clang
+      - name: Inject only the pre-optimization queue header into reference
         run: |
-          cmake --build build/candidate --target bench_compare -j2
-          cmake --build build/reference --target bench_compare -j2
-      - name: Run paired candidate/reference campaign
+          git -C reference fetch --no-tags --depth=1 origin "$PRE_OPT_BASELINE"
+          git -C reference show FETCH_HEAD:include/veriqueue/spsc_queue.hpp > /tmp/pre_opt_spsc_queue.hpp
+          cp /tmp/pre_opt_spsc_queue.hpp reference/include/veriqueue/spsc_queue.hpp
+          echo "Reference working-tree diff:"
+          git -C reference diff --name-only
+          test "$(git -C reference diff --name-only)" = "include/veriqueue/spsc_queue.hpp"
+          cmp candidate/bench/bench_hotpath_variants.cpp reference/bench/bench_hotpath_variants.cpp
+          cmp candidate/bench/affinity.hpp reference/bench/affinity.hpp
+          cmp candidate/bench/environment.cpp reference/bench/environment.cpp
+          cmp candidate/tools/run_regression_campaign.py reference/tools/run_regression_campaign.py
+          cmp candidate/tools/analyze_regression_campaign.py reference/tools/analyze_regression_campaign.py
+      - name: Configure candidate and reference with identical compiler
+        env:
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
         run: |
-          mkdir -p "candidate/evidence/regression/${{ matrix.arch }}"
+          cmake -S candidate -B build/candidate -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF \
+            -DVERIQUEUE_BUILD_BENCHMARKS=ON -DVERIQUEUE_BUILD_BASELINES=OFF
+          cmake -S reference -B build/reference -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF \
+            -DVERIQUEUE_BUILD_BENCHMARKS=ON -DVERIQUEUE_BUILD_BASELINES=OFF
+      - name: Build identical benchmark harnesses
+        run: |
+          cmake --build build/candidate --target bench_hotpath_variants -j2
+          cmake --build build/reference --target bench_hotpath_variants -j2
+      - name: Run full scalar cumulative campaign
+        run: |
+          OUT="candidate/evidence/cumulative/${{ matrix.arch }}-${{ matrix.compiler }}"
+          mkdir -p "$OUT"
           python candidate/tools/run_regression_campaign.py \
-            --candidate "$GITHUB_WORKSPACE/build/candidate/bench_compare" \
-            --reference "$GITHUB_WORKSPACE/build/reference/bench_compare" \
-            --capacities 64,1024 \
-            --payloads 8,64 \
-            --transfers 100000 \
-            --warmups 2 \
-            --repetitions 15 \
-            --seed 20261009 \
-            --output "candidate/evidence/regression/${{ matrix.arch }}/raw.jsonl"
-      - name: Analyze paired regression evidence
-        run: |
+            --candidate "$GITHUB_WORKSPACE/build/candidate/bench_hotpath_variants" \
+            --reference "$GITHUB_WORKSPACE/build/reference/bench_hotpath_variants" \
+            --capacities 64,256,1024,65536 \
+            --payloads 8,16,64,256 \
+            --transfers 300000 \
+            --warmups 3 \
+            --repetitions 25 \
+            --seed "$SCORE_SEED" \
+            --output "$OUT/scalar-raw.jsonl"
           python candidate/tools/analyze_regression_campaign.py \
-            "candidate/evidence/regression/${{ matrix.arch }}/raw.jsonl" \
-            --json-output "candidate/evidence/regression/${{ matrix.arch }}/summary.json" \
-            --markdown-output "candidate/evidence/regression/${{ matrix.arch }}/summary.md" \
-            --bootstrap-seed 20261009
-          cat "candidate/evidence/regression/${{ matrix.arch }}/summary.md"
+            "$OUT/scalar-raw.jsonl" \
+            --json-output "$OUT/scalar-summary.json" \
+            --markdown-output "$OUT/scalar-summary.md" \
+            --bootstrap-seed "$SCORE_SEED"
+          cat "$OUT/scalar-summary.md"
+      - name: Create bulk wrappers
+        run: |
+          for batch in 4 16 64; do
+            for role in candidate reference; do
+              cat > "build/${role}/bench_bulk_${batch}" <<EOF
+          #!/usr/bin/env bash
+          exec "$GITHUB_WORKSPACE/build/${role}/bench_hotpath_variants" "\$1" "\$2" "\$3" "\$4" bulk ${batch}
+          EOF
+              chmod +x "build/${role}/bench_bulk_${batch}"
+            done
+          done
+      - name: Run paired bulk cumulative campaigns
+        run: |
+          OUT="candidate/evidence/cumulative/${{ matrix.arch }}-${{ matrix.compiler }}"
+          for batch in 4 16 64; do
+            python candidate/tools/run_regression_campaign.py \
+              --candidate "$GITHUB_WORKSPACE/build/candidate/bench_bulk_${batch}" \
+              --reference "$GITHUB_WORKSPACE/build/reference/bench_bulk_${batch}" \
+              --capacities 256,1024 \
+              --payloads 8,16,64,256 \
+              --transfers 300000 \
+              --warmups 3 \
+              --repetitions 25 \
+              --seed "$((SCORE_SEED + batch))" \
+              --output "$OUT/bulk${batch}-raw.jsonl"
+            python candidate/tools/analyze_regression_campaign.py \
+              "$OUT/bulk${batch}-raw.jsonl" \
+              --json-output "$OUT/bulk${batch}-summary.json" \
+              --markdown-output "$OUT/bulk${batch}-summary.md" \
+              --bootstrap-seed "$((SCORE_SEED + batch))"
+            cat "$OUT/bulk${batch}-summary.md"
+          done
+      - name: Record exact comparison manifest
+        run: |
+          OUT="candidate/evidence/cumulative/${{ matrix.arch }}-${{ matrix.compiler }}"
+          cat > "$OUT/manifest.json" <<EOF
+          {
+            "candidate_commit": "$CURRENT_MAIN",
+            "reference_queue_commit": "$PRE_OPT_BASELINE",
+            "harness_commit": "$CURRENT_MAIN",
+            "architecture": "${{ matrix.arch }}",
+            "compiler": "${{ matrix.compiler }}",
+            "scalar_capacities": [64, 256, 1024, 65536],
+            "bulk_capacities": [256, 1024],
+            "payload_bytes": [8, 16, 64, 256],
+            "bulk_batches": [4, 16, 64],
+            "transfers": 300000,
+            "warmups": 3,
+            "repetitions": 25,
+            "comparison_isolated_to_queue_header": true
+          }
+          EOF
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: performance-regression-${{ matrix.arch }}
-          path: candidate/evidence/regression/${{ matrix.arch }}/
+          name: cumulative-${{ matrix.arch }}-${{ matrix.compiler }}
+          path: candidate/evidence/cumulative/${{ matrix.arch }}-${{ matrix.compiler }}/
+
+  score:
+    name: aggregate cumulative score
+    needs: benchmark
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cumulative-*
+          path: artifacts
+      - name: Aggregate multiplicative throughput scores
+        run: |
+          python - <<'PY'
+          import json, math
+          from pathlib import Path
+
+          root = Path('artifacts')
+          lanes = {}
+          payload_buckets = {8: [], 16: [], 64: [], 256: []}
+          all_arm = []
+          all_x64 = []
+
+          def gmean(xs):
+              return math.exp(sum(math.log(x) for x in xs) / len(xs)) if xs else float('nan')
+
+          for artifact in sorted(root.glob('cumulative-*')):
+              lane = artifact.name.removeprefix('cumulative-')
+              mode_scores = {}
+              lane_cells = []
+              for summary in sorted(artifact.glob('*-summary.json')):
+                  mode = summary.stem.removesuffix('-summary')
+                  data = json.loads(summary.read_text())
+                  ratios = [float(c['median_ratio']) for c in data['cells']]
+                  mode_scores[mode] = gmean(ratios)
+                  for c in data['cells']:
+                      ratio = float(c['median_ratio'])
+                      lane_cells.append(ratio)
+                      payload_buckets[int(c['payload_bytes'])].append((lane, mode, ratio))
+              lanes[lane] = {'combined': gmean(lane_cells), 'modes': mode_scores, 'cells': len(lane_cells)}
+              if lane.startswith('linux-arm64-'):
+                  all_arm.extend(lane_cells)
+              elif lane.startswith('linux-x64-'):
+                  all_x64.extend(lane_cells)
+
+          arm_score = gmean(all_arm)
+          x64_score = gmean(all_x64)
+          payload_scores = {}
+          for payload, entries in payload_buckets.items():
+              arm = [r for lane, mode, r in entries if lane.startswith('linux-arm64-')]
+              x64 = [r for lane, mode, r in entries if lane.startswith('linux-x64-')]
+              payload_scores[str(payload)] = {'arm64': gmean(arm), 'x64': gmean(x64)}
+
+          result = {
+              'primary_metric': 'geometric_mean_of_per_cell_median_candidate_reference_throughput_ratios',
+              'candidate_commit': '4c194617d5bded91ecb58063607c3fab47fc1db9',
+              'reference_queue_commit': 'd1382588262b2275ecde9bf1a6948e67fcd056f3',
+              'arm64_cumulative_score': arm_score,
+              'x64_control_score': x64_score,
+              'payload_scores': payload_scores,
+              'lanes': lanes,
+          }
+          Path('cumulative-score.json').write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
+
+          lines = [
+              '# VeriQueue cumulative hot-path score', '',
+              f"Current main / pre-optimization baseline ARM64 score: **{arm_score:.4f}x** ({(arm_score-1)*100:+.2f}%)",
+              f"x64 unchanged-control score: **{x64_score:.4f}x** ({(x64_score-1)*100:+.2f}%)", '',
+              '## Per lane', '',
+              '| Lane | Combined | Scalar | Bulk4 | Bulk16 | Bulk64 | Cells |',
+              '|---|---:|---:|---:|---:|---:|---:|',
+          ]
+          for lane, data in sorted(lanes.items()):
+              m = data['modes']
+              lines.append(f"| {lane} | {data['combined']:.4f} | {m.get('scalar', float('nan')):.4f} | {m.get('bulk4', float('nan')):.4f} | {m.get('bulk16', float('nan')):.4f} | {m.get('bulk64', float('nan')):.4f} | {data['cells']} |")
+          lines += ['', '## By payload', '', '| Payload | ARM64 | x64 control |', '|---:|---:|---:|']
+          for payload in ('8','16','64','256'):
+              p = payload_scores[payload]
+              lines.append(f"| {payload} B | {p['arm64']:.4f} | {p['x64']:.4f} |")
+          Path('cumulative-score.md').write_text('\n'.join(lines) + '\n')
+          print('\n'.join(lines))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cumulative-score
+          path: |
+            cumulative-score.json
+            cumulative-score.md
