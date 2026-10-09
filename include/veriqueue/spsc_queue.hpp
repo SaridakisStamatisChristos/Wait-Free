@@ -28,7 +28,19 @@ namespace veriqueue {
 // cells. Keep the proven legacy owner-local cursor on non-ARM64 targets and use
 // the published atomic itself as the owner cursor on ARM64. Peer synchronization
 // remains acquire/release on both paths.
-#if defined(__aarch64__) || defined(_M_ARM64)
+//
+// VERIQUEUE_FORCE_SINGLE_OWNER_CURSOR and VERIQUEUE_FORCE_DUAL_OWNER_CURSOR are
+// verification-only compile switches used to exercise either state machine on a
+// host architecture without changing the default production selection.
+#if defined(VERIQUEUE_FORCE_SINGLE_OWNER_CURSOR) && defined(VERIQUEUE_FORCE_DUAL_OWNER_CURSOR)
+#error "Only one VeriQueue owner-cursor strategy may be forced"
+#endif
+
+#if defined(VERIQUEUE_FORCE_SINGLE_OWNER_CURSOR)
+#define VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR 1
+#elif defined(VERIQUEUE_FORCE_DUAL_OWNER_CURSOR)
+#define VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR 0
+#elif defined(__aarch64__) || defined(_M_ARM64)
 #define VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR 1
 #else
 #define VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR 0
@@ -100,8 +112,9 @@ public:
 
     ~spsc_queue() noexcept {
         // Contract: external quiescence. No producer/consumer operation may overlap destruction.
-        // On ARM64 the owner cursor is the published atomic itself. Once externally quiescent,
-        // relaxed loads are sufficient because destruction is not a synchronization edge.
+        // In the single-owner strategy the owner cursor is the published atomic itself. Once
+        // externally quiescent, relaxed loads are sufficient because destruction is not a
+        // synchronization edge.
 #if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
         Index head = consumer_.published_head.load(std::memory_order_relaxed);
         const Index tail = producer_.published_tail.load(std::memory_order_relaxed);
