@@ -11,7 +11,7 @@ on:
       - 'tools/run_hotpath_lab.py'
       - 'tools/analyze_hotpath_lab.py'
       - 'tools/assembly_compare_probe.cpp'
-      - ' 'tools/analyze_hotpath_assembly.py'
+      - 'tools/analyze_hotpath_assembly.py'
       - '.github/workflows/hotpath-lab.yml'
       - 'CMakeLists.txt'
 
