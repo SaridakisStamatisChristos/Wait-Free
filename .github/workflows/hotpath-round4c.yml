@@ -1,0 +1,108 @@
+name: Hot-path Round 4C ABBA Confirmation
+
+on:
+  pull_request:
+    paths:
+      - 'bench/bench_hotpath_round4c.cpp'
+      - 'tools/run_hotpath_round4c.py'
+      - 'bench/experimental_spsc_round4b.hpp'
+      - 'tools/analyze_hotpath_v2.py'
+      - '.github/workflows/hotpath-round4c.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  abba-arm64:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: arm64-gcc
+            runner: ubuntu-24.04-arm
+            cc: gcc
+            cxx: g++
+          - name: arm64-clang
+            runner: ubuntu-24.04-arm
+            cc: clang
+            cxx: clang++
+    name: ABBA / ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Record environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/hotpath-round4c
+          {
+            echo "commit=$GITHUB_SHA"
+            echo "runner_os=$RUNNER_OS"
+            echo "runner_arch=$RUNNER_ARCH"
+            echo "platform=${{ matrix.name }}"
+            echo "design=ABBA in-process paired block"
+            echo "transfers_per_leg=5000000"
+            "$CXX" --version | head -1
+            uname -a
+            python tools/topology_matrix.py
+          } | tee evidence/hotpath-round4c/environment.txt
+
+      - name: Validate Python tooling
+        run: >-
+          python -m py_compile
+          tools/topology_matrix.py
+          tools/run_hotpath_round4c.py
+          tools/analyze_hotpath_v2.py
+
+      - name: Build ABBA benchmark
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          "$CXX" -std=c++20 -O3 -DNDEBUG -pthread -Wall -Wextra -Wpedantic -Werror \
+            -Iinclude -Ibench bench/bench_hotpath_round4c.cpp bench/environment.cpp \
+            -o build/bench_hotpath_round4c
+
+      - name: Long ABBA paired campaigns
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/hotpath-round4c/raw
+          python tools/run_hotpath_round4c.py \
+            --program build/bench_hotpath_round4c \
+            --payload 8 \
+            --transfers 5000000 \
+            --warmups 3 \
+            --repetitions 30 \
+            --output evidence/hotpath-round4c/raw/c1024-p8.jsonl
+          python tools/run_hotpath_round4c.py \
+            --program build/bench_hotpath_round4c \
+            --payload 16 \
+            --transfers 5000000 \
+            --warmups 3 \
+            --repetitions 30 \
+            --output evidence/hotpath-round4c/raw/c1024-p16.jsonl
+
+      - name: Analyze ABBA blocks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/analyze_hotpath_v2.py evidence/hotpath-round4c/raw/*.jsonl \
+            --require-repetitions 30 \
+            --bootstrap-seed 20261060 \
+            --json-output evidence/hotpath-round4c/summary.json \
+            --markdown-output evidence/hotpath-round4c/summary.md
+          cat evidence/hotpath-round4c/summary.md
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hotpath-round4c-${{ matrix.name }}
+          path: evidence/hotpath-round4c/
+          if-no-files-found: error
