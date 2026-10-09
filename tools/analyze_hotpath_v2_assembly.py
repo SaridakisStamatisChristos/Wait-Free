@@ -58,9 +58,27 @@ def metrics(lines: list[str], arch: str) -> dict[str, Any]:
         loads = sum(m.startswith(("ldr", "ldur", "ldp", "ldar")) for m in mnemonics)
         release = sum(m.startswith("stlr") for m in mnemonics)
         acquire = sum(m.startswith("ldar") for m in mnemonics)
-        branches = sum(m == "b" or m.startswith(("b.", "cb", "tb", "bl")) or m == "ret" for m in mnemonics)
+        branches = sum(
+            m == "b" or m.startswith(("b.", "cb", "tb", "bl")) or m == "ret"
+            for m in mnemonics
+        )
         address = sum(m.startswith(("adr", "adrp")) or m == "add" for m in mnemonics)
-        forbidden = [line for line, m in zip(lines, mnemonics) if m.startswith(("cas", "ldadd", "swp")) or m in {"dmb", "dsb", "isb"}]
+        forbidden = [
+            line
+            for line, m in zip(lines, mnemonics)
+            if m.startswith(
+                (
+                    "cas",
+                    "ldadd",
+                    "swp",
+                    "ldxr",
+                    "ldaxr",
+                    "stxr",
+                    "stlxr",
+                )
+            )
+            or m in {"dmb", "dsb", "isb"}
+        ]
     else:
         stores = sum(
             m.startswith(("mov", "vmov")) and "," in line and "(" in line.rsplit(",", 1)[-1]
@@ -74,7 +92,12 @@ def metrics(lines: list[str], arch: str) -> dict[str, Any]:
         acquire = 0
         branches = sum(m.startswith("j") or m.startswith("call") or m.startswith("ret") for m in mnemonics)
         address = sum(m.startswith("lea") for m in mnemonics)
-        forbidden = [line for line, m in zip(lines, mnemonics) if m.startswith(("lock", "cmpxchg", "xadd"))]
+        forbidden = [
+            line
+            for line, m in zip(lines, mnemonics)
+            if m.startswith(("lock", "cmpxchg", "xadd", "xchg"))
+            or m in {"mfence", "lfence", "sfence"}
+        ]
     return {
         "instructions": len(lines),
         "loads": loads,
@@ -127,7 +150,9 @@ def main() -> None:
         "unlikely_codegen_changed": unlikely_changed,
         "forbidden_instruction_hits": forbidden,
         "forbidden_gate_pass": not forbidden,
-        "interpretation_guardrail": "Static assembly supports structural claims only; performance causation requires paired benchmark evidence.",
+        "interpretation_guardrail": (
+            "Static assembly supports structural claims only; performance causation requires paired benchmark evidence."
+        ),
     }
     args.json_output.parent.mkdir(parents=True, exist_ok=True)
     args.markdown_output.parent.mkdir(parents=True, exist_ok=True)
