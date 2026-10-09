@@ -6,8 +6,12 @@ on:
     paths:
       - 'bench/bench_hotpath_variants.cpp'
       - 'bench/experimental_spsc_variants.hpp'
+      - 'bench/environment.cpp'
       - 'tools/run_hotpath_lab.py'
-      - 'tools/analyze_compare_campaign.py'
+      - 'tools/analyze_hotpath_lab.py'
+      - 'tools/assembly_compare_probe.cpp'
+      - 'tools/analyze_hotpath_assembly.py'
+      - '.github/workflows/hotpath-lab.yml'
       - 'CMakeLists.txt'
 
 permissions:
@@ -15,13 +19,48 @@ permissions:
 
 jobs:
   variants:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    name: ${{ matrix.arch }} / ${{ matrix.compiler }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: linux-x64
+            arch_key: x64
+            compiler: gcc
+            cc: gcc
+            cxx: g++
+          - runner: ubuntu-24.04
+            arch: linux-x64
+            arch_key: x64
+            compiler: clang
+            cc: clang
+            cxx: clang++
+          - runner: ubuntu-24.04-arm
+            arch: linux-arm64
+            arch_key: arm64
+            compiler: gcc
+            cc: gcc
+            cxx: g++
+          - runner: ubuntu-24.04-arm
+            arch: linux-arm64
+            arch_key: arm64
+            compiler: clang
+            cc: clang
+            cxx: clang++
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+      VERIQUEUE_TOPOLOGY_LABEL: github-hosted-unspecified
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
       - name: Configure
         run: >-
           cmake -S . -B build/hotpath -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -29,26 +68,59 @@ jobs:
           -DVERIQUEUE_BUILD_BENCHMARKS=ON
       - name: Build variant laboratory
         run: cmake --build build/hotpath --target bench_hotpath_variants -j2
-      - name: Correctness smoke
+      - name: Correctness and affinity smoke
         run: |
-          for variant in veriqueue cached_limit split_control split_cached_limit; do
-            ./build/hotpath/bench_hotpath_variants "$variant" 1024 20000
+          set -euo pipefail
+          ./build/hotpath/bench_hotpath_variants veriqueue 1024 8 20000
+          ./build/hotpath/bench_hotpath_variants single_owner_cursor 1024 8 20000
+      - name: Paired scalar campaign
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/hotpath/raw
+          raw_files=()
+          for capacity in 2 64 256 1024 65536; do
+            for payload in 8 16 64 256; do
+              warmups=2
+              repetitions=10
+              transfers=250000
+              if [[ "$capacity" != 2 && ( "$payload" == 8 || "$payload" == 16 ) ]]; then
+                warmups=5
+                repetitions=30
+                transfers=500000
+              fi
+              output="evidence/hotpath/raw/c${capacity}-p${payload}.jsonl"
+              seed=$((20261010 + capacity + payload * 100000))
+              python tools/run_hotpath_lab.py \
+                --program build/hotpath/bench_hotpath_variants \
+                --capacity "$capacity" --payload "$payload" --transfers "$transfers" \
+                --warmups "$warmups" --repetitions "$repetitions" --seed "$seed" \
+                --output "$output"
+              raw_files+=("$output")
+            done
           done
-      - name: Paired experiment smoke
-        run: |
-          mkdir -p evidence/hotpath
-          python tools/run_hotpath_lab.py \
-            --program build/hotpath/bench_hotpath_variants \
-            --capacity 1024 --transfers 20000 \
-            --warmups 0 --repetitions 2 \
-            --output evidence/hotpath/raw.jsonl
-          python tools/analyze_compare_campaign.py \
-            evidence/hotpath/raw.jsonl \
+          python tools/analyze_hotpath_lab.py "${raw_files[@]}" \
             --json-output evidence/hotpath/summary.json \
             --markdown-output evidence/hotpath/summary.md
           cat evidence/hotpath/summary.md
+      - name: Production vs single-owner assembly
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/hotpath/assembly
+          asm="evidence/hotpath/assembly/${{ matrix.arch }}-${{ matrix.compiler }}.s"
+          "$CXX" -std=c++23 -O3 -S -Iinclude -Ibench tools/assembly_compare_probe.cpp -o "$asm"
+          if grep -Eiq '\b(pthread_|malloc|calloc|realloc|free|mutex|cmpxchg|lock[[:space:]])' "$asm"; then
+            echo "unexpected hot-path primitive found in assembly" >&2
+            exit 1
+          fi
+          python tools/analyze_hotpath_assembly.py "$asm" \
+            --arch "${{ matrix.arch_key }}" --compiler "${{ matrix.compiler }}" \
+            --json-output "evidence/hotpath/assembly/${{ matrix.arch }}-${{ matrix.compiler }}.json" \
+            --markdown-output "evidence/hotpath/assembly/${{ matrix.arch }}-${{ matrix.compiler }}.md"
+          cat "evidence/hotpath/assembly/${{ matrix.arch }}-${{ matrix.compiler }}.md"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: hotpath-variant-smoke
+          name: hotpath-single-owner-${{ matrix.arch }}-${{ matrix.compiler }}
           path: evidence/hotpath/
