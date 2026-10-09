@@ -126,14 +126,17 @@ public:
 
         Index tail = producer_.local_tail;
         Index used = distance(tail, producer_.cached_head);
-        if (used == capacity_index) {
+        Index available = static_cast<Index>(capacity_index - used);
+        const std::size_t target = (std::min)(values.size(), Capacity);
+
+        if (static_cast<std::size_t>(available) < target) {
             producer_.cached_head =
                 consumer_.published_head.load(std::memory_order_acquire);
             used = distance(tail, producer_.cached_head);
-            if (used == capacity_index) return 0;
+            available = static_cast<Index>(capacity_index - used);
+            if (available == 0) return 0;
         }
 
-        const Index available = static_cast<Index>(capacity_index - used);
         const std::size_t count =
             (std::min)(values.size(), static_cast<std::size_t>(available));
 
@@ -176,7 +179,9 @@ public:
 
         Index head = consumer_.local_head;
         Index available = distance(consumer_.cached_tail, head);
-        if (available == 0) {
+        const std::size_t target = (std::min)(output.size(), Capacity);
+
+        if (static_cast<std::size_t>(available) < target) {
             consumer_.cached_tail =
                 producer_.published_tail.load(std::memory_order_acquire);
             available = distance(consumer_.cached_tail, head);
