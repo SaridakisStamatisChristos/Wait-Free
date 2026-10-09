@@ -78,4 +78,7 @@ jobs:
         if: always()
         with:
           name: mutation-evidence
-          path: evidence/relacy/mutation-results.json
+          path: |
+            evidence/relacy/mutation-results.json
+            evidence/relacy/mutation-matrix.csv
+            evidence/relacy/mutation-summary.md
