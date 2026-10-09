@@ -1,0 +1,140 @@
+name: Portability Qualification
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-arm64-gcc
+            runner: ubuntu-24.04-arm
+            family: unix
+            cc: gcc
+            cxx: g++
+          - name: linux-arm64-clang
+            runner: ubuntu-24.04-arm
+            family: unix
+            cc: clang
+            cxx: clang++
+          - name: windows-x64-msvc
+            runner: windows-2025
+            family: windows
+            cmake_arch: x64
+          - name: windows-arm64-msvc
+            runner: windows-11-arm
+            family: windows
+            cmake_arch: ARM64
+          - name: macos-intel-appleclang
+            runner: macos-15-intel
+            family: unix
+            cc: clang
+            cxx: clang++
+          - name: macos-arm64-appleclang
+            runner: macos-15
+            family: unix
+            cc: clang
+            cxx: clang++
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure compiler environment
+        if: matrix.family == 'unix'
+        shell: bash
+        run: |
+          echo "CC=${{ matrix.cc }}" >> "$GITHUB_ENV"
+          echo "CXX=${{ matrix.cxx }}" >> "$GITHUB_ENV"
+
+      - name: Capture Unix runner context
+        if: matrix.family == 'unix'
+        shell: bash
+        run: |
+          mkdir -p evidence/portability
+          {
+            echo "github_sha=$GITHUB_SHA"
+            echo "github_run_id=$GITHUB_RUN_ID"
+            echo "runner_name=$RUNNER_NAME"
+            echo "runner_os=$RUNNER_OS"
+            echo "runner_arch=$RUNNER_ARCH"
+            echo "qualification=${{ matrix.name }}"
+            cmake --version | head -1
+            "${{ matrix.cxx }}" --version | head -1
+            uname -a
+          } | tee evidence/portability/context.txt
+
+      - name: Configure Unix build
+        if: matrix.family == 'unix'
+        shell: bash
+        run: >-
+          cmake -S . -B build/portability -DCMAKE_BUILD_TYPE=Debug
+          -DVERIQUEUE_BUILD_BENCHMARKS=OFF
+          -DVERIQUEUE_BUILD_BASELINES=OFF
+          -DVERIQUEUE_BUILD_FUZZERS=OFF
+          -DVERIQUEUE_BUILD_RELACY=OFF
+          -DVERIQUEUE_BUILD_LINEARIZABILITY=OFF
+
+      - name: Build Unix qualification
+        if: matrix.family == 'unix'
+        shell: bash
+        run: cmake --build build/portability --parallel 2
+
+      - name: Test Unix qualification
+        if: matrix.family == 'unix'
+        shell: bash
+        run: |
+          set -o pipefail
+          ctest --test-dir build/portability --output-on-failure | tee evidence/portability/ctest.log
+
+      - name: Capture Windows runner context
+        if: matrix.family == 'windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path evidence/portability | Out-Null
+          @(
+            "github_sha=$env:GITHUB_SHA"
+            "github_run_id=$env:GITHUB_RUN_ID"
+            "runner_name=$env:RUNNER_NAME"
+            "runner_os=$env:RUNNER_OS"
+            "runner_arch=$env:RUNNER_ARCH"
+            "qualification=${{ matrix.name }}"
+            (cmake --version | Select-Object -First 1)
+          ) | Tee-Object -FilePath evidence/portability/context.txt
+
+      - name: Configure Windows build
+        if: matrix.family == 'windows'
+        shell: pwsh
+        run: >-
+          cmake -S . -B build/portability -A ${{ matrix.cmake_arch }}
+          -DVERIQUEUE_BUILD_BENCHMARKS=OFF
+          -DVERIQUEUE_BUILD_BASELINES=OFF
+          -DVERIQUEUE_BUILD_FUZZERS=OFF
+          -DVERIQUEUE_BUILD_RELACY=OFF
+          -DVERIQUEUE_BUILD_LINEARIZABILITY=OFF
+
+      - name: Build Windows qualification
+        if: matrix.family == 'windows'
+        shell: pwsh
+        run: cmake --build build/portability --config Debug --parallel 2
+
+      - name: Test Windows qualification
+        if: matrix.family == 'windows'
+        shell: pwsh
+        run: |
+          ctest --test-dir build/portability -C Debug --output-on-failure 2>&1 |
+            Tee-Object -FilePath evidence/portability/ctest.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: portability-${{ matrix.name }}
+          path: evidence/portability/
