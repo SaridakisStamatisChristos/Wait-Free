@@ -1,0 +1,54 @@
+name: Hot-path Variant Lab
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'bench/bench_hotpath_variants.cpp'
+      - 'bench/experimental_spsc_variants.hpp'
+      - 'tools/run_hotpath_lab.py'
+      - 'tools/analyze_compare_campaign.py'
+      - 'CMakeLists.txt'
+
+permissions:
+  contents: read
+
+jobs:
+  variants:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Configure
+        run: >-
+          cmake -S . -B build/hotpath -G Ninja -DCMAKE_BUILD_TYPE=Release
+          -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF
+          -DVERIQUEUE_BUILD_BENCHMARKS=ON
+      - name: Build variant laboratory
+        run: cmake --build build/hotpath --target bench_hotpath_variants -j2
+      - name: Correctness smoke
+        run: |
+          for variant in veriqueue cached_limit split_control split_cached_limit; do
+            ./build/hotpath/bench_hotpath_variants "$variant" 1024 20000
+          done
+      - name: Paired experiment smoke
+        run: |
+          mkdir -p evidence/hotpath
+          python tools/run_hotpath_lab.py \
+            --program build/hotpath/bench_hotpath_variants \
+            --capacity 1024 --transfers 20000 \
+            --warmups 0 --repetitions 2 \
+            --output evidence/hotpath/raw.jsonl
+          python tools/analyze_compare_campaign.py \
+            evidence/hotpath/raw.jsonl \
+            --json-output evidence/hotpath/summary.json \
+            --markdown-output evidence/hotpath/summary.md
+          cat evidence/hotpath/summary.md
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hotpath-variant-smoke
+          path: evidence/hotpath/
