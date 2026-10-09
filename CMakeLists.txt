@@ -11,6 +11,8 @@ option(VERIQUEUE_BUILD_BASELINES "Build pinned comparative benchmark baselines" 
 set(VERIQUEUE_RELACY_MUTATION_ID "0" CACHE STRING "Relacy mutant id (0 = correct)")
 option(VERIQUEUE_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" ON)
 option(VERIQUEUE_DISABLE_PADDING "Deliberately disable cache-line padding" OFF)
+option(VERIQUEUE_TEST_FORCE_SINGLE_OWNER_CURSOR
+       "Force the ARM64 single-owner cursor strategy for verification builds" OFF)
 
 add_library(veriqueue INTERFACE)
 add_library(veriqueue::veriqueue ALIAS veriqueue)
@@ -20,6 +22,9 @@ target_include_directories(veriqueue INTERFACE
 target_compile_features(veriqueue INTERFACE cxx_std_20)
 if(VERIQUEUE_DISABLE_PADDING)
   target_compile_definitions(veriqueue INTERFACE VERIQUEUE_DISABLE_PADDING=1)
+endif()
+if(VERIQUEUE_TEST_FORCE_SINGLE_OWNER_CURSOR)
+  target_compile_definitions(veriqueue INTERFACE VERIQUEUE_FORCE_SINGLE_OWNER_CURSOR=1)
 endif()
 
 function(veriqueue_apply_warnings target)
@@ -107,6 +112,11 @@ if(VERIQUEUE_BUILD_RELACY)
   # on production/tests, but do not promote warnings originating inside Relacy to errors.
   add_test(NAME spsc_relacy COMMAND spsc_relacy)
 
+  add_executable(spsc_single_owner_relacy verify/relacy/spsc_single_owner_relacy.cpp)
+  target_link_libraries(spsc_single_owner_relacy PRIVATE relacy::relacy)
+  target_compile_features(spsc_single_owner_relacy PRIVATE cxx_std_23)
+  add_test(NAME spsc_single_owner_relacy COMMAND spsc_single_owner_relacy)
+
   add_executable(mutation_relacy verify/relacy/mutation_relacy.cpp)
   target_link_libraries(mutation_relacy PRIVATE relacy::relacy)
   target_compile_features(mutation_relacy PRIVATE cxx_std_23)
@@ -119,6 +129,14 @@ if(VERIQUEUE_BUILD_LINEARIZABILITY)
   target_link_libraries(history_generator PRIVATE veriqueue::veriqueue Threads::Threads)
   target_include_directories(history_generator PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/verify/linearizability)
   veriqueue_apply_warnings(history_generator)
+
+  add_executable(history_generator_single_owner verify/linearizability/history_generator.cpp)
+  target_link_libraries(history_generator_single_owner PRIVATE veriqueue::veriqueue Threads::Threads)
+  target_include_directories(history_generator_single_owner PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/verify/linearizability)
+  target_compile_definitions(history_generator_single_owner PRIVATE
+    VERIQUEUE_FORCE_SINGLE_OWNER_CURSOR=1)
+  veriqueue_apply_warnings(history_generator_single_owner)
 endif()
 
 if(VERIQUEUE_BUILD_BASELINES)
