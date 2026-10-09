@@ -1,0 +1,1 @@
+{"benchmark":"rtt_latency","samples":100000,"producer_cpu":0,"consumer_cpu":1,"topology":"unspecified","median_ns":351,"p90_ns":368,"p95_ns":376,"p99_ns":384,"p999_ns":440,"min_ns":263,"max_ns":18039,"environment":{"hardware_threads":4,"kernel":"6.17.0-1022-azure","cpu":"","compiler":"gcc","compiler_version":"13.3.0"}}

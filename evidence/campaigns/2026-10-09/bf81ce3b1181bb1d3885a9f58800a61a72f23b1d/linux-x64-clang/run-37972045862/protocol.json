@@ -1,0 +1,24 @@
+{
+  "bootstrap_seed": 20261011,
+  "campaign_seed": 20261011,
+  "capacities": [
+    2,
+    64,
+    256,
+    1024,
+    65536
+  ],
+  "loss_ci_upper_lt": 0.97,
+  "mode": "full",
+  "payload_bytes": [
+    8,
+    16,
+    64,
+    256
+  ],
+  "repetitions": 30,
+  "run_index": 2,
+  "transfers": 100000,
+  "warmups": 5,
+  "win_ci_lower_gt": 1.03
+}

@@ -1,0 +1,32 @@
+commit=1f2f2062c6a654f0ebb2aca719835ecd874e7402
+c++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+N12_GLOBAL__N_112correct_testILm1EEE
+iterations: 1000
+total time: 10
+throughput: 100000
+
+N12_GLOBAL__N_112correct_testILm2EEE
+iterations: 1000
+total time: 10
+throughput: 100000
+
+N12_GLOBAL__N_112correct_testILm4EEE
+iterations: 1000
+total time: 10
+throughput: 100000
+
+N12_GLOBAL__N_117bulk_correct_testILm1EEE
+iterations: 1000
+total time: 1
+throughput: 1000000
+
+N12_GLOBAL__N_117bulk_correct_testILm2EEE
+iterations: 1000
+total time: 10
+throughput: 100000
+
+N12_GLOBAL__N_117bulk_correct_testILm4EEE
+iterations: 1000
+total time: 10
+throughput: 100000
+

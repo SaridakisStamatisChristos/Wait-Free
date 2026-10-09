@@ -1,0 +1,46 @@
+MSBuild version 18.10.1-1.26427.6+3cd27c13e for .NET Framework
+
+  1>Checking Build System
+  Building Custom Rule C:/a/Wait-Free/Wait-Free/CMakeLists.txt
+  exhaustive_small.cpp
+  Building Custom Rule C:/a/Wait-Free/Wait-Free/CMakeLists.txt
+  stress_affinity.cpp
+  Building Custom Rule C:/a/Wait-Free/Wait-Free/CMakeLists.txt
+  model_random.cpp
+  model_random.vcxproj -> C:\a\Wait-Free\Wait-Free\build\portability\Debug\model_random.exe
+  stress_affinity.vcxproj -> C:\a\Wait-Free\Wait-Free\build\portability\Debug\stress_affinity.exe
+  Building Custom Rule C:/a/Wait-Free/Wait-Free/CMakeLists.txt
+  exhaustive_small.vcxproj -> C:\a\Wait-Free\Wait-Free\build\portability\Debug\exhaustive_small.exe
+  stress_bulk.cpp
+  Building Custom Rule C:/a/Wait-Free/Wait-Free/CMakeLists.txt
+  Building Custom Rule C:/a/Wait-Free/Wait-Free/CMakeLists.txt
+  stress_burst.cpp
+  stress_jitter.cpp
+  stress_bulk.vcxproj -> C:\a\Wait-Free\Wait-Free\build\portability\Debug\stress_bulk.exe
+  Building Custom Rule C:/a/Wait-Free/Wait-Free/CMakeLists.txt
+  stress_spsc.cpp
+  stress_burst.vcxproj -> C:\a\Wait-Free\Wait-Free\build\portability\Debug\stress_burst.exe
+  stress_jitter.vcxproj -> C:\a\Wait-Free\Wait-Free\build\portability\Debug\stress_jitter.exe
+  Building Custom Rule C:/a/Wait-Free/Wait-Free/CMakeLists.txt
+  Building Custom Rule C:/a/Wait-Free/Wait-Free/CMakeLists.txt
+  test_basic.cpp
+  test_bulk.cpp
+  stress_spsc.vcxproj -> C:\a\Wait-Free\Wait-Free\build\portability\Debug\stress_spsc.exe
+  Building Custom Rule C:/a/Wait-Free/Wait-Free/CMakeLists.txt
+  test_capacity.cpp
+  test_basic.vcxproj -> C:\a\Wait-Free\Wait-Free\build\portability\Debug\test_basic.exe
+  Building Custom Rule C:/a/Wait-Free/Wait-Free/CMakeLists.txt
+  test_bulk.vcxproj -> C:\a\Wait-Free\Wait-Free\build\portability\Debug\test_bulk.exe
+  test_exceptions.cpp
+  Building Custom Rule C:/a/Wait-Free/Wait-Free/CMakeLists.txt
+  test_lifetime.cpp
+  test_capacity.vcxproj -> C:\a\Wait-Free\Wait-Free\build\portability\Debug\test_capacity.exe
+  Building Custom Rule C:/a/Wait-Free/Wait-Free/CMakeLists.txt
+  Building Custom Rule C:/a/Wait-Free/Wait-Free/CMakeLists.txt
+  test_move_only.cpp
+  test_wraparound.cpp
+  test_exceptions.vcxproj -> C:\a\Wait-Free\Wait-Free\build\portability\Debug\test_exceptions.exe
+  test_lifetime.vcxproj -> C:\a\Wait-Free\Wait-Free\build\portability\Debug\test_lifetime.exe
+  test_move_only.vcxproj -> C:\a\Wait-Free\Wait-Free\build\portability\Debug\test_move_only.exe
+  test_wraparound.vcxproj -> C:\a\Wait-Free\Wait-Free\build\portability\Debug\test_wraparound.exe
+  Building Custom Rule C:/a/Wait-Free/Wait-Free/CMakeLists.txt

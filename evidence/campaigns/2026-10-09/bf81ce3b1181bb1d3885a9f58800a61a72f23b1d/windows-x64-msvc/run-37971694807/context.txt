@@ -1,0 +1,7 @@
+github_sha=1f2f2062c6a654f0ebb2aca719835ecd874e7402
+github_run_id=37971694807
+runner_name=GitHub Actions 1000025291
+runner_os=Windows
+runner_arch=X64
+qualification=windows-x64-msvc
+cmake version 4.4.3

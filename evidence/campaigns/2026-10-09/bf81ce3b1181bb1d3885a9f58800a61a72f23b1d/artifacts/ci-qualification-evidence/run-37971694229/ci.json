@@ -1,0 +1,10 @@
+{
+  "workflow": "CI",
+  "github_sha": "1f2f2062c6a654f0ebb2aca719835ecd874e7402",
+  "github_run_id": "37971694229",
+  "github_run_attempt": "1",
+  "format": "success",
+  "build_test_matrix": "success",
+  "clang_tidy": "success",
+  "benchmark_build": "success"
+}

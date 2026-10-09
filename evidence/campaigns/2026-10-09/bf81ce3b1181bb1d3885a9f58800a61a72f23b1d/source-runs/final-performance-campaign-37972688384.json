@@ -1,0 +1,65 @@
+{
+  "artifacts": [
+    {
+      "created_at": "2026-10-09T18:22:40Z",
+      "destination": "linux-x64-gcc/run-37972688384",
+      "digest": "sha256:76aacb6aa79f00a9ed32bec97aa4b193048dd12407bd8f94183bc5b43a278f80",
+      "downloaded_archive_sha256": "76aacb6aa79f00a9ed32bec97aa4b193048dd12407bd8f94183bc5b43a278f80",
+      "expired": false,
+      "expires_at": "2027-01-07T18:21:20Z",
+      "id": 11638280822,
+      "name": "hosted-performance-linux-x64-gcc",
+      "size_in_bytes": 81299,
+      "updated_at": "2026-10-09T18:22:40Z"
+    },
+    {
+      "created_at": "2026-10-09T18:23:03Z",
+      "destination": "linux-arm64-clang/run-37972688384",
+      "digest": "sha256:051491a1f9d2163c09b4f6fc1bcb897b741774d12fc5d610c35fcc15c27a0012",
+      "downloaded_archive_sha256": "051491a1f9d2163c09b4f6fc1bcb897b741774d12fc5d610c35fcc15c27a0012",
+      "expired": false,
+      "expires_at": "2027-01-07T18:21:20Z",
+      "id": 11637976121,
+      "name": "hosted-performance-linux-arm64-clang",
+      "size_in_bytes": 80841,
+      "updated_at": "2026-10-09T18:23:03Z"
+    },
+    {
+      "created_at": "2026-10-09T18:22:47Z",
+      "destination": "linux-x64-clang/run-37972688384",
+      "digest": "sha256:95807923bfffc50046654b09cbd8198dfb257b3a7b5dd4963b702542545cc69d",
+      "downloaded_archive_sha256": "95807923bfffc50046654b09cbd8198dfb257b3a7b5dd4963b702542545cc69d",
+      "expired": false,
+      "expires_at": "2027-01-07T18:21:20Z",
+      "id": 11637836079,
+      "name": "hosted-performance-linux-x64-clang",
+      "size_in_bytes": 84719,
+      "updated_at": "2026-10-09T18:22:47Z"
+    },
+    {
+      "created_at": "2026-10-09T18:22:57Z",
+      "destination": "linux-arm64-gcc/run-37972688384",
+      "digest": "sha256:463861a545fc889150f4932f82b54cac036abc3f5a341fb19695d5d2a7532d68",
+      "downloaded_archive_sha256": "463861a545fc889150f4932f82b54cac036abc3f5a341fb19695d5d2a7532d68",
+      "expired": false,
+      "expires_at": "2027-01-07T18:21:20Z",
+      "id": 11636652452,
+      "name": "hosted-performance-linux-arm64-gcc",
+      "size_in_bytes": 80783,
+      "updated_at": "2026-10-09T18:22:57Z"
+    }
+  ],
+  "conclusion": "success",
+  "created_at": "2026-10-09T18:21:19Z",
+  "event": "create",
+  "head_branch": "final-campaign/run-4",
+  "head_sha": "bf81ce3b1181bb1d3885a9f58800a61a72f23b1d",
+  "html_url": "https://github.com/SaridakisStamatisChristos/Wait-Free/actions/runs/37972688384",
+  "id": 37972688384,
+  "name": "Final Performance Campaign",
+  "run_attempt": 1,
+  "run_number": 5,
+  "status": "completed",
+  "updated_at": "2026-10-09T18:23:06Z",
+  "workflow_id": 379865021
+}

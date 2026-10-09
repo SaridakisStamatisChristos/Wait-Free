@@ -1,0 +1,41 @@
+{
+  "artifacts": [
+    {
+      "created_at": "2026-10-09T18:13:39Z",
+      "destination": "artifacts/performance-regression-linux-arm64/run-37971694309",
+      "digest": "sha256:35bba730da9556f21d81680fa995ed219664bb938a8700094b9cfae295e77667",
+      "downloaded_archive_sha256": "35bba730da9556f21d81680fa995ed219664bb938a8700094b9cfae295e77667",
+      "expired": false,
+      "expires_at": "2027-01-07T18:12:46Z",
+      "id": 11636531075,
+      "name": "performance-regression-linux-arm64",
+      "size_in_bytes": 5389,
+      "updated_at": "2026-10-09T18:13:39Z"
+    },
+    {
+      "created_at": "2026-10-09T18:13:43Z",
+      "destination": "artifacts/performance-regression-linux-x64/run-37971694309",
+      "digest": "sha256:e76aa03a1e5417d5f9fa8fbc852f4d47f705335e3169a8cf67124d86282168a9",
+      "downloaded_archive_sha256": "e76aa03a1e5417d5f9fa8fbc852f4d47f705335e3169a8cf67124d86282168a9",
+      "expired": false,
+      "expires_at": "2027-01-07T18:12:46Z",
+      "id": 11636390227,
+      "name": "performance-regression-linux-x64",
+      "size_in_bytes": 5458,
+      "updated_at": "2026-10-09T18:13:43Z"
+    }
+  ],
+  "conclusion": "success",
+  "created_at": "2026-10-09T18:12:46Z",
+  "event": "pull_request",
+  "head_branch": "ops/pr18-actions-dispatch-fallback",
+  "head_sha": "bf81ce3b1181bb1d3885a9f58800a61a72f23b1d",
+  "html_url": "https://github.com/SaridakisStamatisChristos/Wait-Free/actions/runs/37971694309",
+  "id": 37971694309,
+  "name": "Performance Regression Gate",
+  "run_attempt": 1,
+  "run_number": 3,
+  "status": "completed",
+  "updated_at": "2026-10-09T18:13:47Z",
+  "workflow_id": 379857770
+}

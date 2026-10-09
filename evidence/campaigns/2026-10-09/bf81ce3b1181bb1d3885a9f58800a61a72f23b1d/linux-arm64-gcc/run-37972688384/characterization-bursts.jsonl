@@ -1,0 +1,4 @@
+{"benchmark":"bursts","pattern":"burst","burst":1,"payload_bytes":8,"capacity":1024,"producer_cpu":0,"consumer_cpu":1,"topology":"unspecified","transfers":500000,"transfers_per_second":2.87853e+06}
+{"benchmark":"bursts","pattern":"burst","burst":8,"payload_bytes":8,"capacity":1024,"producer_cpu":0,"consumer_cpu":1,"topology":"unspecified","transfers":500000,"transfers_per_second":2.03622e+07}
+{"benchmark":"bursts","pattern":"burst","burst":64,"payload_bytes":8,"capacity":1024,"producer_cpu":0,"consumer_cpu":1,"topology":"unspecified","transfers":500000,"transfers_per_second":7.77263e+07}
+{"benchmark":"bursts","pattern":"burst","burst":256,"payload_bytes":8,"capacity":1024,"producer_cpu":0,"consumer_cpu":1,"topology":"unspecified","transfers":500000,"transfers_per_second":1.15511e+08}

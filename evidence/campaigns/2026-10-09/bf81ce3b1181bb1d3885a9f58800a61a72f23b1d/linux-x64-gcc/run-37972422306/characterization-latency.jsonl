@@ -1,0 +1,1 @@
+{"benchmark":"rtt_latency","samples":100000,"producer_cpu":0,"consumer_cpu":1,"topology":"unspecified","median_ns":101,"p90_ns":120,"p95_ns":121,"p99_ns":150,"p999_ns":171,"min_ns":60,"max_ns":26460,"environment":{"hardware_threads":4,"kernel":"6.17.0-1022-azure","cpu":"model name\t: AMD EPYC 7763 64-Core Processor","compiler":"gcc","compiler_version":"13.3.0"}}

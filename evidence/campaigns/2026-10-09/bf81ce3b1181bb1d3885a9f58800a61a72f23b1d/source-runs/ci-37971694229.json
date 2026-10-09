@@ -1,0 +1,29 @@
+{
+  "artifacts": [
+    {
+      "created_at": "2026-10-09T18:13:33Z",
+      "destination": "artifacts/ci-qualification-evidence/run-37971694229",
+      "digest": "sha256:e5a6aabfa80a9fd8105c8aa5107dac5c1e7b120a1ddddea448ddb82a9b9d4414",
+      "downloaded_archive_sha256": "e5a6aabfa80a9fd8105c8aa5107dac5c1e7b120a1ddddea448ddb82a9b9d4414",
+      "expired": false,
+      "expires_at": "2027-01-07T18:12:46Z",
+      "id": 11635733123,
+      "name": "ci-qualification-evidence",
+      "size_in_bytes": 286,
+      "updated_at": "2026-10-09T18:13:33Z"
+    }
+  ],
+  "conclusion": "success",
+  "created_at": "2026-10-09T18:12:46Z",
+  "event": "pull_request",
+  "head_branch": "ops/pr18-actions-dispatch-fallback",
+  "head_sha": "bf81ce3b1181bb1d3885a9f58800a61a72f23b1d",
+  "html_url": "https://github.com/SaridakisStamatisChristos/Wait-Free/actions/runs/37971694229",
+  "id": 37971694229,
+  "name": "CI",
+  "run_attempt": 1,
+  "run_number": 78,
+  "status": "completed",
+  "updated_at": "2026-10-09T18:13:36Z",
+  "workflow_id": 379537452
+}

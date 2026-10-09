@@ -1,0 +1,12 @@
+[
+  {
+    "label": "smt_siblings",
+    "producer_cpu": 0,
+    "consumer_cpu": 1
+  },
+  {
+    "label": "same_llc",
+    "producer_cpu": 0,
+    "consumer_cpu": 2
+  }
+]

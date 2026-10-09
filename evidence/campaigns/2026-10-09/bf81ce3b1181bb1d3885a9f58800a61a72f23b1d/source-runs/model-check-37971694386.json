@@ -1,0 +1,53 @@
+{
+  "artifacts": [
+    {
+      "created_at": "2026-10-09T18:14:24Z",
+      "destination": "verification/mutation/run-37971694386",
+      "digest": "sha256:fc8877fe6f30792c91dc315b46664f65988ba5d4598e77be86c7c342daa34fdf",
+      "downloaded_archive_sha256": "fc8877fe6f30792c91dc315b46664f65988ba5d4598e77be86c7c342daa34fdf",
+      "expired": false,
+      "expires_at": "2027-01-07T18:12:46Z",
+      "id": 11636766089,
+      "name": "mutation-evidence",
+      "size_in_bytes": 9305,
+      "updated_at": "2026-10-09T18:14:24Z"
+    },
+    {
+      "created_at": "2026-10-09T18:12:55Z",
+      "destination": "verification/relacy/run-37971694386",
+      "digest": "sha256:a6479be76a04151c3d808450387f652a0c48db2f3b50dcb082f49ab0d79ba86b",
+      "downloaded_archive_sha256": "a6479be76a04151c3d808450387f652a0c48db2f3b50dcb082f49ab0d79ba86b",
+      "expired": false,
+      "expires_at": "2027-01-07T18:12:46Z",
+      "id": 11636720841,
+      "name": "relacy-evidence",
+      "size_in_bytes": 320,
+      "updated_at": "2026-10-09T18:12:55Z"
+    },
+    {
+      "created_at": "2026-10-09T18:13:10Z",
+      "destination": "verification/linearizability/run-37971694386",
+      "digest": "sha256:5b1de128619c299ca69b817c5ab0628a5ae317398d2e06f7a9b12fc5ce90cd8b",
+      "downloaded_archive_sha256": "5b1de128619c299ca69b817c5ab0628a5ae317398d2e06f7a9b12fc5ce90cd8b",
+      "expired": false,
+      "expires_at": "2027-01-07T18:12:46Z",
+      "id": 11635338758,
+      "name": "linearizability-evidence",
+      "size_in_bytes": 160193,
+      "updated_at": "2026-10-09T18:13:10Z"
+    }
+  ],
+  "conclusion": "success",
+  "created_at": "2026-10-09T18:12:46Z",
+  "event": "pull_request",
+  "head_branch": "ops/pr18-actions-dispatch-fallback",
+  "head_sha": "bf81ce3b1181bb1d3885a9f58800a61a72f23b1d",
+  "html_url": "https://github.com/SaridakisStamatisChristos/Wait-Free/actions/runs/37971694386",
+  "id": 37971694386,
+  "name": "Model Check",
+  "run_attempt": 1,
+  "run_number": 78,
+  "status": "completed",
+  "updated_at": "2026-10-09T18:14:27Z",
+  "workflow_id": 379537450
+}

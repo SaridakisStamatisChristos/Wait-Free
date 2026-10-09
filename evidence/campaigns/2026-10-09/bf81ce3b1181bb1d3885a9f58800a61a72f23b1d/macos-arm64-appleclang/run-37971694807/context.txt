@@ -1,0 +1,9 @@
+github_sha=1f2f2062c6a654f0ebb2aca719835ecd874e7402
+github_run_id=37971694807
+runner_name=GitHub Actions 1000025287
+runner_os=macOS
+runner_arch=ARM64
+qualification=macos-arm64-appleclang
+cmake version 4.4.3
+Apple clang version 17.0.0 (clang-1700.0.13.5)
+Darwin sjc22-be108-f489f0b0-35f2-42ef-ac31-d860ee4b7920-E268E5153F09.local 24.6.0 Darwin Kernel Version 24.6.0: Tue Jul 21 20:51:34 PDT 2026; root:xnu-11417.140.69.711.44~1/RELEASE_ARM64_VMAPPLE arm64

@@ -1,0 +1,114 @@
+INFO: Running with entropic power schedule (0xFF, 100).
+INFO: Seed: 121237950
+INFO: Loaded 1 modules   (1458 inline 8-bit counters): 1458 [0x55eefa0b19d8, 0x55eefa0b1f8a), 
+INFO: Loaded 1 PC tables (1458 PCs): 1458 [0x55eefa0b1f90,0x55eefa0b7ab0), 
+INFO:        0 files found in fuzz/corpus
+INFO: -max_len is not provided; libFuzzer will not generate inputs larger than 4096 bytes
+INFO: A corpus is not provided, starting from an empty corpus
+#2	INITED cov: 301 ft: 302 corp: 1/1b exec/s: 0 rss: 46Mb
+	NEW_FUNC[1/12]: 0x55eefa04dfa8 in unsigned long const& std::min<unsigned long>(unsigned long const&, unsigned long const&) (/home/runner/work/Wait-Free/Wait-Free/build/fuzz/fuzz_model+0x156fa8) (BuildId: da851b4eae31dc42f8e6eb57fd506adf3fb73975)
+	NEW_FUNC[2/12]: 0x55eefa04f470 in veriqueue::spsc_queue<unsigned char, 8ul, 64ul, unsigned char>::try_pop_bulk(std::span<unsigned char, 18446744073709551615ul>) requires std::is_nothrow_move_assignable_v<T> (/home/runner/work/Wait-Free/Wait-Free/build/fuzz/fuzz_model+0x158470) (BuildId: da851b4eae31dc42f8e6eb57fd506adf3fb73975)
+#4	NEW    cov: 341 ft: 343 corp: 2/2b lim: 4 exec/s: 0 rss: 47Mb L: 1/1 MS: 1 ChangeBit-
+	NEW_FUNC[1/11]: 0x55eefa04ddf0 in std::array<unsigned char, 4ul>::operator[](unsigned long) (/home/runner/work/Wait-Free/Wait-Free/build/fuzz/fuzz_model+0x156df0) (BuildId: da851b4eae31dc42f8e6eb57fd506adf3fb73975)
+	NEW_FUNC[2/11]: 0x55eefa04e180 in veriqueue::spsc_queue<unsigned char, 8ul, 64ul, unsigned char>::try_push_bulk(std::span<unsigned char const, 18446744073709551615ul>) requires std::is_nothrow_copy_constructible_v<T> (/home/runner/work/Wait-Free/Wait-Free/build/fuzz/fuzz_model+0x157180) (BuildId: da851b4eae31dc42f8e6eb57fd506adf3fb73975)
+#5	NEW    cov: 389 ft: 442 corp: 3/3b lim: 4 exec/s: 0 rss: 49Mb L: 1/1 MS: 1 ChangeByte-
+#6	NEW    cov: 389 ft: 549 corp: 4/5b lim: 4 exec/s: 0 rss: 49Mb L: 2/2 MS: 1 CopyPart-
+	NEW_FUNC[1/3]: 0x55eefa04bf70 in veriqueue::spsc_queue<unsigned char, 8ul, 64ul, unsigned char>::try_pop(unsigned char&) requires std::is_nothrow_move_assignable_v<T> (/home/runner/work/Wait-Free/Wait-Free/build/fuzz/fuzz_model+0x154f70) (BuildId: da851b4eae31dc42f8e6eb57fd506adf3fb73975)
+	NEW_FUNC[2/3]: 0x55eefa04cac0 in std::deque<unsigned char, std::allocator<unsigned char>>::empty() const (/home/runner/work/Wait-Free/Wait-Free/build/fuzz/fuzz_model+0x155ac0) (BuildId: da851b4eae31dc42f8e6eb57fd506adf3fb73975)
+#10	NEW    cov: 416 ft: 598 corp: 5/7b lim: 4 exec/s: 0 rss: 50Mb L: 2/2 MS: 4 ChangeByte-ShuffleBytes-ShuffleBytes-InsertByte-
+#12	NEW    cov: 416 ft: 604 corp: 6/9b lim: 4 exec/s: 0 rss: 50Mb L: 2/2 MS: 2 InsertByte-ChangeByte-
+	NEW_FUNC[1/1]: 0x55eefa050820 in bool veriqueue::spsc_queue<unsigned char, 8ul, 64ul, unsigned char>::try_consume<LLVMFuzzerTestOneInput::$_0>(T&&) fuzz_model.cpp
+#18	NEW    cov: 430 ft: 644 corp: 7/10b lim: 4 exec/s: 0 rss: 50Mb L: 1/2 MS: 1 ChangeByte-
+#28	NEW    cov: 430 ft: 659 corp: 8/11b lim: 4 exec/s: 0 rss: 50Mb L: 1/2 MS: 5 CrossOver-CopyPart-ChangeByte-CopyPart-ChangeByte-
+	NEW_FUNC[1/4]: 0x55eefa04ced0 in std::deque<unsigned char, std::allocator<unsigned char>>::front() (/home/runner/work/Wait-Free/Wait-Free/build/fuzz/fuzz_model+0x155ed0) (BuildId: da851b4eae31dc42f8e6eb57fd506adf3fb73975)
+	NEW_FUNC[2/4]: 0x55eefa04d120 in std::deque<unsigned char, std::allocator<unsigned char>>::pop_front() (/home/runner/work/Wait-Free/Wait-Free/build/fuzz/fuzz_model+0x156120) (BuildId: da851b4eae31dc42f8e6eb57fd506adf3fb73975)
+#36	NEW    cov: 478 ft: 781 corp: 9/14b lim: 4 exec/s: 0 rss: 50Mb L: 3/3 MS: 3 CopyPart-CrossOver-CrossOver-
+#41	NEW    cov: 487 ft: 838 corp: 10/16b lim: 4 exec/s: 0 rss: 50Mb L: 2/3 MS: 5 ShuffleBytes-ChangeBit-ChangeBinInt-ShuffleBytes-ChangeByte-
+#43	NEW    cov: 487 ft: 851 corp: 11/18b lim: 4 exec/s: 0 rss: 50Mb L: 2/3 MS: 2 ChangeBit-InsertByte-
+#48	NEW    cov: 487 ft: 945 corp: 12/20b lim: 4 exec/s: 0 rss: 50Mb L: 2/3 MS: 5 ShuffleBytes-ChangeBit-ShuffleBytes-ChangeBit-CrossOver-
+#52	NEW    cov: 487 ft: 959 corp: 13/22b lim: 4 exec/s: 0 rss: 50Mb L: 2/3 MS: 4 ShuffleBytes-ChangeByte-CopyPart-CrossOver-
+#54	NEW    cov: 487 ft: 971 corp: 14/25b lim: 4 exec/s: 0 rss: 50Mb L: 3/3 MS: 2 InsertByte-ChangeByte-
+#58	NEW    cov: 487 ft: 984 corp: 15/28b lim: 4 exec/s: 0 rss: 50Mb L: 3/3 MS: 4 ShuffleBytes-ShuffleBytes-InsertByte-CrossOver-
+	NEW_FUNC[1/4]: 0x55eefa062af8 in std::invoke_result<LLVMFuzzerTestOneInput::$_0, unsigned char&>::type std::invoke<LLVMFuzzerTestOneInput::$_0, unsigned char&>(LLVMFuzzerTestOneInput::$_0&&, unsigned char&) fuzz_model.cpp
+	NEW_FUNC[2/4]: 0x55eefa062c28 in std::__invoke_result<LLVMFuzzerTestOneInput::$_0, unsigned char&>::type std::__invoke<LLVMFuzzerTestOneInput::$_0, unsigned char&>(LLVMFuzzerTestOneInput::$_0&&, unsigned char&) fuzz_model.cpp
+#59	NEW    cov: 509 ft: 1008 corp: 16/31b lim: 4 exec/s: 0 rss: 50Mb L: 3/3 MS: 1 CrossOver-
+#63	NEW    cov: 509 ft: 1023 corp: 17/33b lim: 4 exec/s: 0 rss: 50Mb L: 2/3 MS: 4 ChangeBit-ShuffleBytes-ChangeBit-ChangeBinInt-
+#65	NEW    cov: 509 ft: 1024 corp: 18/35b lim: 4 exec/s: 0 rss: 50Mb L: 2/3 MS: 2 CopyPart-InsertByte-
+#66	NEW    cov: 510 ft: 1104 corp: 19/39b lim: 4 exec/s: 0 rss: 50Mb L: 4/4 MS: 1 CrossOver-
+#67	NEW    cov: 510 ft: 1119 corp: 20/41b lim: 4 exec/s: 0 rss: 50Mb L: 2/4 MS: 1 ChangeBit-
+#72	NEW    cov: 510 ft: 1121 corp: 21/45b lim: 4 exec/s: 0 rss: 50Mb L: 4/4 MS: 5 ShuffleBytes-EraseBytes-ChangeByte-CrossOver-CrossOver-
+#76	NEW    cov: 510 ft: 1123 corp: 22/47b lim: 4 exec/s: 0 rss: 50Mb L: 2/4 MS: 4 ShuffleBytes-EraseBytes-CopyPart-InsertByte-
+#87	NEW    cov: 510 ft: 1165 corp: 23/48b lim: 4 exec/s: 0 rss: 50Mb L: 1/4 MS: 1 ChangeByte-
+#105	NEW    cov: 510 ft: 1206 corp: 24/52b lim: 4 exec/s: 0 rss: 50Mb L: 4/4 MS: 3 CrossOver-ChangeBinInt-CrossOver-
+=================================================================
+==2321==ERROR: AddressSanitizer: stack-buffer-overflow on address 0x7f417ef1fdd4 at pc 0x55eefa049891 bp 0x7ffe86ae2e30 sp 0x7ffe86ae2e28
+WRITE of size 1 at 0x7f417ef1fdd4 thread T0
+    #0 0x55eefa049890 in LLVMFuzzerTestOneInput (/home/runner/work/Wait-Free/Wait-Free/build/fuzz/fuzz_model+0x152890) (BuildId: da851b4eae31dc42f8e6eb57fd506adf3fb73975)
+    #1 0x55eef9f53c94 in fuzzer::Fuzzer::ExecuteCallback(unsigned char const*, unsigned long) (/home/runner/work/Wait-Free/Wait-Free/build/fuzz/fuzz_model+0x5cc94) (BuildId: da851b4eae31dc42f8e6eb57fd506adf3fb73975)
+    #2 0x55eef9f53389 in fuzzer::Fuzzer::RunOne(unsigned char const*, unsigned long, bool, fuzzer::InputInfo*, bool, bool*) (/home/runner/work/Wait-Free/Wait-Free/build/fuzz/fuzz_model+0x5c389) (BuildId: da851b4eae31dc42f8e6eb57fd506adf3fb73975)
+    #3 0x55eef9f54b75 in fuzzer::Fuzzer::MutateAndTestOne() (/home/runner/work/Wait-Free/Wait-Free/build/fuzz/fuzz_model+0x5db75) (BuildId: da851b4eae31dc42f8e6eb57fd506adf3fb73975)
+    #4 0x55eef9f556d5 in fuzzer::Fuzzer::Loop(std::vector<fuzzer::SizedFile, std::allocator<fuzzer::SizedFile>>&) (/home/runner/work/Wait-Free/Wait-Free/build/fuzz/fuzz_model+0x5e6d5) (BuildId: da851b4eae31dc42f8e6eb57fd506adf3fb73975)
+    #5 0x55eef9f429af in fuzzer::FuzzerDriver(int*, char***, int (*)(unsigned char const*, unsigned long)) (/home/runner/work/Wait-Free/Wait-Free/build/fuzz/fuzz_model+0x4b9af) (BuildId: da851b4eae31dc42f8e6eb57fd506adf3fb73975)
+    #6 0x55eef9f6d036 in main (/home/runner/work/Wait-Free/Wait-Free/build/fuzz/fuzz_model+0x76036) (BuildId: da851b4eae31dc42f8e6eb57fd506adf3fb73975)
+    #7 0x7f4180a2a1c9  (/lib/x86_64-linux-gnu/libc.so.6+0x2a1c9) (BuildId: a4a7992a8e66555c8141ab2a08a8465ff6e0ea65)
+    #8 0x7f4180a2a28a in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x2a28a) (BuildId: a4a7992a8e66555c8141ab2a08a8465ff6e0ea65)
+    #9 0x55eef9f37994 in _start (/home/runner/work/Wait-Free/Wait-Free/build/fuzz/fuzz_model+0x40994) (BuildId: da851b4eae31dc42f8e6eb57fd506adf3fb73975)
+
+Address 0x7f417ef1fdd4 is located in stack of thread T0 at offset 468 in frame
+    #0 0x55eefa048757 in LLVMFuzzerTestOneInput (/home/runner/work/Wait-Free/Wait-Free/build/fuzz/fuzz_model+0x151757) (BuildId: da851b4eae31dc42f8e6eb57fd506adf3fb73975)
+
+  This frame has 14 object(s):
+    [64, 256) 'q'
+    [320, 400) 'model'
+    [432, 433) 'base'
+    [448, 449) 'out'
+    [464, 468) 'input' <== Memory access at offset 468 overflows this variable
+    [480, 488) 'wanted'
+    [512, 520) 'ref.tmp'
+    [544, 560) 'ref.tmp107'
+    [576, 580) 'output'
+    [592, 600) 'wanted137'
+    [624, 632) 'ref.tmp150'
+    [656, 672) 'ref.tmp160'
+    [688, 689) 'observed'
+    [704, 712) 'ref.tmp194'
+HINT: this may be a false positive if your program uses some custom stack unwind mechanism, swapcontext or vfork
+      (longjmp and C++ exceptions *are* supported)
+SUMMARY: AddressSanitizer: stack-buffer-overflow (/home/runner/work/Wait-Free/Wait-Free/build/fuzz/fuzz_model+0x152890) (BuildId: da851b4eae31dc42f8e6eb57fd506adf3fb73975) in LLVMFuzzerTestOneInput
+Shadow bytes around the buggy address:
+  0x7f417ef1fb00: f5 f5 f5 f5 f5 f5 f5 f5 f5 f5 f5 f5 f5 f5 f5 f5
+  0x7f417ef1fb80: f5 f5 f5 f5 f5 f5 f5 f5 f5 f5 f5 f5 f5 f5 f5 f5
+  0x7f417ef1fc00: f1 f1 f1 f1 f1 f1 f1 f1 00 00 00 00 00 00 00 00
+  0x7f417ef1fc80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x7f417ef1fd00: f2 f2 f2 f2 f2 f2 f2 f2 00 00 00 00 00 00 00 00
+=>0x7f417ef1fd80: 00 00 f2 f2 f2 f2 01 f2 f8 f2[04]f2 00 f2 f2 f2
+  0x7f417ef1fe00: f8 f2 f2 f2 f8 f8 f2 f2 f8 f2 f8 f2 f2 f2 f8 f2
+  0x7f417ef1fe80: f2 f2 f8 f8 f2 f2 f8 f2 f8 f3 f3 f3 00 00 00 00
+  0x7f417ef1ff00: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x7f417ef1ff80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x7f417ef20000: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+Shadow byte legend (one shadow byte represents 8 application bytes):
+  Addressable:           00
+  Partially addressable: 01 02 03 04 05 06 07 
+  Heap left redzone:       fa
+  Freed heap region:       fd
+  Stack left redzone:      f1
+  Stack mid redzone:       f2
+  Stack right redzone:     f3
+  Stack after return:      f5
+  Stack use after scope:   f8
+  Global redzone:          f9
+  Global init order:       f6
+  Poisoned by user:        f7
+  Container overflow:      fc
+  Array cookie:            ac
+  Intra object redzone:    bb
+  ASan internal:           fe
+  Left alloca redzone:     ca
+  Right alloca redzone:    cb
+==2321==ABORTING
+MS: 3 ChangeBinInt-CrossOver-ChangeByte-; base unit: d86f9ba461e9b067f990f082dd88b0b7c333daaf
+0xd4,
+\324
+artifact_prefix='evidence/fuzz/'; Test unit written to evidence/fuzz/crash-c151b760696d665265187501c51f38cd84503634
+Base64: 1A==

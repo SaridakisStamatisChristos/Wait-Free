@@ -1,0 +1,16 @@
+github_sha=bf81ce3b1181bb1d3885a9f58800a61a72f23b1d
+github_run_id=37972045862
+github_run_attempt=1
+event_name=create
+trigger_ref=final-campaign/run-2
+campaign_run_index=2
+runner_name=GitHub Actions 1000025308
+runner_os=Linux
+runner_arch=ARM64
+runner_image_os=ubuntu24-arm64
+runner_image_version=20261004.142.1
+matrix_arch=linux-arm64
+matrix_compiler=gcc
+compiler_path=/usr/bin/g++
+stdlib=unknown
+compiler_version=g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0

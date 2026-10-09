@@ -1,0 +1,25 @@
+{
+  "capacity": 2,
+  "seed": 7,
+  "ops_per_side": 8,
+  "profile": "producer-heavy",
+  "mode": "scalar",
+  "operations": [
+    {"id":1,"client":0,"operation":"push","value":1,"values":[],"requested":0,"invoke":1,"complete":2,"success":true,"result":0,"count":0,"results":[]},
+    {"id":2,"client":1,"operation":"pop","value":0,"values":[],"requested":0,"invoke":3,"complete":10,"success":true,"result":1,"count":0,"results":[]},
+    {"id":3,"client":0,"operation":"push","value":2,"values":[],"requested":0,"invoke":4,"complete":5,"success":true,"result":0,"count":0,"results":[]},
+    {"id":4,"client":0,"operation":"push","value":3,"values":[],"requested":0,"invoke":6,"complete":7,"success":false,"result":0,"count":0,"results":[]},
+    {"id":5,"client":0,"operation":"push","value":4,"values":[],"requested":0,"invoke":8,"complete":9,"success":false,"result":0,"count":0,"results":[]},
+    {"id":6,"client":0,"operation":"push","value":5,"values":[],"requested":0,"invoke":11,"complete":12,"success":true,"result":0,"count":0,"results":[]},
+    {"id":7,"client":1,"operation":"pop","value":0,"values":[],"requested":0,"invoke":13,"complete":14,"success":true,"result":2,"count":0,"results":[]},
+    {"id":8,"client":1,"operation":"pop","value":0,"values":[],"requested":0,"invoke":15,"complete":16,"success":true,"result":5,"count":0,"results":[]},
+    {"id":9,"client":1,"operation":"pop","value":0,"values":[],"requested":0,"invoke":17,"complete":18,"success":false,"result":0,"count":0,"results":[]},
+    {"id":10,"client":1,"operation":"pop","value":0,"values":[],"requested":0,"invoke":19,"complete":20,"success":false,"result":0,"count":0,"results":[]},
+    {"id":11,"client":1,"operation":"pop","value":0,"values":[],"requested":0,"invoke":21,"complete":22,"success":false,"result":0,"count":0,"results":[]},
+    {"id":12,"client":1,"operation":"pop","value":0,"values":[],"requested":0,"invoke":23,"complete":24,"success":false,"result":0,"count":0,"results":[]},
+    {"id":13,"client":0,"operation":"push","value":6,"values":[],"requested":0,"invoke":25,"complete":26,"success":true,"result":0,"count":0,"results":[]},
+    {"id":14,"client":1,"operation":"pop","value":0,"values":[],"requested":0,"invoke":27,"complete":30,"success":true,"result":6,"count":0,"results":[]},
+    {"id":15,"client":0,"operation":"push","value":7,"values":[],"requested":0,"invoke":28,"complete":29,"success":true,"result":0,"count":0,"results":[]},
+    {"id":16,"client":0,"operation":"push","value":8,"values":[],"requested":0,"invoke":31,"complete":32,"success":true,"result":0,"count":0,"results":[]}
+  ]
+}

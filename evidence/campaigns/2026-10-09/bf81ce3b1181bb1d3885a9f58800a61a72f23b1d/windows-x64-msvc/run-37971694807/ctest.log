@@ -1,0 +1,33 @@
+Test project D:/a/Wait-Free/Wait-Free/build/portability
+      Start  1: test_basic
+ 1/14 Test  #1: test_basic .......................   Passed    0.26 sec
+      Start  2: test_bulk
+ 2/14 Test  #2: test_bulk ........................   Passed    0.02 sec
+      Start  3: test_capacity
+ 3/14 Test  #3: test_capacity ....................   Passed    0.01 sec
+      Start  4: test_wraparound
+ 4/14 Test  #4: test_wraparound ..................   Passed    0.04 sec
+      Start  5: test_lifetime
+ 5/14 Test  #5: test_lifetime ....................   Passed    0.01 sec
+      Start  6: test_move_only
+ 6/14 Test  #6: test_move_only ...................   Passed    0.01 sec
+      Start  7: test_exceptions
+ 7/14 Test  #7: test_exceptions ..................   Passed    0.01 sec
+      Start  8: model_random
+ 8/14 Test  #8: model_random .....................   Passed    0.20 sec
+      Start  9: exhaustive_small
+ 9/14 Test  #9: exhaustive_small .................   Passed    0.04 sec
+      Start 10: stress_spsc
+10/14 Test #10: stress_spsc ......................   Passed    0.08 sec
+      Start 11: stress_burst
+11/14 Test #11: stress_burst .....................   Passed    0.03 sec
+      Start 12: stress_jitter
+12/14 Test #12: stress_jitter ....................   Passed    0.03 sec
+      Start 13: stress_affinity
+13/14 Test #13: stress_affinity ..................   Passed    0.02 sec
+      Start 14: stress_bulk
+14/14 Test #14: stress_bulk ......................   Passed    0.03 sec
+
+100% tests passed out of 14
+
+Total Test time (real) =   0.84 sec

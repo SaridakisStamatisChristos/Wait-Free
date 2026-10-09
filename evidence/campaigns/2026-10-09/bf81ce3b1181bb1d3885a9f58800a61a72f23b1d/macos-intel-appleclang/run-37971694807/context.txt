@@ -1,0 +1,9 @@
+github_sha=1f2f2062c6a654f0ebb2aca719835ecd874e7402
+github_run_id=37971694807
+runner_name=GitHub Actions 1000025286
+runner_os=macOS
+runner_arch=X64
+qualification=macos-intel-appleclang
+cmake version 4.4.2
+Apple clang version 17.0.0 (clang-1700.0.13.5)
+Darwin sjc20-cw757-ef02bced-400c-4aa3-9f2b-6d79fd634eb5-62D8E882926C.local 24.6.0 Darwin Kernel Version 24.6.0: Tue Jul 21 20:50:07 PDT 2026; root:xnu-11417.140.69.711.44~1/RELEASE_X86_64 x86_64

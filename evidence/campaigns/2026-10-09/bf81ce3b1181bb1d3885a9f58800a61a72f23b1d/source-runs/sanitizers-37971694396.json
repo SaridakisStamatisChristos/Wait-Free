@@ -1,0 +1,41 @@
+{
+  "artifacts": [
+    {
+      "created_at": "2026-10-09T18:13:03Z",
+      "destination": "artifacts/asan-ubsan-evidence/run-37971694396",
+      "digest": "sha256:b547d0a4d220311ab325cb8efa6b779c663bdce211442be9b692aa7313d7b8c8",
+      "downloaded_archive_sha256": "b547d0a4d220311ab325cb8efa6b779c663bdce211442be9b692aa7313d7b8c8",
+      "expired": false,
+      "expires_at": "2027-01-07T18:12:46Z",
+      "id": 11636240708,
+      "name": "asan-ubsan-evidence",
+      "size_in_bytes": 589,
+      "updated_at": "2026-10-09T18:13:03Z"
+    },
+    {
+      "created_at": "2026-10-09T18:13:04Z",
+      "destination": "artifacts/tsan-evidence/run-37971694396",
+      "digest": "sha256:93c40746ae804fea1b5a4a6585b87a271f8e9d3dfff3f3fa91c8d5366e0b6792",
+      "downloaded_archive_sha256": "93c40746ae804fea1b5a4a6585b87a271f8e9d3dfff3f3fa91c8d5366e0b6792",
+      "expired": false,
+      "expires_at": "2027-01-07T18:12:46Z",
+      "id": 11635518514,
+      "name": "tsan-evidence",
+      "size_in_bytes": 379,
+      "updated_at": "2026-10-09T18:13:04Z"
+    }
+  ],
+  "conclusion": "success",
+  "created_at": "2026-10-09T18:12:46Z",
+  "event": "pull_request",
+  "head_branch": "ops/pr18-actions-dispatch-fallback",
+  "head_sha": "bf81ce3b1181bb1d3885a9f58800a61a72f23b1d",
+  "html_url": "https://github.com/SaridakisStamatisChristos/Wait-Free/actions/runs/37971694396",
+  "id": 37971694396,
+  "name": "Sanitizers",
+  "run_attempt": 1,
+  "run_number": 78,
+  "status": "completed",
+  "updated_at": "2026-10-09T18:13:06Z",
+  "workflow_id": 379537451
+}
