@@ -3,13 +3,16 @@
 #include "veriqueue/detail/config.hpp"
 #include "veriqueue/detail/slot.hpp"
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <limits>
 #include <memory>
+#include <span>
 #include <type_traits>
 #include <utility>
 
@@ -37,7 +40,7 @@ class spsc_queue final {
     static_assert(CacheLine >= alignof(std::atomic<Index>),
                   "CacheLine must satisfy atomic alignment");
     static_assert(std::is_nothrow_destructible_v<T>,
-                  "T must be nothrow destructible because try_pop and queue destruction are noexcept");
+                  "T must be nothrow destructible because consuming paths and queue destruction are noexcept");
 
 #ifdef VERIQUEUE_DISABLE_PADDING
     static constexpr std::size_t control_alignment = alignof(std::atomic<Index>);
@@ -116,6 +119,34 @@ public:
         return try_emplace(std::move(value));
     }
 
+    [[nodiscard]] std::size_t try_push_bulk(std::span<const T> values) noexcept
+        requires std::is_nothrow_copy_constructible_v<T>
+    {
+        if (values.empty()) return 0;
+
+        Index tail = producer_.local_tail;
+        Index used = distance(tail, producer_.cached_head);
+        if (used == capacity_index) {
+            producer_.cached_head =
+                consumer_.published_head.load(std::memory_order_acquire);
+            used = distance(tail, producer_.cached_head);
+            if (used == capacity_index) return 0;
+        }
+
+        const Index available = static_cast<Index>(capacity_index - used);
+        const std::size_t count =
+            (std::min)(values.size(), static_cast<std::size_t>(available));
+
+        for (std::size_t i = 0; i < count; ++i) {
+            std::construct_at(slot_for(tail).storage_ptr(), values[i]);
+            ++tail;
+        }
+
+        producer_.local_tail = tail;
+        producer_.published_tail.store(tail, std::memory_order_release);
+        return count;
+    }
+
     [[nodiscard]] bool try_pop(T& output) noexcept
         requires std::is_nothrow_move_assignable_v<T>
     {
@@ -131,6 +162,56 @@ public:
 
         T* const source = slot_for(head).live_ptr();
         output = std::move(*source);
+        std::destroy_at(source);
+        ++head;
+        consumer_.local_head = head;
+        consumer_.published_head.store(head, std::memory_order_release);
+        return true;
+    }
+
+    [[nodiscard]] std::size_t try_pop_bulk(std::span<T> output) noexcept
+        requires std::is_nothrow_move_assignable_v<T>
+    {
+        if (output.empty()) return 0;
+
+        Index head = consumer_.local_head;
+        Index available = distance(consumer_.cached_tail, head);
+        if (available == 0) {
+            consumer_.cached_tail =
+                producer_.published_tail.load(std::memory_order_acquire);
+            available = distance(consumer_.cached_tail, head);
+            if (available == 0) return 0;
+        }
+
+        const std::size_t count =
+            (std::min)(output.size(), static_cast<std::size_t>(available));
+        for (std::size_t i = 0; i < count; ++i) {
+            T* const source = slot_for(head).live_ptr();
+            output[i] = std::move(*source);
+            std::destroy_at(source);
+            ++head;
+        }
+
+        consumer_.local_head = head;
+        consumer_.published_head.store(head, std::memory_order_release);
+        return count;
+    }
+
+    template <class F>
+        requires std::is_nothrow_invocable_v<F, T&>
+    [[nodiscard]] bool try_consume(F&& consumer) noexcept {
+        Index head = consumer_.local_head;
+
+        if (head == consumer_.cached_tail) {
+            consumer_.cached_tail =
+                producer_.published_tail.load(std::memory_order_acquire);
+            if (head == consumer_.cached_tail) {
+                return false;
+            }
+        }
+
+        T* const source = slot_for(head).live_ptr();
+        std::invoke(std::forward<F>(consumer), *source);
         std::destroy_at(source);
         ++head;
         consumer_.local_head = head;
