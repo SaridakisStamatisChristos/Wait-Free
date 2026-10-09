@@ -1,6 +1,7 @@
 #include "test_support.hpp"
 #include "veriqueue/spsc_queue.hpp"
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cstddef>
