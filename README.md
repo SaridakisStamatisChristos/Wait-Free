@@ -48,10 +48,10 @@ bool try_push(T&& value);
 bool try_pop(T& output) noexcept;   // requires nothrow move assignment
 bool empty() const noexcept;        // advisory concurrent observation
 std::size_t capacity() const noexcept;
-std::size_t size_approx() const noexcept;
+std::size_t size_approx() const noexcept; // advisory; always <= capacity()
 ```
 
-The destructor requires **external quiescence**: no producer or consumer operation may overlap queue destruction.
+`T` must be nothrow destructible because successful `try_pop()` and queue destruction destroy live elements on `noexcept` paths. The destructor also requires **external quiescence**: no producer or consumer operation may overlap queue destruction. See [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md) for the complete production contract.
 
 ## Build and test
 
@@ -139,7 +139,7 @@ The benchmark system is designed to preserve negative results and topology sensi
 
 ## Scope and limitations
 
-This is SPSC v1. It intentionally does not implement blocking waits, dynamic resizing, MPSC/MPMC, bulk APIs, coroutines, persistence, cross-process sharing, or allocator abstraction. `empty()` and `size_approx()` are advisory under concurrency. Queue destruction is not concurrent-safe. Baseline benchmark comparisons must be generated on the target machine before comparative README claims are added.
+This is SPSC v1. It intentionally does not implement blocking waits, dynamic resizing, MPSC/MPMC, bulk APIs, coroutines, persistence, cross-process sharing, or allocator abstraction. `empty()` and `size_approx()` are advisory under concurrency; `size_approx()` nevertheless remains within the physical range `[0, capacity()]`. Queue destruction is not concurrent-safe. Baseline benchmark comparisons must be generated on the target machine before comparative README claims are added.
 
 The evidence ledger is the source of truth for what has actually been established: [`docs/EVIDENCE_LEDGER.md`](docs/EVIDENCE_LEDGER.md).
 
