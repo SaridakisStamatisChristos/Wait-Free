@@ -53,6 +53,12 @@ namespace veriqueue {
 #define VERIQUEUE_DETAIL_ARM64_STORAGE_STRIPE 0
 #endif
 
+#if defined(__aarch64__) && defined(__GNUC__) && !defined(__clang__)
+#define VERIQUEUE_DETAIL_GCC_ARM64 1
+#else
+#define VERIQUEUE_DETAIL_GCC_ARM64 0
+#endif
+
 template <
     class T,
     std::size_t Capacity,
@@ -95,33 +101,62 @@ class spsc_queue final {
         sizeof(detail::slot<T>) == 16 &&
         Capacity >= 8;
 
-    // On AArch64, 8-byte slots retain sequential physical storage. Selected bulk
-    // operations can therefore traverse the ring as at most two contiguous spans,
-    // avoiding a mask/slot lookup for every element without changing publication.
-    static constexpr bool use_arm64_8b_contiguous_bulk =
-        VERIQUEUE_DETAIL_ARM64_STORAGE_STRIPE && sizeof(detail::slot<T>) == 8;
+    // Experimental attribution-backed hybrid: GCC/AArch64 8-byte queues at capacity 256
+    // keep PR21's single-owner scalar cursor, but consecutive bulk calls use an owner-local
+    // shadow cursor with the same field ordering as the pre-PR21 queue. A successful scalar
+    // operation invalidates bulk mode; the next bulk call resynchronizes from the published
+    // cursor. Non-target state types are unchanged.
+    static constexpr bool use_gcc_arm64_8b_bulk_hybrid =
+        VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR &&
+        VERIQUEUE_DETAIL_GCC_ARM64 &&
+        sizeof(detail::slot<T>) == 8 &&
+        Capacity == 256;
 
-    struct alignas(control_alignment) producer_state final {
-#if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
+    struct alignas(control_alignment) single_owner_producer_state final {
         std::atomic<Index> published_tail{0};
         Index cached_head{0};
-#else
+    };
+
+    struct alignas(control_alignment) single_owner_consumer_state final {
+        std::atomic<Index> published_head{0};
+        Index cached_tail{0};
+    };
+
+    struct alignas(control_alignment) hybrid_producer_state final {
         Index local_tail{0};
         Index cached_head{0};
         std::atomic<Index> published_tail{0};
-#endif
+        bool bulk_active{false};
     };
 
-    struct alignas(control_alignment) consumer_state final {
-#if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
-        std::atomic<Index> published_head{0};
-        Index cached_tail{0};
-#else
+    struct alignas(control_alignment) hybrid_consumer_state final {
         Index local_head{0};
         Index cached_tail{0};
         std::atomic<Index> published_head{0};
-#endif
+        bool bulk_active{false};
     };
+
+    struct alignas(control_alignment) dual_owner_producer_state final {
+        Index local_tail{0};
+        Index cached_head{0};
+        std::atomic<Index> published_tail{0};
+    };
+
+    struct alignas(control_alignment) dual_owner_consumer_state final {
+        Index local_head{0};
+        Index cached_tail{0};
+        std::atomic<Index> published_head{0};
+    };
+
+#if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
+    using producer_state = std::conditional_t<
+        use_gcc_arm64_8b_bulk_hybrid, hybrid_producer_state, single_owner_producer_state>;
+    using consumer_state = std::conditional_t<
+        use_gcc_arm64_8b_bulk_hybrid, hybrid_consumer_state, single_owner_consumer_state>;
+#else
+    using producer_state = dual_owner_producer_state;
+    using consumer_state = dual_owner_consumer_state;
+#endif
 
 public:
     using value_type = T;
@@ -171,7 +206,11 @@ public:
 
         std::construct_at(slot_for(tail).storage_ptr(), std::forward<Args>(args)...);
         ++tail;
-#if !VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
+#if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
+        if constexpr (use_gcc_arm64_8b_bulk_hybrid) {
+            if (producer_.bulk_active) [[unlikely]] producer_.bulk_active = false;
+        }
+#else
         producer_.local_tail = tail;
 #endif
         producer_.published_tail.store(tail, std::memory_order_release);
@@ -196,7 +235,17 @@ public:
         if (values.empty()) return 0;
 
 #if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
-        Index tail = producer_.published_tail.load(std::memory_order_relaxed);
+        Index tail;
+        if constexpr (use_gcc_arm64_8b_bulk_hybrid) {
+            if (!producer_.bulk_active) [[unlikely]] {
+                producer_.local_tail =
+                    producer_.published_tail.load(std::memory_order_relaxed);
+                producer_.bulk_active = true;
+            }
+            tail = producer_.local_tail;
+        } else {
+            tail = producer_.published_tail.load(std::memory_order_relaxed);
+        }
 #else
         Index tail = producer_.local_tail;
 #endif
@@ -215,31 +264,14 @@ public:
         const std::size_t count =
             (std::min)(values.size(), static_cast<std::size_t>(available));
 
-        if constexpr (use_arm64_8b_contiguous_bulk) {
-            if (Capacity >= 1024 || target <= 8) {
-                const std::size_t start = static_cast<std::size_t>(tail & mask_index);
-                const std::size_t first = (std::min)(count, Capacity - start);
-                for (std::size_t i = 0; i < first; ++i) {
-                    std::construct_at(slots_[start + i].storage_ptr(), values[i]);
-                }
-                for (std::size_t i = first; i < count; ++i) {
-                    std::construct_at(slots_[i - first].storage_ptr(), values[i]);
-                }
-                tail += static_cast<Index>(count);
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    std::construct_at(slot_for(tail).storage_ptr(), values[i]);
-                    ++tail;
-                }
-            }
-        } else {
-            for (std::size_t i = 0; i < count; ++i) {
-                std::construct_at(slot_for(tail).storage_ptr(), values[i]);
-                ++tail;
-            }
+        for (std::size_t i = 0; i < count; ++i) {
+            std::construct_at(slot_for(tail).storage_ptr(), values[i]);
+            ++tail;
         }
 
-#if !VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
+#if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
+        if constexpr (use_gcc_arm64_8b_bulk_hybrid) producer_.local_tail = tail;
+#else
         producer_.local_tail = tail;
 #endif
         producer_.published_tail.store(tail, std::memory_order_release);
@@ -267,7 +299,11 @@ public:
         output = std::move(*source);
         std::destroy_at(source);
         ++head;
-#if !VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
+#if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
+        if constexpr (use_gcc_arm64_8b_bulk_hybrid) {
+            if (consumer_.bulk_active) [[unlikely]] consumer_.bulk_active = false;
+        }
+#else
         consumer_.local_head = head;
 #endif
         consumer_.published_head.store(head, std::memory_order_release);
@@ -280,7 +316,17 @@ public:
         if (output.empty()) return 0;
 
 #if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
-        Index head = consumer_.published_head.load(std::memory_order_relaxed);
+        Index head;
+        if constexpr (use_gcc_arm64_8b_bulk_hybrid) {
+            if (!consumer_.bulk_active) [[unlikely]] {
+                consumer_.local_head =
+                    consumer_.published_head.load(std::memory_order_relaxed);
+                consumer_.bulk_active = true;
+            }
+            head = consumer_.local_head;
+        } else {
+            head = consumer_.published_head.load(std::memory_order_relaxed);
+        }
 #else
         Index head = consumer_.local_head;
 #endif
@@ -296,40 +342,16 @@ public:
 
         const std::size_t count =
             (std::min)(output.size(), static_cast<std::size_t>(available));
-
-        if constexpr (use_arm64_8b_contiguous_bulk) {
-            if (Capacity >= 1024 || target <= 8) {
-                const std::size_t start = static_cast<std::size_t>(head & mask_index);
-                const std::size_t first = (std::min)(count, Capacity - start);
-                for (std::size_t i = 0; i < first; ++i) {
-                    T* const source = slots_[start + i].live_ptr();
-                    output[i] = std::move(*source);
-                    std::destroy_at(source);
-                }
-                for (std::size_t i = first; i < count; ++i) {
-                    T* const source = slots_[i - first].live_ptr();
-                    output[i] = std::move(*source);
-                    std::destroy_at(source);
-                }
-                head += static_cast<Index>(count);
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    T* const source = slot_for(head).live_ptr();
-                    output[i] = std::move(*source);
-                    std::destroy_at(source);
-                    ++head;
-                }
-            }
-        } else {
-            for (std::size_t i = 0; i < count; ++i) {
-                T* const source = slot_for(head).live_ptr();
-                output[i] = std::move(*source);
-                std::destroy_at(source);
-                ++head;
-            }
+        for (std::size_t i = 0; i < count; ++i) {
+            T* const source = slot_for(head).live_ptr();
+            output[i] = std::move(*source);
+            std::destroy_at(source);
+            ++head;
         }
 
-#if !VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
+#if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
+        if constexpr (use_gcc_arm64_8b_bulk_hybrid) consumer_.local_head = head;
+#else
         consumer_.local_head = head;
 #endif
         consumer_.published_head.store(head, std::memory_order_release);
@@ -357,7 +379,11 @@ public:
         std::invoke(std::forward<F>(consumer), *source);
         std::destroy_at(source);
         ++head;
-#if !VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
+#if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
+        if constexpr (use_gcc_arm64_8b_bulk_hybrid) {
+            if (consumer_.bulk_active) [[unlikely]] consumer_.bulk_active = false;
+        }
+#else
         consumer_.local_head = head;
 #endif
         consumer_.published_head.store(head, std::memory_order_release);
@@ -460,6 +486,7 @@ private:
     alignas(storage_alignment) std::array<detail::slot<T>, Capacity> slots_;
 };
 
+#undef VERIQUEUE_DETAIL_GCC_ARM64
 #undef VERIQUEUE_DETAIL_ARM64_STORAGE_STRIPE
 #undef VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
 
