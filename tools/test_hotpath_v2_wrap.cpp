@@ -10,6 +10,18 @@ namespace {
 using queue_type = vqbench::experimental::v2::single_owner_cached_limit_queue<
     std::uint64_t, 4, 0, false, std::uint32_t>;
 
+struct alignas(128) over_aligned final {
+    std::uint64_t value{0};
+};
+
+using over_aligned_storage =
+    vqbench::experimental::v2::slot_storage<over_aligned, 4, 96>;
+using over_aligned_queue =
+    vqbench::experimental::v2::single_owner_cached_limit_queue<over_aligned, 4, 96>;
+
+static_assert(alignof(over_aligned_storage) >= alignof(over_aligned));
+static_assert(alignof(over_aligned_queue) >= alignof(over_aligned));
+
 [[nodiscard]] bool scalar_wrap() {
     constexpr std::uint32_t start = (std::numeric_limits<std::uint32_t>::max)() - 2U;
     queue_type q{start};
@@ -50,8 +62,17 @@ using queue_type = vqbench::experimental::v2::single_owner_cached_limit_queue<
     return q.try_pop_bulk(std::span<std::uint64_t>{empty_probe}) == 0U;
 }
 
+[[nodiscard]] bool over_aligned_layout() {
+    over_aligned_queue q{};
+    const over_aligned input{0x123456789abcdef0ULL};
+    if (!q.try_push(input)) return false;
+    over_aligned output{};
+    if (!q.try_pop(output)) return false;
+    return output.value == input.value;
+}
+
 } // namespace
 
 int main() {
-    return scalar_wrap() && bulk_wrap() ? 0 : 1;
+    return scalar_wrap() && bulk_wrap() && over_aligned_layout() ? 0 : 1;
 }
