@@ -21,7 +21,7 @@ namespace veriqueue {
 
 #if defined(_MSC_VER)
 #pragma warning(push)
-#pragma warning(disable : 4324) // Cache-line alignas intentionally adds tail padding.
+#pragma warning(disable : 4324)
 #endif
 
 #if defined(VERIQUEUE_FORCE_SINGLE_OWNER_CURSOR) && defined(VERIQUEUE_FORCE_DUAL_OWNER_CURSOR)
@@ -48,11 +48,12 @@ namespace veriqueue {
 #define VERIQUEUE_EXPERIMENTAL_ARM64_8B_BULK_SHADOW_MODE 0
 #endif
 
-template <
-    class T,
-    std::size_t Capacity,
-    std::size_t CacheLine = detail::default_cache_line,
-    class Index = std::size_t>
+#ifndef VERIQUEUE_EXPERIMENTAL_ARM64_8B_CONTIGUOUS_BULK
+#define VERIQUEUE_EXPERIMENTAL_ARM64_8B_CONTIGUOUS_BULK 0
+#endif
+
+template <class T, std::size_t Capacity, std::size_t CacheLine = detail::default_cache_line,
+          class Index = std::size_t>
 class spsc_queue final {
     static_assert(Capacity >= 1, "Capacity must be at least one");
     static_assert(detail::is_power_of_two(Capacity), "Capacity must be a power of two");
@@ -75,14 +76,13 @@ class spsc_queue final {
 
     static constexpr std::size_t storage_alignment =
         control_alignment < alignof(detail::slot<T>) ? alignof(detail::slot<T>) : control_alignment;
-
     static constexpr Index capacity_index = static_cast<Index>(Capacity);
     static constexpr Index mask_index = static_cast<Index>(Capacity - 1);
 
     static constexpr bool use_arm64_16b_storage_stripe =
-        VERIQUEUE_DETAIL_ARM64_STORAGE_STRIPE &&
-        sizeof(detail::slot<T>) == 16 &&
-        Capacity >= 8;
+        VERIQUEUE_DETAIL_ARM64_STORAGE_STRIPE && sizeof(detail::slot<T>) == 16 && Capacity >= 8;
+    static constexpr bool use_arm64_8b_contiguous_bulk =
+        VERIQUEUE_DETAIL_ARM64_STORAGE_STRIPE && sizeof(detail::slot<T>) == 8;
 
     struct alignas(control_alignment) producer_state final {
 #if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
@@ -145,15 +145,10 @@ public:
 #else
         Index tail = producer_.local_tail;
 #endif
-
         if (distance(tail, producer_.cached_head) == capacity_index) {
-            producer_.cached_head =
-                consumer_.published_head.load(std::memory_order_acquire);
-            if (distance(tail, producer_.cached_head) == capacity_index) {
-                return false;
-            }
+            producer_.cached_head = consumer_.published_head.load(std::memory_order_acquire);
+            if (distance(tail, producer_.cached_head) == capacity_index) return false;
         }
-
         std::construct_at(slot_for(tail).storage_ptr(), std::forward<Args>(args)...);
         ++tail;
 #if !VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
@@ -183,15 +178,11 @@ public:
         requires std::is_nothrow_copy_constructible_v<T>
     {
         if (values.empty()) return 0;
-
 #if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
         Index tail;
 #if (VERIQUEUE_EXPERIMENTAL_ARM64_8B_BULK_SHADOW_MODE & 1)
-        if constexpr (sizeof(detail::slot<T>) == 8) {
-            tail = producer_.bulk_tail;
-        } else {
-            tail = producer_.published_tail.load(std::memory_order_relaxed);
-        }
+        if constexpr (sizeof(detail::slot<T>) == 8) tail = producer_.bulk_tail;
+        else tail = producer_.published_tail.load(std::memory_order_relaxed);
 #else
         tail = producer_.published_tail.load(std::memory_order_relaxed);
 #endif
@@ -201,21 +192,31 @@ public:
         Index used = distance(tail, producer_.cached_head);
         Index available = static_cast<Index>(capacity_index - used);
         const std::size_t target = (std::min)(values.size(), Capacity);
-
         if (static_cast<std::size_t>(available) < target) {
-            producer_.cached_head =
-                consumer_.published_head.load(std::memory_order_acquire);
+            producer_.cached_head = consumer_.published_head.load(std::memory_order_acquire);
             used = distance(tail, producer_.cached_head);
             available = static_cast<Index>(capacity_index - used);
             if (available == 0) return 0;
         }
-
         const std::size_t count =
             (std::min)(values.size(), static_cast<std::size_t>(available));
 
-        for (std::size_t i = 0; i < count; ++i) {
-            std::construct_at(slot_for(tail).storage_ptr(), values[i]);
-            ++tail;
+#if VERIQUEUE_EXPERIMENTAL_ARM64_8B_CONTIGUOUS_BULK
+        if constexpr (use_arm64_8b_contiguous_bulk) {
+            const std::size_t start = static_cast<std::size_t>(tail & mask_index);
+            const std::size_t first = (std::min)(count, Capacity - start);
+            for (std::size_t i = 0; i < first; ++i)
+                std::construct_at(slots_[start + i].storage_ptr(), values[i]);
+            for (std::size_t i = first; i < count; ++i)
+                std::construct_at(slots_[i - first].storage_ptr(), values[i]);
+            tail += static_cast<Index>(count);
+        } else
+#endif
+        {
+            for (std::size_t i = 0; i < count; ++i) {
+                std::construct_at(slot_for(tail).storage_ptr(), values[i]);
+                ++tail;
+            }
         }
 
 #if !VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
@@ -237,15 +238,10 @@ public:
 #else
         Index head = consumer_.local_head;
 #endif
-
         if (head == consumer_.cached_tail) {
-            consumer_.cached_tail =
-                producer_.published_tail.load(std::memory_order_acquire);
-            if (head == consumer_.cached_tail) {
-                return false;
-            }
+            consumer_.cached_tail = producer_.published_tail.load(std::memory_order_acquire);
+            if (head == consumer_.cached_tail) return false;
         }
-
         T* const source = slot_for(head).live_ptr();
         output = std::move(*source);
         std::destroy_at(source);
@@ -265,15 +261,11 @@ public:
         requires std::is_nothrow_move_assignable_v<T>
     {
         if (output.empty()) return 0;
-
 #if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
         Index head;
 #if (VERIQUEUE_EXPERIMENTAL_ARM64_8B_BULK_SHADOW_MODE & 2)
-        if constexpr (sizeof(detail::slot<T>) == 8) {
-            head = consumer_.bulk_head;
-        } else {
-            head = consumer_.published_head.load(std::memory_order_relaxed);
-        }
+        if constexpr (sizeof(detail::slot<T>) == 8) head = consumer_.bulk_head;
+        else head = consumer_.published_head.load(std::memory_order_relaxed);
 #else
         head = consumer_.published_head.load(std::memory_order_relaxed);
 #endif
@@ -282,21 +274,38 @@ public:
 #endif
         Index available = distance(consumer_.cached_tail, head);
         const std::size_t target = (std::min)(output.size(), Capacity);
-
         if (static_cast<std::size_t>(available) < target) {
-            consumer_.cached_tail =
-                producer_.published_tail.load(std::memory_order_acquire);
+            consumer_.cached_tail = producer_.published_tail.load(std::memory_order_acquire);
             available = distance(consumer_.cached_tail, head);
             if (available == 0) return 0;
         }
-
         const std::size_t count =
             (std::min)(output.size(), static_cast<std::size_t>(available));
-        for (std::size_t i = 0; i < count; ++i) {
-            T* const source = slot_for(head).live_ptr();
-            output[i] = std::move(*source);
-            std::destroy_at(source);
-            ++head;
+
+#if VERIQUEUE_EXPERIMENTAL_ARM64_8B_CONTIGUOUS_BULK
+        if constexpr (use_arm64_8b_contiguous_bulk) {
+            const std::size_t start = static_cast<std::size_t>(head & mask_index);
+            const std::size_t first = (std::min)(count, Capacity - start);
+            for (std::size_t i = 0; i < first; ++i) {
+                T* const source = slots_[start + i].live_ptr();
+                output[i] = std::move(*source);
+                std::destroy_at(source);
+            }
+            for (std::size_t i = first; i < count; ++i) {
+                T* const source = slots_[i - first].live_ptr();
+                output[i] = std::move(*source);
+                std::destroy_at(source);
+            }
+            head += static_cast<Index>(count);
+        } else
+#endif
+        {
+            for (std::size_t i = 0; i < count; ++i) {
+                T* const source = slot_for(head).live_ptr();
+                output[i] = std::move(*source);
+                std::destroy_at(source);
+                ++head;
+            }
         }
 
 #if !VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
@@ -318,15 +327,10 @@ public:
 #else
         Index head = consumer_.local_head;
 #endif
-
         if (head == consumer_.cached_tail) {
-            consumer_.cached_tail =
-                producer_.published_tail.load(std::memory_order_acquire);
-            if (head == consumer_.cached_tail) {
-                return false;
-            }
+            consumer_.cached_tail = producer_.published_tail.load(std::memory_order_acquire);
+            if (head == consumer_.cached_tail) return false;
         }
-
         T* const source = slot_for(head).live_ptr();
         std::invoke(std::forward<F>(consumer), *source);
         std::destroy_at(source);
@@ -348,9 +352,7 @@ public:
         return head == tail;
     }
 
-    [[nodiscard]] static constexpr std::size_t capacity() noexcept {
-        return Capacity;
-    }
+    [[nodiscard]] static constexpr std::size_t capacity() noexcept { return Capacity; }
 
     [[nodiscard]] std::size_t size_approx() const noexcept {
         const Index head = consumer_.published_head.load(std::memory_order_acquire);
@@ -375,13 +377,12 @@ public:
         const Index head = consumer_.published_head.load(std::memory_order_relaxed);
         return {tail, producer_.cached_head, head, consumer_.cached_tail, tail, head};
 #else
-        return {
-            producer_.local_tail,
-            producer_.cached_head,
-            consumer_.local_head,
-            consumer_.cached_tail,
-            producer_.published_tail.load(std::memory_order_relaxed),
-            consumer_.published_head.load(std::memory_order_relaxed)};
+        return {producer_.local_tail,
+                producer_.cached_head,
+                consumer_.local_head,
+                consumer_.cached_tail,
+                producer_.published_tail.load(std::memory_order_relaxed),
+                consumer_.published_head.load(std::memory_order_relaxed)};
 #endif
     }
 
@@ -426,6 +427,7 @@ private:
     alignas(storage_alignment) std::array<detail::slot<T>, Capacity> slots_;
 };
 
+#undef VERIQUEUE_EXPERIMENTAL_ARM64_8B_CONTIGUOUS_BULK
 #undef VERIQUEUE_EXPERIMENTAL_ARM64_8B_BULK_SHADOW_MODE
 #undef VERIQUEUE_DETAIL_ARM64_STORAGE_STRIPE
 #undef VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
