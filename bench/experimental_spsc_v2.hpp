@@ -65,7 +65,16 @@ class single_owner_cached_limit_queue final {
     };
 
 public:
-    single_owner_cached_limit_queue() noexcept = default;
+    // The non-zero initial cursor exists solely so the experimental variant can
+    // be verified across unsigned wrap without billions of queue operations.
+    // Production APIs are unchanged and expose no cursor seeding facility.
+    explicit single_owner_cached_limit_queue(Index initial_cursor = 0) noexcept {
+        producer_.tail.store(initial_cursor, std::memory_order_relaxed);
+        producer_.cached_full_limit = static_cast<Index>(initial_cursor + capacity_index);
+        consumer_.head.store(initial_cursor, std::memory_order_relaxed);
+        consumer_.cached_tail = initial_cursor;
+    }
+
     single_owner_cached_limit_queue(const single_owner_cached_limit_queue&) = delete;
     single_owner_cached_limit_queue& operator=(const single_owner_cached_limit_queue&) = delete;
 
