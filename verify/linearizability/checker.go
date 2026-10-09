@@ -89,6 +89,7 @@ func model(capacity int) porcupine.Model {
                     next.Items = append(next.Items, in.Value)
                 }
                 return true, next
+
             case "pop", "consume":
                 expectedSuccess := len(s.Items) > 0
                 if out.Success != expectedSuccess {
@@ -101,29 +102,42 @@ func model(capacity int) porcupine.Model {
                     next.Items = append([]int64(nil), s.Items[1:]...)
                 }
                 return true, next
+
             case "push_bulk":
-                expectedCount := min(len(in.Values), s.Capacity-len(s.Items))
-                if out.Count != expectedCount || out.Success != (expectedCount != 0) {
+                maxCount := min(len(in.Values), s.Capacity-len(s.Items))
+                if out.Count < 0 || out.Count > maxCount || out.Success != (out.Count != 0) {
                     return false, s
                 }
-                if expectedCount > 0 {
-                    next.Items = append(next.Items, in.Values[:expectedCount]...)
+                // A positive concurrent bulk call is one atomic FIFO-prefix effect,
+                // but its count is based on a cursor observation made earlier in the
+                // call. An overlapping peer operation can therefore make additional
+                // space before this operation's publication point. Requiring the
+                // abstract-state maximum here would reject valid histories. Exact
+                // maximal-count behavior without overlap is checked independently by
+                // deterministic unit/model tests.
+                if out.Count == 0 {
+                    return maxCount == 0, next
                 }
+                next.Items = append(next.Items, in.Values[:out.Count]...)
                 return true, next
+
             case "pop_bulk":
-                expectedCount := min(in.Requested, len(s.Items))
-                if out.Count != expectedCount || out.Success != (expectedCount != 0) {
+                maxCount := min(in.Requested, len(s.Items))
+                if out.Count < 0 || out.Count > maxCount || out.Success != (out.Count != 0) {
                     return false, s
                 }
-                if expectedCount > 0 {
-                    if !equalValues(out.Values, s.Items[:expectedCount]) {
-                        return false, s
-                    }
-                    next.Items = append([]int64(nil), s.Items[expectedCount:]...)
-                } else if len(out.Values) != 0 {
+                if len(out.Values) != out.Count {
                     return false, s
                 }
+                if out.Count == 0 {
+                    return maxCount == 0, next
+                }
+                if !equalValues(out.Values, s.Items[:out.Count]) {
+                    return false, s
+                }
+                next.Items = append([]int64(nil), s.Items[out.Count:]...)
                 return true, next
+
             default:
                 return false, s
             }
