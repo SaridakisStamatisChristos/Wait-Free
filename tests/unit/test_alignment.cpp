@@ -2,6 +2,7 @@
 #include "veriqueue/spsc_queue.hpp"
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <span>
 
@@ -44,10 +45,66 @@ private:
     }
 };
 
+struct payload8 final {
+    std::uint64_t a{0};
+};
+
+struct payload16 final {
+    std::uint64_t a{0};
+    std::uint64_t b{0};
+};
+
+static_assert(sizeof(payload8) == 8);
+static_assert(sizeof(payload16) == 16);
+
 } // namespace
 
 int main() {
     static_assert(alignof(veriqueue::spsc_queue<over_aligned, 8>) >= alignof(over_aligned));
+
+    using queue8 = veriqueue::spsc_queue<payload8, 64>;
+    using queue16 = veriqueue::spsc_queue<payload16, 64>;
+    using tiny_queue16 = veriqueue::spsc_queue<payload16, 4>;
+
+#if defined(__aarch64__) || defined(_M_ARM64)
+    static_assert(queue16::testing_storage_striped());
+#else
+    static_assert(!queue16::testing_storage_striped());
+#endif
+    static_assert(!queue8::testing_storage_striped());
+    static_assert(!tiny_queue16::testing_storage_striped());
+
+    vqtest::run("storage mapping selection and permutation", [] {
+        std::array<bool, 64> seen{};
+        for (std::size_t logical = 0; logical < 64; ++logical) {
+            const std::size_t physical = queue16::testing_slot_index(logical);
+            VQ_CHECK(physical < 64);
+            VQ_CHECK(!seen[physical]);
+            seen[physical] = true;
+            VQ_CHECK(queue16::testing_slot_index(logical + 64) == physical);
+        }
+        for (const bool value : seen) VQ_CHECK(value);
+
+#if defined(__aarch64__) || defined(_M_ARM64)
+        constexpr std::array<std::size_t, 8> expected_first{
+            0, 8, 16, 24, 32, 40, 48, 56};
+        for (std::size_t i = 0; i < expected_first.size(); ++i) {
+            VQ_CHECK(queue16::testing_slot_index(i) == expected_first[i]);
+        }
+        VQ_CHECK(queue16::testing_slot_index(8) == 1);
+#else
+        for (std::size_t i = 0; i < 64; ++i) {
+            VQ_CHECK(queue16::testing_slot_index(i) == i);
+        }
+#endif
+
+        for (std::size_t i = 0; i < 64; ++i) {
+            VQ_CHECK(queue8::testing_slot_index(i) == i);
+        }
+        for (std::size_t i = 0; i < 4; ++i) {
+            VQ_CHECK(tiny_queue16::testing_slot_index(i) == i);
+        }
+    });
 
     vqtest::run("over-aligned scalar storage", [] {
         over_aligned::misaligned = false;

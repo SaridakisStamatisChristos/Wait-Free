@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <bit>
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
@@ -46,6 +47,12 @@ namespace veriqueue {
 #define VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR 0
 #endif
 
+#if defined(__aarch64__) || defined(_M_ARM64)
+#define VERIQUEUE_DETAIL_ARM64_STORAGE_STRIPE 1
+#else
+#define VERIQUEUE_DETAIL_ARM64_STORAGE_STRIPE 0
+#endif
+
 template <
     class T,
     std::size_t Capacity,
@@ -76,6 +83,17 @@ class spsc_queue final {
 
     static constexpr Index capacity_index = static_cast<Index>(Capacity);
     static constexpr Index mask_index = static_cast<Index>(Capacity - 1);
+
+    // Evidence-backed storage optimization: on AArch64, exactly-16-byte slots
+    // benefit from spreading the low three logical-index bits across eight distant
+    // storage regions. Capacity remains unchanged and the mapping is a permutation,
+    // so queue semantics, object footprint, and synchronization are unaffected.
+    // Capacities below eight retain the sequential mapping because an 8-way stripe
+    // cannot be represented without changing storage size.
+    static constexpr bool use_arm64_16b_storage_stripe =
+        VERIQUEUE_DETAIL_ARM64_STORAGE_STRIPE &&
+        sizeof(detail::slot<T>) == 16 &&
+        Capacity >= 8;
 
     struct alignas(control_alignment) producer_state final {
 #if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
@@ -349,6 +367,14 @@ public:
             consumer_.published_head.load(std::memory_order_relaxed)};
 #endif
     }
+
+    [[nodiscard]] static constexpr bool testing_storage_striped() noexcept {
+        return use_arm64_16b_storage_stripe;
+    }
+
+    [[nodiscard]] static constexpr std::size_t testing_slot_index(Index logical_index) noexcept {
+        return physical_slot_index(logical_index);
+    }
 #endif
 
 private:
@@ -356,12 +382,26 @@ private:
         return static_cast<Index>(newer - older);
     }
 
+    [[nodiscard]] static constexpr std::size_t physical_slot_index(Index logical_index) noexcept {
+        const std::size_t bounded = static_cast<std::size_t>(logical_index & mask_index);
+        if constexpr (use_arm64_16b_storage_stripe) {
+            constexpr unsigned stripe_bits = 3;
+            constexpr unsigned capacity_bits = std::countr_zero(Capacity);
+            constexpr std::size_t stripe_mask = 7;
+            const std::size_t low = bounded & stripe_mask;
+            const std::size_t high = bounded >> stripe_bits;
+            return (low << (capacity_bits - stripe_bits)) | high;
+        } else {
+            return bounded;
+        }
+    }
+
     [[nodiscard]] detail::slot<T>& slot_for(Index logical_index) noexcept {
-        return slots_[static_cast<std::size_t>(logical_index & mask_index)];
+        return slots_[physical_slot_index(logical_index)];
     }
 
     [[nodiscard]] const detail::slot<T>& slot_for(Index logical_index) const noexcept {
-        return slots_[static_cast<std::size_t>(logical_index & mask_index)];
+        return slots_[physical_slot_index(logical_index)];
     }
 
     producer_state producer_{};
@@ -369,6 +409,7 @@ private:
     alignas(storage_alignment) std::array<detail::slot<T>, Capacity> slots_;
 };
 
+#undef VERIQUEUE_DETAIL_ARM64_STORAGE_STRIPE
 #undef VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
 
 #if defined(_MSC_VER)
