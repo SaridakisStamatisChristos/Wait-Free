@@ -13,10 +13,14 @@ struct operation final {
     std::uint32_t client{};
     std::string kind;
     std::int64_t value{};
+    std::vector<std::int64_t> values;
+    std::uint64_t requested{};
     std::uint64_t invoke{};
     std::uint64_t complete{};
     bool success{};
     std::int64_t result{};
+    std::uint64_t count{};
+    std::vector<std::int64_t> results;
 };
 
 class recorder final {
