@@ -23,6 +23,8 @@ def main() -> None:
     parser.add_argument("--program", type=pathlib.Path, default=pathlib.Path("build/bench/bench_hotpath_variants"))
     parser.add_argument("--capacity", type=int, default=1024)
     parser.add_argument("--payload", type=int, default=8, choices=(8, 16, 64, 256))
+    parser.add_argument("--mode", choices=("scalar", "bulk"), default="scalar")
+    parser.add_argument("--batch", type=int, default=16)
     parser.add_argument("--transfers", type=int, default=500_000)
     parser.add_argument("--warmups", type=int, default=5)
     parser.add_argument("--repetitions", type=int, default=30)
@@ -33,6 +35,12 @@ def main() -> None:
 
     if args.transfers <= 0 or args.warmups < 0 or args.repetitions <= 0:
         parser.error("transfers/repetitions must be positive and warmups non-negative")
+    if args.mode == "bulk" and not 1 <= args.batch <= 64:
+        parser.error("--batch must be in [1,64] for bulk mode")
+    if args.mode == "scalar":
+        args.batch = 1
+    if args.mode == "bulk" and any(v not in DEFAULT_VARIANTS for v in args.variants):
+        parser.error("bulk mode is supported only for veriqueue and single_owner_cursor")
     if len(set(args.variants)) != len(args.variants):
         parser.error("--variants must not contain duplicates")
     if "veriqueue" not in args.variants:
@@ -57,6 +65,8 @@ def main() -> None:
                         str(args.capacity),
                         str(args.payload),
                         str(args.transfers),
+                        args.mode,
+                        str(args.batch),
                     ],
                     text=True,
                     capture_output=True,

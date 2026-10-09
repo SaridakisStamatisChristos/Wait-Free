@@ -69,14 +69,17 @@ def main() -> None:
                     raise SystemExit(f"affinity-invalid measured record: {record}")
                 records.append(record)
 
-    cells: dict[tuple[int, int, str, int, int, str, str], dict[int, dict[str, float]]] = defaultdict(
-        lambda: defaultdict(dict)
-    )
+    cells: dict[
+        tuple[int, int, str, int, str, int, int, str, str],
+        dict[int, dict[str, float]],
+    ] = defaultdict(lambda: defaultdict(dict))
     for record in records:
         environment = record.get("environment") or {}
         key = (
             int(record["capacity"]),
             int(record["payload_bytes"]),
+            str(record.get("mode", "scalar")),
+            int(record.get("batch_size", 1)),
             str(record.get("topology", "unknown")),
             int(record.get("producer_cpu", -1)),
             int(record.get("consumer_cpu", -1)),
@@ -93,7 +96,8 @@ def main() -> None:
 
     comparisons: list[dict[str, Any]] = []
     for cell_index, (key, repetitions) in enumerate(sorted(cells.items())):
-        capacity, payload_bytes, topology, producer_cpu, consumer_cpu, architecture, compiler = key
+        (capacity, payload_bytes, mode, batch_size, topology, producer_cpu,
+         consumer_cpu, architecture, compiler) = key
         ratios: list[float] = []
         missing: list[int] = []
         for repetition, pair in sorted(repetitions.items()):
@@ -116,6 +120,8 @@ def main() -> None:
             {
                 "capacity": capacity,
                 "payload_bytes": payload_bytes,
+                "mode": mode,
+                "batch_size": batch_size,
                 "topology": topology,
                 "producer_cpu": producer_cpu,
                 "consumer_cpu": consumer_cpu,
@@ -153,15 +159,15 @@ def main() -> None:
         "",
         "Ratio is `single_owner_cursor throughput / production VeriQueue throughput` within the same repetition.",
         "WIN requires bootstrap 95% CI lower bound > 1.03; LOSS requires CI upper bound < 0.97; otherwise TIE/INCONCLUSIVE.",
-        "Affinity-invalid measurements are rejected before analysis.",
+        "Affinity-invalid measurements are rejected before analysis. Scalar and bulk cells are never pooled.",
         "",
-        "| Arch | Compiler | Capacity | Payload | Topology | n | Median ratio | IQR | p05 | p95 | CV | 95% CI | Verdict |",
-        "|---|---|---:|---:|---|---:|---:|---|---:|---:|---:|---|---|",
+        "| Arch | Compiler | Mode | Batch | Capacity | Payload | Topology | n | Median ratio | IQR | p05 | p95 | CV | 95% CI | Verdict |",
+        "|---|---|---|---:|---:|---:|---|---:|---:|---|---:|---:|---:|---|---|",
     ]
     for item in comparisons:
         lines.append(
-            f"| {item['architecture']} | {item['compiler']} | {item['capacity']} | "
-            f"{item['payload_bytes']} | {item['topology']} | {item['n']} | "
+            f"| {item['architecture']} | {item['compiler']} | {item['mode']} | {item['batch_size']} | "
+            f"{item['capacity']} | {item['payload_bytes']} | {item['topology']} | {item['n']} | "
             f"{item['median_ratio']:.4f} | [{item['iqr_low']:.4f}, {item['iqr_high']:.4f}] | "
             f"{item['p05']:.4f} | {item['p95']:.4f} | {item['cv']:.4f} | "
             f"[{item['ci95_low']:.4f}, {item['ci95_high']:.4f}] | {item['classification']} |"

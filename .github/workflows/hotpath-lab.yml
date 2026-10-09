@@ -71,14 +71,17 @@ jobs:
       - name: Correctness and affinity smoke
         run: |
           set -euo pipefail
-          ./build/hotpath/bench_hotpath_variants veriqueue 1024 8 20000
-          ./build/hotpath/bench_hotpath_variants single_owner_cursor 1024 8 20000
-      - name: Paired scalar campaign
+          for variant in veriqueue single_owner_cursor; do
+            ./build/hotpath/bench_hotpath_variants "$variant" 1024 8 20000 scalar 1
+            ./build/hotpath/bench_hotpath_variants "$variant" 1024 8 20000 bulk 16
+          done
+      - name: Paired scalar and bulk campaign
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p evidence/hotpath/raw
           raw_files=()
+
           for capacity in 2 64 256 1024 65536; do
             for payload in 8 16 64 256; do
               warmups=2
@@ -89,16 +92,46 @@ jobs:
                 repetitions=30
                 transfers=500000
               fi
-              output="evidence/hotpath/raw/c${capacity}-p${payload}.jsonl"
+              output="evidence/hotpath/raw/scalar-c${capacity}-p${payload}.jsonl"
               seed=$((20261010 + capacity + payload * 100000))
               python tools/run_hotpath_lab.py \
                 --program build/hotpath/bench_hotpath_variants \
-                --capacity "$capacity" --payload "$payload" --transfers "$transfers" \
-                --warmups "$warmups" --repetitions "$repetitions" --seed "$seed" \
-                --output "$output"
+                --capacity "$capacity" --payload "$payload" --mode scalar \
+                --transfers "$transfers" --warmups "$warmups" \
+                --repetitions "$repetitions" --seed "$seed" --output "$output"
               raw_files+=("$output")
             done
           done
+
+          # Bulk uses one publication per batch, so the removed owner-local store is
+          # already amortized. Keep it separate from scalar results and retain enough
+          # paired repetitions to quantify that expected difference rather than infer it.
+          for capacity in 64 256 1024 65536; do
+            for payload in 8 16; do
+              output="evidence/hotpath/raw/bulk16-c${capacity}-p${payload}.jsonl"
+              seed=$((20271010 + capacity + payload * 100000))
+              python tools/run_hotpath_lab.py \
+                --program build/hotpath/bench_hotpath_variants \
+                --capacity "$capacity" --payload "$payload" --mode bulk --batch 16 \
+                --transfers 500000 --warmups 5 --repetitions 30 \
+                --seed "$seed" --output "$output"
+              raw_files+=("$output")
+            done
+          done
+
+          # Representative batch-width sensitivity, aligned with the established
+          # production bulk benchmark's 4/16/64 convention.
+          for batch in 4 64; do
+            output="evidence/hotpath/raw/bulk${batch}-c1024-p8.jsonl"
+            seed=$((20281010 + batch * 1000))
+            python tools/run_hotpath_lab.py \
+              --program build/hotpath/bench_hotpath_variants \
+              --capacity 1024 --payload 8 --mode bulk --batch "$batch" \
+              --transfers 500000 --warmups 5 --repetitions 20 \
+              --seed "$seed" --output "$output"
+            raw_files+=("$output")
+          done
+
           python tools/analyze_hotpath_lab.py "${raw_files[@]}" \
             --json-output evidence/hotpath/summary.json \
             --markdown-output evidence/hotpath/summary.md
