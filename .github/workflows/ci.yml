@@ -58,7 +58,7 @@ jobs:
         run: cmake -S . -B build/tidy -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DVERIQUEUE_BUILD_STRESS=OFF
       - name: Analyze public header consumers
         run: |
-          clang-tidy tests/unit/test_basic.cpp tests/unit/test_lifetime.cpp tests/unit/test_wraparound.cpp \
+          clang-tidy tests/unit/test_basic.cpp tests/unit/test_bulk.cpp tests/unit/test_lifetime.cpp tests/unit/test_wraparound.cpp \
             -p build/tidy
 
   benchmark-build:
@@ -83,6 +83,8 @@ jobs:
             echo "checking $implementation"
             ./build/bench/bench_compare "$implementation" 64 8 50000
           done
+      - name: Bulk API correctness and performance smoke
+        run: ./build/bench/bench_bulk 50000
       - name: Matrix compile/runtime edge smoke
         run: |
           ./build/bench/bench_compare veriqueue 2 256 2000
