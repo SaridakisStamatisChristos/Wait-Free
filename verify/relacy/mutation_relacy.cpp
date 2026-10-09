@@ -41,40 +41,27 @@ public:
             }
         }
 
-        const unsigned mask = mutation_id == 7
-                                  ? 0U
-                                  : static_cast<unsigned>(Capacity - 1);
+        const unsigned mask = mutation_id == 7 ? 0U : static_cast<unsigned>(Capacity - 1);
         unsigned slot = tail & mask;
         if constexpr (mutation_id == 14) {
             slot = (slot + 1U) & static_cast<unsigned>(Capacity - 1);
         }
 
         const int stored_value = mutation_id == 18 ? value + 1000 : value;
-
-        if constexpr (mutation_id == 12) {
-            tail += 2U;
-        } else {
-            ++tail;
-        }
+        if constexpr (mutation_id == 12) tail += 2U;
+        else ++tail;
 
         unsigned published_tail = tail;
-        if constexpr (mutation_id == 16) {
-            ++published_tail;
-        } else if constexpr (mutation_id == 24) {
-            published_tail = old_tail;
-        }
+        if constexpr (mutation_id == 16) ++published_tail;
+        else if constexpr (mutation_id == 24) published_tail = old_tail;
 
         if constexpr (mutation_id == 5) {
-            if constexpr (mutation_id != 19) {
-                producer_tail_($) = tail;
-            }
+            if constexpr (mutation_id != 19) producer_tail_($) = tail;
             tail_.store(published_tail, tail_store_order, $);
             slots_[slot]($) = stored_value;
         } else {
             slots_[slot]($) = stored_value;
-            if constexpr (mutation_id != 19) {
-                producer_tail_($) = tail;
-            }
+            if constexpr (mutation_id != 19) producer_tail_($) = tail;
             tail_.store(published_tail, tail_store_order, $);
         }
         return true;
@@ -86,19 +73,22 @@ public:
         const unsigned old_tail = producer_tail_($);
         unsigned tail = old_tail;
         unsigned used = tail - producer_cached_head_($);
-        if (used == Capacity) {
+        unsigned available = static_cast<unsigned>(Capacity) - used;
+        const unsigned target = requested < Capacity ? requested : static_cast<unsigned>(Capacity);
+
+        if (available < target) {
             producer_cached_head_($) = head_.load(head_load_order, $);
             used = tail - producer_cached_head_($);
-            if (used == Capacity && mutation_id != 29) return 0U;
+            available = static_cast<unsigned>(Capacity) - used;
+            if (available == 0U) return 0U;
         }
 
-        const unsigned available = static_cast<unsigned>(Capacity) - used;
         unsigned accepted = requested < available ? requested : available;
         if constexpr (mutation_id == 29) {
-            if (requested > accepted) ++accepted;
+            if (accepted < requested) ++accepted;
         }
 
-        unsigned final_tail = tail + accepted;
+        const unsigned final_tail = tail + accepted;
         unsigned published_tail = final_tail;
         if constexpr (mutation_id == 27) {
             if (accepted > 1U) published_tail = old_tail + 1U;
@@ -128,7 +118,6 @@ public:
     bool pop(int& value) {
         const unsigned old_head = consumer_head_($);
         unsigned head = old_head;
-
         const bool should_refresh = mutation_id == 21
                                         ? head != consumer_cached_tail_($)
                                         : head == consumer_cached_tail_($);
@@ -139,38 +128,26 @@ public:
             if (head == consumer_cached_tail_($)) return false;
         }
 
-        const unsigned mask = mutation_id == 7
-                                  ? 0U
-                                  : static_cast<unsigned>(Capacity - 1);
+        const unsigned mask = mutation_id == 7 ? 0U : static_cast<unsigned>(Capacity - 1);
         unsigned slot = head & mask;
         if constexpr (mutation_id == 15) {
             slot = (slot + 1U) & static_cast<unsigned>(Capacity - 1);
         }
 
-        if constexpr (mutation_id == 13) {
-            head += 2U;
-        } else {
-            ++head;
-        }
+        if constexpr (mutation_id == 13) head += 2U;
+        else ++head;
 
         unsigned published_head = head;
-        if constexpr (mutation_id == 17) {
-            ++published_head;
-        } else if constexpr (mutation_id == 23) {
-            published_head = old_head;
-        }
+        if constexpr (mutation_id == 17) ++published_head;
+        else if constexpr (mutation_id == 23) published_head = old_head;
 
         if constexpr (mutation_id == 6) {
-            if constexpr (mutation_id != 20) {
-                consumer_head_($) = head;
-            }
+            if constexpr (mutation_id != 20) consumer_head_($) = head;
             head_.store(published_head, head_store_order, $);
             value = slots_[slot]($);
         } else {
             value = slots_[slot]($);
-            if constexpr (mutation_id != 20) {
-                consumer_head_($) = head;
-            }
+            if constexpr (mutation_id != 20) consumer_head_($) = head;
             head_.store(published_head, head_store_order, $);
         }
         return true;
@@ -182,7 +159,9 @@ public:
         const unsigned old_head = consumer_head_($);
         unsigned head = old_head;
         unsigned available = consumer_cached_tail_($) - head;
-        if (available == 0U) {
+        const unsigned target = requested < Capacity ? requested : static_cast<unsigned>(Capacity);
+
+        if (available < target) {
             consumer_cached_tail_($) = tail_.load(tail_load_order, $);
             available = consumer_cached_tail_($) - head;
             if (available == 0U) return 0U;
@@ -213,8 +192,7 @@ public:
     }
 
     bool consume(int& value) {
-        const unsigned old_head = consumer_head_($);
-        unsigned head = old_head;
+        unsigned head = consumer_head_($);
         if (head == consumer_cached_tail_($)) {
             consumer_cached_tail_($) = tail_.load(tail_load_order, $);
             if (head == consumer_cached_tail_($)) return false;
@@ -238,9 +216,7 @@ public:
         return true;
     }
 
-    unsigned final_size() {
-        return producer_tail_($) - consumer_head_($);
-    }
+    unsigned final_size() { return producer_tail_($) - consumer_head_($); }
 
 private:
     VAR_T(unsigned) producer_tail_{0};
@@ -257,17 +233,13 @@ struct deterministic_contract_test : rl::test_suite<deterministic_contract_test,
 
     void thread(unsigned) {
         int value = 0;
-
         RL_ASSERT(q.push(1));
         RL_ASSERT(q.push(2));
         RL_ASSERT(!q.push(3));
-
         RL_ASSERT(q.pop(value));
         RL_ASSERT(value == 1);
-
         RL_ASSERT(q.push(3));
         RL_ASSERT(!q.push(4));
-
         RL_ASSERT(q.pop(value));
         RL_ASSERT(value == 2);
         RL_ASSERT(q.pop(value));
@@ -283,7 +255,6 @@ struct deterministic_bulk_contract_test : rl::test_suite<deterministic_bulk_cont
     void thread(unsigned) {
         const int first[3] = {1, 2, 3};
         RL_ASSERT(q.push_bulk(first, 3U) == 2U);
-
         int out[2] = {0, 0};
         RL_ASSERT(q.pop_bulk(out, 2U) == 2U);
         RL_ASSERT(out[0] == 1);
@@ -304,7 +275,6 @@ struct deterministic_bulk_contract_test : rl::test_suite<deterministic_bulk_cont
 
 struct concurrent_semantic_test : rl::test_suite<concurrent_semantic_test, 2> {
     static constexpr int operation_count = 5;
-
     mutant_queue<2> q;
     bool pushed[operation_count]{};
     int popped_values[operation_count]{};
@@ -333,8 +303,7 @@ struct concurrent_semantic_test : rl::test_suite<concurrent_semantic_test, 2> {
                 int value = 0;
                 if (q.pop(value)) {
                     RL_ASSERT(pop_count < operation_count);
-                    popped_values[pop_count] = value;
-                    ++pop_count;
+                    popped_values[pop_count++] = value;
                 }
             }
         }
@@ -342,17 +311,13 @@ struct concurrent_semantic_test : rl::test_suite<concurrent_semantic_test, 2> {
 
     void after() {
         RL_ASSERT(pop_count <= push_count);
-
         int expected_index = 0;
         for (int i = 0; i < pop_count; ++i) {
-            while (expected_index < operation_count && !pushed[expected_index]) {
-                ++expected_index;
-            }
+            while (expected_index < operation_count && !pushed[expected_index]) ++expected_index;
             RL_ASSERT(expected_index < operation_count);
             RL_ASSERT(popped_values[i] == expected_index + 1);
             ++expected_index;
         }
-
         const unsigned logical_size = q.final_size();
         RL_ASSERT(logical_size <= 2U);
         RL_ASSERT(logical_size == static_cast<unsigned>(push_count - pop_count));
@@ -361,7 +326,6 @@ struct concurrent_semantic_test : rl::test_suite<concurrent_semantic_test, 2> {
 
 struct concurrent_bulk_semantic_test : rl::test_suite<concurrent_bulk_semantic_test, 2> {
     static constexpr int value_count = 6;
-
     mutant_queue<2> q;
     bool pushed[value_count]{};
     int consumed_values[value_count]{};
@@ -412,14 +376,11 @@ struct concurrent_bulk_semantic_test : rl::test_suite<concurrent_bulk_semantic_t
         RL_ASSERT(consume_count <= push_count);
         int expected_index = 0;
         for (int i = 0; i < consume_count; ++i) {
-            while (expected_index < value_count && !pushed[expected_index]) {
-                ++expected_index;
-            }
+            while (expected_index < value_count && !pushed[expected_index]) ++expected_index;
             RL_ASSERT(expected_index < value_count);
             RL_ASSERT(consumed_values[i] == expected_index + 1);
             ++expected_index;
         }
-
         const unsigned logical_size = q.final_size();
         RL_ASSERT(logical_size <= 2U);
         RL_ASSERT(logical_size == static_cast<unsigned>(push_count - consume_count));
