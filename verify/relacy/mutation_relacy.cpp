@@ -159,6 +159,7 @@ struct deterministic_contract_test : rl::test_suite<deterministic_contract_test,
         RL_ASSERT(value == 1);
 
         RL_ASSERT(q.push(3));
+        RL_ASSERT(!q.push(4));
 
         RL_ASSERT(q.pop(value));
         RL_ASSERT(value == 2);
