@@ -4,13 +4,14 @@ on:
   workflow_dispatch:
   pull_request:
     paths:
+      - 'include/veriqueue/spsc_queue.hpp'
       - 'bench/bench_hotpath_variants.cpp'
       - 'bench/experimental_spsc_variants.hpp'
       - 'bench/environment.cpp'
       - 'tools/run_hotpath_lab.py'
       - 'tools/analyze_hotpath_lab.py'
       - 'tools/assembly_compare_probe.cpp'
-      - 'tools/analyze_hotpath_assembly.py'
+      - ' 'tools/analyze_hotpath_assembly.py'
       - '.github/workflows/hotpath-lab.yml'
       - 'CMakeLists.txt'
 
