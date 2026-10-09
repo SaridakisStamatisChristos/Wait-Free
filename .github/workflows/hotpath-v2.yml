@@ -9,6 +9,7 @@ on:
       - 'tools/analyze_hotpath_v2.py'
       - 'tools/assembly_hotpath_v2_probe.cpp'
       - 'tools/analyze_hotpath_v2_assembly.py'
+      - 'tools/test_hotpath_v2_wrap.cpp'
       - '.github/workflows/hotpath-v2.yml'
   workflow_dispatch:
 
@@ -77,7 +78,7 @@ jobs:
           tools/analyze_hotpath_v2.py
           tools/analyze_hotpath_v2_assembly.py
 
-      - name: Build experimental benchmark
+      - name: Build experimental benchmark and wrap verifier
         shell: bash
         run: |
           set -euo pipefail
@@ -85,6 +86,12 @@ jobs:
           "$CXX" -std=c++20 -O3 -DNDEBUG -pthread -Wall -Wextra -Wpedantic -Werror \
             -Iinclude -Ibench bench/bench_hotpath_v2.cpp bench/environment.cpp \
             -o build/bench_hotpath_v2
+          "$CXX" -std=c++20 -O2 -Wall -Wextra -Wpedantic -Werror \
+            -Iinclude -Ibench tools/test_hotpath_v2_wrap.cpp \
+            -o build/test_hotpath_v2_wrap
+
+      - name: Verify uint32 cursor rollover
+        run: ./build/test_hotpath_v2_wrap
 
       - name: Correctness and affinity smoke
         shell: bash
