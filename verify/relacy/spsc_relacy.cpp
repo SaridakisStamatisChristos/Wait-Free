@@ -24,6 +24,28 @@ public:
         return true;
     }
 
+    unsigned push_bulk(const int* values, unsigned requested) {
+        if (requested == 0U) return 0U;
+
+        unsigned tail = producer_tail_($);
+        unsigned used = tail - producer_cached_head_($);
+        if (used == Capacity) {
+            producer_cached_head_($) = head_.load(HeadLoad, $);
+            used = tail - producer_cached_head_($);
+            if (used == Capacity) return 0U;
+        }
+
+        const unsigned available = static_cast<unsigned>(Capacity) - used;
+        const unsigned accepted = requested < available ? requested : available;
+        for (unsigned i = 0; i < accepted; ++i) {
+            slots_[tail & (Capacity - 1)]($) = values[i];
+            ++tail;
+        }
+        producer_tail_($) = tail;
+        tail_.store(tail, TailStore, $);
+        return accepted;
+    }
+
     bool pop(int& value) {
         unsigned head = consumer_head_($);
         if (head == consumer_cached_tail_($)) {
@@ -35,6 +57,31 @@ public:
         consumer_head_($) = head;
         head_.store(head, HeadStore, $);
         return true;
+    }
+
+    unsigned pop_bulk(int* values, unsigned requested) {
+        if (requested == 0U) return 0U;
+
+        unsigned head = consumer_head_($);
+        unsigned available = consumer_cached_tail_($) - head;
+        if (available == 0U) {
+            consumer_cached_tail_($) = tail_.load(TailLoad, $);
+            available = consumer_cached_tail_($) - head;
+            if (available == 0U) return 0U;
+        }
+
+        const unsigned accepted = requested < available ? requested : available;
+        for (unsigned i = 0; i < accepted; ++i) {
+            values[i] = slots_[head & (Capacity - 1)]($);
+            ++head;
+        }
+        consumer_head_($) = head;
+        head_.store(head, HeadStore, $);
+        return accepted;
+    }
+
+    bool consume(int& value) {
+        return pop(value);
     }
 
     unsigned final_size() {
@@ -125,11 +172,82 @@ struct correct_test : rl::test_suite<correct_test<Capacity>, 2> {
     }
 };
 
+template <std::size_t Capacity>
+struct bulk_correct_test : rl::test_suite<bulk_correct_test<Capacity>, 2> {
+    static constexpr int value_count = 6;
+
+    queue<Capacity> q;
+    bool pushed[value_count]{};
+    int consumed_values[value_count]{};
+    int push_count{0};
+    int consume_count{0};
+
+    void before() {
+        for (int i = 0; i < value_count; ++i) {
+            pushed[i] = false;
+            consumed_values[i] = 0;
+        }
+        push_count = 0;
+        consume_count = 0;
+    }
+
+    void thread(unsigned index) {
+        if (index == 0) {
+            for (int first = 1; first <= value_count; first += 2) {
+                const int values[2] = {first, first + 1};
+                const unsigned accepted = q.push_bulk(values, 2U);
+                RL_ASSERT(accepted <= 2U);
+                for (unsigned i = 0; i < accepted; ++i) {
+                    pushed[(first - 1) + static_cast<int>(i)] = true;
+                    ++push_count;
+                }
+            }
+        } else {
+            for (int attempt = 0; attempt < value_count + static_cast<int>(Capacity); ++attempt) {
+                if ((attempt & 1) == 0) {
+                    int values[2] = {0, 0};
+                    const unsigned count = q.pop_bulk(values, 2U);
+                    for (unsigned i = 0; i < count; ++i) {
+                        RL_ASSERT(consume_count < value_count);
+                        consumed_values[consume_count++] = values[i];
+                    }
+                } else {
+                    int value = 0;
+                    if (q.consume(value)) {
+                        RL_ASSERT(consume_count < value_count);
+                        consumed_values[consume_count++] = value;
+                    }
+                }
+            }
+        }
+    }
+
+    void after() {
+        RL_ASSERT(consume_count <= push_count);
+        int expected_index = 0;
+        for (int i = 0; i < consume_count; ++i) {
+            while (expected_index < value_count && !pushed[expected_index]) {
+                ++expected_index;
+            }
+            RL_ASSERT(expected_index < value_count);
+            RL_ASSERT(consumed_values[i] == expected_index + 1);
+            ++expected_index;
+        }
+
+        const unsigned logical_size = q.final_size();
+        RL_ASSERT(logical_size <= Capacity);
+        RL_ASSERT(logical_size == static_cast<unsigned>(push_count - consume_count));
+    }
+};
+
 } // namespace
 
 int main() {
-    const bool one = rl::simulate<correct_test<1>>();
-    const bool two = rl::simulate<correct_test<2>>();
-    const bool four = rl::simulate<correct_test<4>>();
-    return (one && two && four) ? 0 : 1;
+    const bool scalar_one = rl::simulate<correct_test<1>>();
+    const bool scalar_two = rl::simulate<correct_test<2>>();
+    const bool scalar_four = rl::simulate<correct_test<4>>();
+    const bool bulk_one = rl::simulate<bulk_correct_test<1>>();
+    const bool bulk_two = rl::simulate<bulk_correct_test<2>>();
+    const bool bulk_four = rl::simulate<bulk_correct_test<4>>();
+    return (scalar_one && scalar_two && scalar_four && bulk_one && bulk_two && bulk_four) ? 0 : 1;
 }
