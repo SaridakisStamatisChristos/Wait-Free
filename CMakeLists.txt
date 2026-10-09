@@ -131,7 +131,10 @@ if(VERIQUEUE_BUILD_BASELINES)
   add_executable(bench_compare bench/bench_compare.cpp bench/environment.cpp)
   target_link_libraries(bench_compare PRIVATE veriqueue::veriqueue Threads::Threads)
   target_include_directories(bench_compare PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/bench
+    ${CMAKE_CURRENT_SOURCE_DIR}/bench)
+  # Baseline headers are third-party comparison subjects, not project code. Mark
+  # them SYSTEM so their compiler-specific warnings cannot fail our -Werror gate.
+  target_include_directories(bench_compare SYSTEM PRIVATE
     ${rigtorp_spsc_SOURCE_DIR}/include
     ${Boost_INCLUDE_DIRS})
   veriqueue_apply_warnings(bench_compare)
