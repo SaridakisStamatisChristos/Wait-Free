@@ -8,6 +8,7 @@ import pathlib
 import stat
 import tempfile
 import unittest
+import urllib.request
 import zipfile
 
 TOOLS = pathlib.Path(__file__).resolve().parent
@@ -40,6 +41,50 @@ class EvidenceFreezerTests(unittest.TestCase):
             freezer.artifact_destination("mutation-evidence").as_posix(),
             "verification/mutation",
         )
+        self.assertEqual(
+            freezer.artifact_run_destination("mutation-evidence", 123).as_posix(),
+            "verification/mutation/run-123",
+        )
+
+    def test_cross_host_redirect_strips_credentials(self):
+        request = urllib.request.Request(
+            "https://api.github.com/repos/owner/repo/actions/artifacts/1/zip",
+            headers={
+                "Authorization": "Bearer secret",
+                "Accept": "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
+        )
+        handler = freezer._CredentialStrippingRedirectHandler()
+        redirected = handler.redirect_request(
+            request,
+            None,
+            302,
+            "Found",
+            {},
+            "https://results.blob.core.windows.net/artifacts/file.zip?sig=signed",
+        )
+        self.assertIsNotNone(redirected)
+        self.assertIsNone(redirected.get_header("Authorization"))
+        self.assertIsNone(redirected.get_header("Accept"))
+        self.assertIsNone(redirected.get_header("X-GitHub-Api-Version"))
+
+    def test_same_host_redirect_keeps_credentials(self):
+        request = urllib.request.Request(
+            "https://api.github.com/repos/owner/repo/actions/artifacts/1/zip",
+            headers={"Authorization": "Bearer secret"},
+        )
+        handler = freezer._CredentialStrippingRedirectHandler()
+        redirected = handler.redirect_request(
+            request,
+            None,
+            302,
+            "Found",
+            {},
+            "https://api.github.com/same-host-target",
+        )
+        self.assertIsNotNone(redirected)
+        self.assertEqual(redirected.get_header("Authorization"), "Bearer secret")
 
     def test_safe_extract_accepts_regular_files(self):
         with tempfile.TemporaryDirectory() as temporary:
