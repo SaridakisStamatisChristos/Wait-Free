@@ -5,6 +5,10 @@
 #include <cstdint>
 #include <thread>
 
+namespace {
+constexpr std::uint64_t wraparound_transfers = 250'000;
+}
+
 int main() {
     vqtest::run("one million ordered transfers", [] {
         const auto res = vqstress::run(1'000'000, [] {}, [] {});
@@ -17,14 +21,13 @@ int main() {
         using queue_type = veriqueue::spsc_queue<std::uint64_t, 8, 64, std::uint8_t>;
         queue_type q;
 
-        constexpr std::uint64_t transfers = 250'000;
         std::atomic<bool> producer_done{false};
         std::atomic<bool> consumer_done{false};
         std::atomic<bool> failed{false};
 
         std::thread producer([&] {
             for (std::uint64_t value = 1;
-                 value <= transfers && !failed.load(std::memory_order_relaxed);) {
+                 value <= wraparound_transfers && !failed.load(std::memory_order_relaxed);) {
                 if (q.try_push(value)) {
                     ++value;
                 } else {
@@ -36,7 +39,7 @@ int main() {
 
         std::thread consumer([&] {
             for (std::uint64_t expected = 1;
-                 expected <= transfers && !failed.load(std::memory_order_relaxed);) {
+                 expected <= wraparound_transfers && !failed.load(std::memory_order_relaxed);) {
                 std::uint64_t out = 0;
                 if (q.try_pop(out)) {
                     if (out != expected) {

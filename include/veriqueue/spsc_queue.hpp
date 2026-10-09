@@ -15,6 +15,11 @@
 
 namespace veriqueue {
 
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4324) // Cache-line alignas intentionally adds tail padding.
+#endif
+
 template <
     class T,
     std::size_t Capacity,
@@ -194,5 +199,9 @@ private:
     consumer_state consumer_{};
     alignas(storage_alignment) std::array<detail::slot<T>, Capacity> slots_;
 };
+
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
 
 } // namespace veriqueue
