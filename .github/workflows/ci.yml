@@ -54,6 +54,7 @@ jobs:
         run: |
           clang-tidy tests/unit/test_basic.cpp tests/unit/test_lifetime.cpp tests/unit/test_wraparound.cpp \
             -p build/tidy
+
   benchmark-build:
     runs-on: ubuntu-latest
     steps:
@@ -67,5 +68,18 @@ jobs:
           -DVERIQUEUE_BUILD_BENCHMARKS=ON -DVERIQUEUE_BUILD_BASELINES=ON
       - name: Build benchmark laboratory
         run: cmake --build build/bench -j2
+      - name: Correctness smoke for every comparative adapter
+        run: |
+          for implementation in veriqueue rigtorp boost_lockfree moodycamel drogalis; do
+            echo "checking $implementation"
+            ./build/bench/bench_compare "$implementation" 64 8 50000
+          done
+      - name: Matrix compile/runtime edge smoke
+        run: |
+          ./build/bench/bench_compare veriqueue 2 256 2000
+          ./build/bench/bench_compare rigtorp 65536 16 2000
+          ./build/bench/bench_compare boost_lockfree 256 64 2000
+          ./build/bench/bench_compare moodycamel 1024 256 2000
+          ./build/bench/bench_compare drogalis 65536 8 2000
       - name: Assembly audit
         run: CXX=c++ tools/audit_assembly.sh /tmp/veriqueue-assembly.s
