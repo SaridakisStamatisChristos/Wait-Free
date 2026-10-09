@@ -17,12 +17,18 @@ jobs:
       - name: Configure Relacy
         run: cmake -S . -B build/relacy -G Ninja -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF -DVERIQUEUE_BUILD_RELACY=ON
       - name: Build
-        run: cmake --build build/relacy --target spsc_relacy -j2
-      - name: Verify
+        run: cmake --build build/relacy --target spsc_relacy spsc_single_owner_relacy -j2
+      - name: Verify legacy and single-owner protocols
         run: |
           mkdir -p evidence/relacy
-          { echo "commit=$GITHUB_SHA"; c++ --version | head -1; ./build/relacy/spsc_relacy; } \
-            2>&1 | tee evidence/relacy/relacy.log
+          {
+            echo "commit=$GITHUB_SHA"
+            c++ --version | head -1
+            echo "=== legacy dual-owner model ==="
+            ./build/relacy/spsc_relacy
+            echo "=== ARM64 single-owner model ==="
+            ./build/relacy/spsc_single_owner_relacy
+          } 2>&1 | tee evidence/relacy/relacy.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -57,6 +63,39 @@ jobs:
         if: always()
         with:
           name: linearizability-evidence
+          path: |
+            evidence/linearizability/
+            verify/histories/corpus/*.json
+
+  linearizability-single-owner:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+          cache-dependency-path: verify/linearizability/go.mod
+      - name: Build forced single-owner history generator
+        run: |
+          cmake -S . -B build/lin -G Ninja -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF -DVERIQUEUE_BUILD_LINEARIZABILITY=ON
+          cmake --build build/lin --target history_generator_single_owner -j2
+      - name: Build independent Porcupine checker
+        working-directory: verify/linearizability
+        run: |
+          go mod download
+          go build -o ../../build/lin/history_checker .
+      - name: Run reproducible single-owner history matrix
+        run: |
+          python tools/run_linearizability_campaign.py \
+            --generator build/lin/history_generator_single_owner \
+            --capacities 1,2,4,8 \
+            --profiles uniform,burst,producer-heavy,consumer-heavy \
+            --seeds 8 \
+            --ops-per-side 8
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linearizability-single-owner-evidence
           path: |
             evidence/linearizability/
             verify/histories/corpus/*.json

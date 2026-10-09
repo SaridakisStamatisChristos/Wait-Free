@@ -48,6 +48,37 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure
 
+  single-owner-build-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+        standard: [20, 23]
+    name: single-owner / ${{ matrix.compiler }} / C++${{ matrix.standard }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure compiler
+        run: |
+          if [ "${{ matrix.compiler }}" = gcc ]; then
+            echo 'CC=gcc' >> "$GITHUB_ENV"
+            echo 'CXX=g++' >> "$GITHUB_ENV"
+          else
+            echo 'CC=clang' >> "$GITHUB_ENV"
+            echo 'CXX=clang++' >> "$GITHUB_ENV"
+          fi
+      - name: Configure forced single-owner verification build
+        run: >-
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_CXX_STANDARD=${{ matrix.standard }}
+          -DCMAKE_CXX_STANDARD_REQUIRED=ON
+          -DCMAKE_CXX_EXTENSIONS=OFF
+          -DVERIQUEUE_TEST_FORCE_SINGLE_OWNER_CURSOR=ON
+      - name: Build
+        run: cmake --build build -j2
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
   clang-tidy:
     runs-on: ubuntu-latest
     steps:
@@ -109,7 +140,7 @@ jobs:
         run: CXX=c++ tools/audit_assembly.sh /tmp/veriqueue-assembly.s
 
   qualification-evidence:
-    needs: [format, build-test, clang-tidy, benchmark-build]
+    needs: [format, build-test, single-owner-build-test, clang-tidy, benchmark-build]
     runs-on: ubuntu-24.04
     steps:
       - name: Write CI qualification manifest
@@ -125,6 +156,7 @@ jobs:
             "github_run_attempt": "$GITHUB_RUN_ATTEMPT",
             "format": "success",
             "build_test_matrix": "success",
+            "single_owner_build_test_matrix": "success",
             "clang_tidy": "success",
             "benchmark_build": "success"
           }

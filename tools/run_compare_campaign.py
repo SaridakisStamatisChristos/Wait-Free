@@ -82,6 +82,8 @@ def main() -> None:
                         record = json.loads(lines[0])
                         if not record.get("valid", False):
                             raise SystemExit(f"invalid comparative run: {record}")
+                        if record.get("pinning_requested") and not record.get("affinity_valid", False):
+                            raise SystemExit(f"affinity-invalid comparative run: {record}")
 
                         record.update(
                             {
