@@ -10,14 +10,26 @@ permissions:
 
 jobs:
   asan-ubsan:
+    strategy:
+      fail-fast: false
+      matrix:
+        owner_mode: [native, single-owner]
+    name: ASan+UBSan / ${{ matrix.owner_mode }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Configure
-        run: >-
-          cmake -S . -B build/asan -G Ninja -DCMAKE_BUILD_TYPE=Debug
-          -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer'
-          -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=address,undefined'
+        shell: bash
+        run: |
+          set -euo pipefail
+          extra=()
+          if [[ "${{ matrix.owner_mode }}" == "single-owner" ]]; then
+            extra+=( -DVERIQUEUE_TEST_FORCE_SINGLE_OWNER_CURSOR=ON )
+          fi
+          cmake -S . -B build/asan -G Ninja -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer' \
+            -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=address,undefined' \
+            "${extra[@]}"
       - name: Build
         run: cmake --build build/asan -j2
       - name: Test
@@ -27,27 +39,40 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: asan-ubsan-evidence
+          name: asan-ubsan-${{ matrix.owner_mode }}-evidence
           path: evidence/sanitizer/asan-ubsan.log
 
   tsan:
+    strategy:
+      fail-fast: false
+      matrix:
+        owner_mode: [native, single-owner]
+    name: TSan / ${{ matrix.owner_mode }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Configure
-        run: >-
-          cmake -S . -B build/tsan -G Ninja -DCMAKE_BUILD_TYPE=Debug
-          -DCMAKE_CXX_FLAGS='-fsanitize=thread -O1 -g'
-          -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=thread'
+        shell: bash
+        run: |
+          set -euo pipefail
+          extra=()
+          if [[ "${{ matrix.owner_mode }}" == "single-owner" ]]; then
+            extra+=( -DVERIQUEUE_TEST_FORCE_SINGLE_OWNER_CURSOR=ON )
+          fi
+          cmake -S . -B build/tsan -G Ninja -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_FLAGS='-fsanitize=thread -O1 -g' \
+            -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=thread' \
+            "${extra[@]}"
       - name: Build
         run: cmake --build build/tsan -j2
       - name: Stress under TSan
         run: |
           mkdir -p evidence/sanitizer
-          ctest --test-dir build/tsan -R 'stress_spsc|stress_burst|stress_jitter|stress_affinity' --output-on-failure \
-            2>&1 | tee evidence/sanitizer/tsan.log
+          ctest --test-dir build/tsan \
+            -R 'stress_spsc|stress_burst|stress_jitter|stress_affinity|stress_bulk' \
+            --output-on-failure 2>&1 | tee evidence/sanitizer/tsan.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: tsan-evidence
+          name: tsan-${{ matrix.owner_mode }}-evidence
           path: evidence/sanitizer/tsan.log
