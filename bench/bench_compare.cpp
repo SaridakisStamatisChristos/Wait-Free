@@ -56,7 +56,8 @@ template <std::size_t Bytes>
 bool valid_payload(const payload<Bytes>& value, std::uint64_t expected) {
     if (value.sequence != expected) return false;
     if constexpr (Bytes > sizeof(std::uint64_t)) {
-        const auto marker = static_cast<std::byte>(static_cast<unsigned char>((expected * 131U) & 0xffU));
+        const auto marker =
+            static_cast<std::byte>(static_cast<unsigned char>((expected * 131U) & 0xffU));
         for (const auto byte : value.data) {
             if (byte != marker) return false;
         }
@@ -75,27 +76,33 @@ static_assert(payload_size_exact<256>);
 struct run_result final {
     double rate{0.0};
     bool valid{false};
+    bool producer_pinned{false};
+    bool consumer_pinned{false};
     std::uint64_t produced{0};
     std::uint64_t consumed{0};
     std::uint64_t checksum{0};
 };
 
 template <std::size_t Bytes, class Push, class Pop>
-run_result run_pair(Push&& push, Pop&& pop, std::uint64_t transfers, unsigned pcpu, unsigned ccpu) {
+run_result run_pair(Push&& push, Pop&& pop, std::uint64_t transfers,
+                    unsigned pcpu, unsigned ccpu) {
     std::atomic<bool> start{false};
     std::atomic<bool> failed{false};
+    std::atomic<bool> producer_pinned{false};
+    std::atomic<bool> consumer_pinned{false};
     std::atomic<unsigned> ready{0};
     std::atomic<std::uint64_t> produced{0};
     std::atomic<std::uint64_t> consumed{0};
     std::atomic<std::uint64_t> checksum{0};
 
     std::thread producer([&] {
-        static_cast<void>(vqbench::pin_current_thread(pcpu));
+        producer_pinned.store(vqbench::pin_current_thread(pcpu), std::memory_order_relaxed);
         ready.fetch_add(1U, std::memory_order_release);
         while (!start.load(std::memory_order_acquire)) {
             std::this_thread::yield();
         }
-        for (std::uint64_t i = 0; i < transfers && !failed.load(std::memory_order_relaxed);) {
+        for (std::uint64_t i = 0;
+             i < transfers && !failed.load(std::memory_order_relaxed);) {
             const auto value = make_payload<Bytes>(i);
             if (push(value)) {
                 ++i;
@@ -105,7 +112,7 @@ run_result run_pair(Push&& push, Pop&& pop, std::uint64_t transfers, unsigned pc
     });
 
     std::thread consumer([&] {
-        static_cast<void>(vqbench::pin_current_thread(ccpu));
+        consumer_pinned.store(vqbench::pin_current_thread(ccpu), std::memory_order_relaxed);
         ready.fetch_add(1U, std::memory_order_release);
         while (!start.load(std::memory_order_acquire)) {
             std::this_thread::yield();
@@ -136,14 +143,19 @@ run_result run_pair(Push&& push, Pop&& pop, std::uint64_t transfers, unsigned pc
     consumer.join();
     const auto end = std::chrono::steady_clock::now();
 
+    const bool producer_pin_ok = producer_pinned.load(std::memory_order_relaxed);
+    const bool consumer_pin_ok = consumer_pinned.load(std::memory_order_relaxed);
     const auto produced_count = produced.load(std::memory_order_relaxed);
     const auto consumed_count = consumed.load(std::memory_order_relaxed);
-    const bool valid = !failed.load(std::memory_order_relaxed) &&
+    const bool valid = producer_pin_ok && consumer_pin_ok &&
+                       !failed.load(std::memory_order_relaxed) &&
                        produced_count == transfers && consumed_count == transfers;
     const double seconds = std::chrono::duration<double>(end - begin).count();
     return {
         valid ? static_cast<double>(transfers) / seconds : 0.0,
         valid,
+        producer_pin_ok,
+        consumer_pin_ok,
         produced_count,
         consumed_count,
         checksum.load(std::memory_order_relaxed),
@@ -152,6 +164,7 @@ run_result run_pair(Push&& push, Pop&& pop, std::uint64_t transfers, unsigned pc
 
 void emit(std::string_view name, const run_result& result, std::uint64_t transfers,
           std::size_t payload_bytes, std::size_t capacity, vqbench::cpu_pair cpus) {
+    const bool affinity_valid = result.producer_pinned && result.consumer_pinned;
     std::cout << "{\"benchmark\":\"baseline_compare_v2\",\"implementation\":\"" << name
               << "\",\"payload_bytes\":" << payload_bytes
               << ",\"capacity\":" << capacity
@@ -159,6 +172,10 @@ void emit(std::string_view name, const run_result& result, std::uint64_t transfe
               << ",\"consumer_cpu\":" << cpus.consumer
               << ",\"topology\":\"" << vqbench::topology_label()
               << "\",\"transfers\":" << transfers
+              << ",\"pinning_requested\":true"
+              << ",\"producer_pinned\":" << (result.producer_pinned ? "true" : "false")
+              << ",\"consumer_pinned\":" << (result.consumer_pinned ? "true" : "false")
+              << ",\"affinity_valid\":" << (affinity_valid ? "true" : "false")
               << ",\"valid\":" << (result.valid ? "true" : "false")
               << ",\"produced\":" << result.produced
               << ",\"consumed\":" << result.consumed
@@ -219,7 +236,8 @@ run_result run_implementation(std::string_view implementation, std::uint64_t tra
 }
 
 template <std::size_t Capacity, std::size_t Bytes>
-int run_case(std::string_view implementation, std::uint64_t transfers, vqbench::cpu_pair cpus) {
+int run_case(std::string_view implementation, std::uint64_t transfers,
+             vqbench::cpu_pair cpus) {
     using value_type = payload<Bytes>;
     const auto result = run_implementation<value_type, Capacity>(implementation, transfers, cpus);
     emit(implementation, result, transfers, Bytes, Capacity, cpus);
@@ -238,8 +256,9 @@ int dispatch_payload(std::string_view implementation, std::size_t payload_bytes,
     }
 }
 
-int dispatch(std::string_view implementation, std::size_t capacity, std::size_t payload_bytes,
-             std::uint64_t transfers, vqbench::cpu_pair cpus) {
+int dispatch(std::string_view implementation, std::size_t capacity,
+             std::size_t payload_bytes, std::uint64_t transfers,
+             vqbench::cpu_pair cpus) {
     switch (capacity) {
     case 2: return dispatch_payload<2>(implementation, payload_bytes, transfers, cpus);
     case 64: return dispatch_payload<64>(implementation, payload_bytes, transfers, cpus);
