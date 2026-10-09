@@ -1,0 +1,40 @@
+name: Evidence Freezer Tests
+
+on:
+  pull_request:
+    paths:
+      - 'tools/freeze_github_evidence.py'
+      - 'tools/verify_frozen_evidence.py'
+      - 'tools/test_evidence_freezer.py'
+      - '.github/workflows/evidence-freezer.yml'
+      - '.github/workflows/evidence-freezer-tests.yml'
+      - 'evidence/**'
+  push:
+    branches: [main]
+    paths:
+      - 'tools/freeze_github_evidence.py'
+      - 'tools/verify_frozen_evidence.py'
+      - 'tools/test_evidence_freezer.py'
+      - '.github/workflows/evidence-freezer.yml'
+      - '.github/workflows/evidence-freezer-tests.yml'
+      - 'evidence/**'
+
+permissions:
+  contents: read
+
+jobs:
+  adversarial-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile freezer tooling
+        run: >-
+          python -m py_compile
+          tools/freeze_github_evidence.py
+          tools/verify_frozen_evidence.py
+          tools/test_evidence_freezer.py
+      - name: Run adversarial freezer/verifier tests
+        run: python -m unittest -v tools/test_evidence_freezer.py
