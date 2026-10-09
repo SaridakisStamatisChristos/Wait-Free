@@ -3,6 +3,7 @@
 #include "veriqueue/spsc_queue.hpp"
 
 #include <boost/lockfree/spsc_queue.hpp>
+#include <boost/version.hpp>
 #include <rigtorp/SPSCQueue.h>
 
 #include <atomic>
@@ -40,11 +41,15 @@ double run_pair(Push&& push, Pop&& pop, std::uint64_t transfers, unsigned pcpu, 
     return static_cast<double>(transfers) / std::chrono::duration<double>(end - begin).count();
 }
 
-void emit(std::string_view name, double rate, std::uint64_t transfers, unsigned p, unsigned c) {
+void emit(std::string_view name, double rate, std::uint64_t transfers, vqbench::cpu_pair cpus) {
     std::cout << "{\"benchmark\":\"baseline_compare\",\"implementation\":\"" << name
-              << "\",\"payload_bytes\":8,\"capacity\":1024,\"producer_cpu\":" << p
-              << ",\"consumer_cpu\":" << c << ",\"transfers\":" << transfers
-              << ",\"transfers_per_second\":" << rate << ",\"environment\":"
+              << "\",\"payload_bytes\":8,\"capacity\":1024,\"producer_cpu\":" << cpus.producer
+              << ",\"consumer_cpu\":" << cpus.consumer << ",\"topology\":\""
+              << vqbench::topology_label() << "\",\"transfers\":" << transfers
+              << ",\"transfers_per_second\":" << rate
+              << ",\"boost_version\":" << BOOST_VERSION
+              << ",\"rigtorp_commit\":\"59a6a938513ea5004817383711ed35d32385d3ee\""
+              << ",\"environment\":"
               << vqbench::environment_json() << "}\n";
 }
 
@@ -52,15 +57,14 @@ void emit(std::string_view name, double rate, std::uint64_t transfers, unsigned 
 
 int main() {
     constexpr std::uint64_t transfers = 5'000'000;
-    const unsigned p = 0;
-    const unsigned c = vqbench::hardware_threads() > 1 ? 1U : 0U;
+    const auto cpus = vqbench::selected_cpu_pair();
 
     {
         veriqueue::spsc_queue<std::uint64_t, 1024> q;
         const double rate = run_pair(
             [&](std::uint64_t v) { return q.try_push(v); },
-            [&](std::uint64_t& out) { return q.try_pop(out); }, transfers, p, c);
-        emit("veriqueue", rate, transfers, p, c);
+            [&](std::uint64_t& out) { return q.try_pop(out); }, transfers, cpus.producer, cpus.consumer);
+        emit("veriqueue", rate, transfers, cpus);
     }
     {
         rigtorp::SPSCQueue<std::uint64_t> q(1024);
@@ -72,14 +76,14 @@ int main() {
                 out = *ptr;
                 q.pop();
                 return true;
-            }, transfers, p, c);
-        emit("rigtorp", rate, transfers, p, c);
+            }, transfers, cpus.producer, cpus.consumer);
+        emit("rigtorp", rate, transfers, cpus);
     }
     {
         boost::lockfree::spsc_queue<std::uint64_t, boost::lockfree::capacity<1024>> q;
         const double rate = run_pair(
             [&](std::uint64_t v) { return q.push(v); },
-            [&](std::uint64_t& out) { return q.pop(out); }, transfers, p, c);
-        emit("boost_lockfree", rate, transfers, p, c);
+            [&](std::uint64_t& out) { return q.pop(out); }, transfers, cpus.producer, cpus.consumer);
+        emit("boost_lockfree", rate, transfers, cpus);
     }
 }

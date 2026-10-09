@@ -11,29 +11,54 @@ permissions:
 jobs:
   benchmark:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Machine info
+      - name: Install benchmark dependencies
+        run: sudo apt-get update && sudo apt-get install -y libboost-dev linux-tools-common
+      - name: Machine info and topology
         run: |
           mkdir -p evidence/benchmarks
           tools/collect_machine_info.sh > evidence/benchmarks/machine.txt
-      - name: Build benchmarks
+          python tools/topology_matrix.py > evidence/benchmarks/topology-matrix.json
+      - name: Build padded benchmarks and baselines
         run: |
-          cmake -S . -B build/bench -G Ninja -DCMAKE_BUILD_TYPE=Release -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF -DVERIQUEUE_BUILD_BENCHMARKS=ON -DVERIQUEUE_BUILD_BASELINES=ON
+          cmake -S . -B build/bench -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF \
+            -DVERIQUEUE_BUILD_BENCHMARKS=ON -DVERIQUEUE_BUILD_BASELINES=ON
           cmake --build build/bench -j2
-      - name: Native benchmark campaign
-        run: python tools/run_bench.py --build build/bench --repetitions 20 --output evidence/benchmarks/raw.jsonl
-      - name: Baselines
+      - name: Padded benchmark campaign
+        env:
+          VERIQUEUE_TRANSFERS: '100000'
+        run: >-
+          python tools/run_bench.py --build build/bench --warmups 5 --repetitions 20
+          --topology auto --output evidence/benchmarks/raw-padded.jsonl
+      - name: Analyze padded results
+        run: python tools/analyze_bench.py evidence/benchmarks/raw-padded.jsonl | tee evidence/benchmarks/summary-padded.md
+      - name: Build intentionally unpadded mutant
         run: |
-          for i in $(seq 1 20); do ./build/bench/bench_compare; done > evidence/benchmarks/baselines.jsonl
-      - name: Analyze
-        run: |
-          python tools/analyze_bench.py evidence/benchmarks/raw.jsonl | tee evidence/benchmarks/summary.txt
-          CXX=c++ tools/audit_assembly.sh evidence/benchmarks/assembly.s | tee evidence/benchmarks/assembly-audit.txt
+          cmake -S . -B build/bench-unpadded -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF \
+            -DVERIQUEUE_BUILD_BENCHMARKS=ON -DVERIQUEUE_DISABLE_PADDING=ON
+          cmake --build build/bench-unpadded -j2
+      - name: False-sharing experiment
+        env:
+          VERIQUEUE_TRANSFERS: '100000'
+        run: >-
+          python tools/run_bench.py --build build/bench-unpadded --warmups 2 --repetitions 10
+          --topology auto --programs bench_throughput
+          --output evidence/benchmarks/raw-unpadded.jsonl
+      - name: Analyze unpadded results
+        run: python tools/analyze_bench.py evidence/benchmarks/raw-unpadded.jsonl | tee evidence/benchmarks/summary-unpadded.md
+      - name: Hardware counters when available
+        run: tools/run_perf_stat.sh build/bench/bench_throughput evidence/benchmarks/perf-stat.txt
+      - name: Assembly audit
+        run: CXX=c++ tools/audit_assembly.sh evidence/benchmarks/assembly.s | tee evidence/benchmarks/assembly-audit.txt
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: benchmark-evidence-shared-runner
           path: evidence/benchmarks/

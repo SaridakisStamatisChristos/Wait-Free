@@ -54,3 +54,18 @@ jobs:
         run: |
           clang-tidy tests/unit/test_basic.cpp tests/unit/test_lifetime.cpp tests/unit/test_wraparound.cpp \
             -p build/tidy
+  benchmark-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install baseline dependency
+        run: sudo apt-get update && sudo apt-get install -y libboost-dev
+      - name: Configure all benchmark targets
+        run: >-
+          cmake -S . -B build/bench -G Ninja -DCMAKE_BUILD_TYPE=Release
+          -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF
+          -DVERIQUEUE_BUILD_BENCHMARKS=ON -DVERIQUEUE_BUILD_BASELINES=ON
+      - name: Build benchmark laboratory
+        run: cmake --build build/bench -j2
+      - name: Assembly audit
+        run: CXX=c++ tools/audit_assembly.sh /tmp/veriqueue-assembly.s

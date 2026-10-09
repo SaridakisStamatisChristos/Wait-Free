@@ -5,21 +5,27 @@
 #include <cstdint>
 #include <iostream>
 
-struct p16 { std::array<std::byte, 16> x{}; };
-struct p64 { std::array<std::byte, 64> x{}; };
-struct p256 { std::array<std::byte, 256> x{}; };
+struct p16 final { std::array<std::byte, 16> x{}; };
+struct p64 final { std::array<std::byte, 64> x{}; };
+struct p256 final { std::array<std::byte, 256> x{}; };
 
 template <class T>
-void run(const char* name) {
-    const unsigned n = vqbench::hardware_threads();
-    const double ops = vqbench::throughput<T, 1024>(2'000'000, 0, n > 1 ? 1U : 0U);
-    std::cout << "{\"payload\":\"" << name << "\",\"bytes\":" << sizeof(T)
-              << ",\"transfers_per_second\":" << ops << "}\n";
+void run(const char* name, vqbench::cpu_pair cpus) {
+    constexpr std::uint64_t transfers = 500'000;
+    const double rate =
+        vqbench::throughput<T, 1024>(transfers, cpus.producer, cpus.consumer);
+    std::cout << "{\"benchmark\":\"payload\",\"payload\":\"" << name
+              << "\",\"payload_bytes\":" << sizeof(T)
+              << ",\"capacity\":1024,\"producer_cpu\":" << cpus.producer
+              << ",\"consumer_cpu\":" << cpus.consumer << ",\"topology\":\""
+              << vqbench::topology_label() << "\",\"transfers_per_second\":" << rate
+              << "}\n";
 }
 
 int main() {
-    run<std::uint64_t>("u64");
-    run<p16>("16B");
-    run<p64>("64B");
-    run<p256>("256B");
+    const auto cpus = vqbench::selected_cpu_pair();
+    run<std::uint64_t>("u64", cpus);
+    run<p16>("16B", cpus);
+    run<p64>("64B", cpus);
+    run<p256>("256B", cpus);
 }

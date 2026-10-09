@@ -17,9 +17,23 @@ std::string read_first_line(const char* path) {
 std::string escape(std::string s) {
     std::string out;
     for (char ch : s) {
-        if (ch == '"' || ch == '\\') out.push_back('\\');
-        if (ch == '\n' || ch == '\r') continue;
-        out.push_back(ch);
+        switch (ch) {
+        case '"':
+        case '\\':
+            out.push_back('\\');
+            out.push_back(ch);
+            break;
+        case '\b': out += "\\b"; break;
+        case '\f': out += "\\f"; break;
+        case '\n': out += "\\n"; break;
+        case '\r': out += "\\r"; break;
+        case '\t': out += "\\t"; break;
+        default:
+            if (static_cast<unsigned char>(ch) >= 0x20U) {
+                out.push_back(ch);
+            }
+            break;
+        }
     }
     return out;
 }

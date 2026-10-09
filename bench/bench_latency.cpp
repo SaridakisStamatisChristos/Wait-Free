@@ -15,12 +15,11 @@ int main() {
     constexpr std::size_t samples = 100'000;
     veriqueue::spsc_queue<std::uint64_t, capacity> a;
     veriqueue::spsc_queue<std::uint64_t, capacity> b;
-    const unsigned n = vqbench::hardware_threads();
-    const unsigned c1 = n > 1 ? 1U : 0U;
+    const auto cpus = vqbench::selected_cpu_pair();
     std::atomic<bool> start{false};
 
     std::thread echo([&] {
-        static_cast<void>(vqbench::pin_current_thread(c1));
+        static_cast<void>(vqbench::pin_current_thread(cpus.consumer));
         while (!start.load(std::memory_order_acquire)) {}
         for (std::size_t i = 0; i < samples; ++i) {
             std::uint64_t x = 0;
@@ -29,7 +28,7 @@ int main() {
         }
     });
 
-    static_cast<void>(vqbench::pin_current_thread(0));
+    static_cast<void>(vqbench::pin_current_thread(cpus.producer));
     std::vector<double> ns;
     ns.reserve(samples);
     start.store(true, std::memory_order_release);
@@ -45,6 +44,8 @@ int main() {
     std::sort(ns.begin(), ns.end());
     auto at = [&](double p) { return ns[static_cast<std::size_t>(p * static_cast<double>(ns.size() - 1))]; };
     std::cout << "{\"benchmark\":\"rtt_latency\",\"samples\":" << samples
+              << ",\"producer_cpu\":" << cpus.producer << ",\"consumer_cpu\":" << cpus.consumer
+              << ",\"topology\":\"" << vqbench::topology_label() << "\""
               << ",\"median_ns\":" << at(0.50) << ",\"p90_ns\":" << at(0.90)
               << ",\"p95_ns\":" << at(0.95) << ",\"p99_ns\":" << at(0.99)
               << ",\"p999_ns\":" << at(0.999) << ",\"min_ns\":" << ns.front()
