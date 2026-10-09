@@ -23,6 +23,8 @@ jobs:
       fail-fast: false
       matrix:
         compiler: [gcc, clang]
+        standard: [20, 23]
+    name: ${{ matrix.compiler }} / C++${{ matrix.standard }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -36,7 +38,11 @@ jobs:
             echo 'CXX=clang++' >> "$GITHUB_ENV"
           fi
       - name: Configure
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+        run: >-
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_CXX_STANDARD=${{ matrix.standard }}
+          -DCMAKE_CXX_STANDARD_REQUIRED=ON
+          -DCMAKE_CXX_EXTENSIONS=OFF
       - name: Build
         run: cmake --build build -j2
       - name: Test
