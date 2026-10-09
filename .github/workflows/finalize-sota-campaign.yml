@@ -1,0 +1,177 @@
+name: Finalize SOTA Campaign
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_ids:
+        description: 'Comma-separated qualification + 3-5 full performance run IDs from one source SHA'
+        required: true
+        type: string
+      campaign_date:
+        description: 'Optional YYYY-MM-DD campaign date'
+        required: false
+        type: string
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: finalize-sota-campaign
+  cancel-in-progress: false
+
+jobs:
+  validate-freeze:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Confirm finalizer is running from default branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF_NAME" == "$DEFAULT_BRANCH" ]] || {
+            echo "Finalizer must be dispatched from default branch '$DEFAULT_BRANCH'." >&2
+            exit 1
+          }
+      - name: Validate complete final campaign run set
+        id: validate
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_RUN_IDS: ${{ inputs.run_ids }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/validate_final_campaign.py \
+            --repository "$GITHUB_REPOSITORY" \
+            --run-ids "$SOURCE_RUN_IDS" \
+            --token "$GITHUB_TOKEN" \
+            --output /tmp/final-campaign-validation.json
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          report = json.load(open('/tmp/final-campaign-validation.json', encoding='utf-8'))
+          print(f"source_commit={report['source_commit']}")
+          PY
+      - name: Freeze all selected GitHub evidence
+        id: freeze
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_RUN_IDS: ${{ inputs.run_ids }}
+          CAMPAIGN_DATE: ${{ inputs.campaign_date }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(
+            --repository "$GITHUB_REPOSITORY"
+            --run-ids "$SOURCE_RUN_IDS"
+            --output-base evidence/campaigns
+            --result-json /tmp/final-freeze-result.json
+          )
+          if [[ -n "$CAMPAIGN_DATE" ]]; then
+            args+=(--campaign-date "$CAMPAIGN_DATE")
+          fi
+          python tools/freeze_github_evidence.py "${args[@]}"
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          result = json.load(open('/tmp/final-freeze-result.json', encoding='utf-8'))
+          print(f"campaign_root={result['campaign_root']}")
+          print(f"campaign_date={result['campaign_date']}")
+          print(f"source_commit={result['source_commit']}")
+          PY
+      - name: Require validator and freezer source SHA agreement
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ '${{ steps.validate.outputs.source_commit }}' == '${{ steps.freeze.outputs.source_commit }}' ]] || {
+            echo 'Final validator/freezer source SHA mismatch.' >&2
+            exit 1
+          }
+      - name: Preserve final campaign validation report inside campaign
+        env:
+          CAMPAIGN_ROOT: ${{ steps.freeze.outputs.campaign_root }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp /tmp/final-campaign-validation.json "$CAMPAIGN_ROOT/final-campaign-validation.json"
+          python - <<'PY'
+          import importlib.util
+          import os
+          import pathlib
+          path = pathlib.Path('tools/freeze_github_evidence.py')
+          spec = importlib.util.spec_from_file_location('freeze_github_evidence', path)
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          module._write_checksums(pathlib.Path(os.environ['CAMPAIGN_ROOT']))
+          PY
+      - name: Independently verify permanent campaign
+        run: python tools/verify_frozen_evidence.py '${{ steps.freeze.outputs.campaign_root }}'
+      - name: Regenerate evidence-derived performance scoreboard
+        run: >-
+          python tools/generate_performance_scoreboard.py
+          --evidence-root evidence/campaigns
+          --output docs/PERFORMANCE_SCOREBOARD.md
+      - name: Reject oversized Git objects
+        shell: bash
+        run: |
+          set -euo pipefail
+          oversized="$(find '${{ steps.freeze.outputs.campaign_root }}' -type f -size +95M -print -quit)"
+          if [[ -n "$oversized" ]]; then
+            echo "Frozen final campaign contains a file larger than 95 MiB: $oversized" >&2
+            exit 1
+          fi
+      - name: Create final evidence branch and pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CAMPAIGN_ROOT: ${{ steps.freeze.outputs.campaign_root }}
+          CAMPAIGN_DATE: ${{ steps.freeze.outputs.campaign_date }}
+          SOURCE_COMMIT: ${{ steps.freeze.outputs.source_commit }}
+          SOURCE_RUN_IDS: ${{ inputs.run_ids }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch="evidence/final-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -c "$branch"
+          git add "$CAMPAIGN_ROOT" docs/PERFORMANCE_SCOREBOARD.md
+          git diff --cached --quiet && {
+            echo 'Final campaign produced no repository changes.' >&2
+            exit 1
+          }
+          git commit -m "evidence: freeze final SOTA campaign ${CAMPAIGN_DATE}"
+          git push origin "$branch"
+
+          cat > /tmp/final-pr-body.md <<EOF
+          ## Final GitHub evidence campaign
+
+          Source commit: \`${SOURCE_COMMIT}\`
+          Selected source run IDs: \`${SOURCE_RUN_IDS}\`
+          Frozen campaign: \`${CAMPAIGN_ROOT}\`
+
+          The run set passed \`tools/validate_final_campaign.py\`, including:
+
+          - required CI, sanitizer, fuzz, model-check, portability, and paired regression workflow classes;
+          - 3-5 independent full Final Performance Campaign runs;
+          - all x64/ARM64 GCC/Clang performance artifacts per run;
+          - exact full protocol validation (5 warmups, 30 measured repetitions, fixed matrix and thresholds);
+          - one exact source SHA across all selected runs.
+
+          The frozen campaign was independently checksum-verified and the performance scoreboard regenerated from frozen paired summaries only.
+
+          No tag or release is created by this workflow.
+          EOF
+
+          gh pr create \
+            --base "$DEFAULT_BRANCH" \
+            --head "$branch" \
+            --title "Final evidence campaign: ${CAMPAIGN_DATE} ${SOURCE_COMMIT:0:12}" \
+            --body-file /tmp/final-pr-body.md
