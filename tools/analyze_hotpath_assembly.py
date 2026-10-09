@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import json
 import pathlib
-import re
 
 FUNCTIONS = (
     "veriqueue_production_push",
@@ -16,7 +15,10 @@ FUNCTIONS = (
 
 def extract_function(text: str, name: str) -> list[str]:
     lines = text.splitlines()
-    start = next((i for i, line in enumerate(lines) if line.strip() == f"{name}:"), None)
+    start = next(
+        (i for i, line in enumerate(lines) if line.lstrip().startswith(f"{name}:")),
+        None,
+    )
     if start is None:
         raise SystemExit(f"function label not found in assembly: {name}")
     body: list[str] = []
@@ -54,7 +56,8 @@ def count_metrics(lines: list[str], arch: str) -> dict[str, int | str]:
         ordinary_stores = 0
         for line, m in zip(lines, mnemonics):
             if m.startswith(("mov", "vmov")):
-                operands = line.split(None, 1)[1] if " " in line or "\t" in line else ""
+                parts = line.split(None, 1)
+                operands = parts[1] if len(parts) == 2 else ""
                 if "," in operands and "(" in operands.rsplit(",", 1)[-1]:
                     ordinary_stores += 1
         branches = sum(m.startswith("j") or m.startswith("call") or m.startswith("ret") for m in mnemonics)
