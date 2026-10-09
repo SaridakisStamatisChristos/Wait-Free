@@ -20,6 +20,23 @@ permissions:
   contents: read
 
 jobs:
+  preflight:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile final campaign tooling
+        run: >-
+          python -m py_compile
+          tools/validate_final_campaign.py
+          tools/test_final_campaign.py
+          tools/freeze_github_evidence.py
+      - name: Run final campaign validation tests
+        run: python -m unittest -v tools/test_final_campaign.py
+
   benchmark:
     name: ${{ matrix.arch }} / ${{ matrix.compiler }}
     strategy:
