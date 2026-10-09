@@ -38,6 +38,21 @@ jobs:
           --topology auto --output evidence/benchmarks/raw-padded.jsonl
       - name: Analyze padded results
         run: python tools/analyze_bench.py evidence/benchmarks/raw-padded.jsonl | tee evidence/benchmarks/summary-padded.md
+      - name: Paired same-runner comparative campaign
+        run: |
+          python tools/run_compare_campaign.py \
+            --program build/bench/bench_compare \
+            --capacities 64,1024 \
+            --payloads 8,64 \
+            --transfers 100000 \
+            --warmups 2 \
+            --repetitions 10 \
+            --output evidence/benchmarks/raw-compare.jsonl
+          python tools/analyze_compare_campaign.py \
+            evidence/benchmarks/raw-compare.jsonl \
+            --json-output evidence/benchmarks/summary-compare.json \
+            --markdown-output evidence/benchmarks/summary-compare.md
+          cat evidence/benchmarks/summary-compare.md
       - name: Build intentionally unpadded mutant
         run: |
           cmake -S . -B build/bench-unpadded -G Ninja -DCMAKE_BUILD_TYPE=Release \
