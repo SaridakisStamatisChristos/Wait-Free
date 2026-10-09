@@ -23,6 +23,8 @@ type rawOperation struct {
 type historyFile struct {
     Capacity   int            `json:"capacity"`
     Seed       uint64         `json:"seed"`
+    OpsPerSide uint64         `json:"ops_per_side"`
+    Profile    string         `json:"profile"`
     Operations []rawOperation `json:"operations"`
 }
 
@@ -77,8 +79,14 @@ func model(capacity int) porcupine.Model {
         },
         Equal: func(a, b interface{}) bool {
             x, y := a.(state), b.(state)
-            if x.Capacity != y.Capacity || len(x.Items) != len(y.Items) { return false }
-            for i := range x.Items { if x.Items[i] != y.Items[i] { return false } }
+            if x.Capacity != y.Capacity || len(x.Items) != len(y.Items) {
+                return false
+            }
+            for i := range x.Items {
+                if x.Items[i] != y.Items[i] {
+                    return false
+                }
+            }
             return true
         },
         DescribeOperation: func(i, o interface{}) string {
@@ -86,7 +94,9 @@ func model(capacity int) porcupine.Model {
             if in.Operation == "push" {
                 return fmt.Sprintf("push(%d) -> %v", in.Value, out.Success)
             }
-            if out.Success { return fmt.Sprintf("pop() -> %d", out.Value) }
+            if out.Success {
+                return fmt.Sprintf("pop() -> %d", out.Value)
+            }
             return "pop() -> empty"
         },
         DescribeState: func(s interface{}) string { return fmt.Sprintf("%v", s.(state).Items) },
@@ -99,34 +109,45 @@ func main() {
         os.Exit(2)
     }
     data, err := os.ReadFile(os.Args[1])
-    if err != nil { panic(err) }
+    if err != nil {
+        panic(err)
+    }
     var h historyFile
-    if err := json.Unmarshal(data, &h); err != nil { panic(err) }
+    if err := json.Unmarshal(data, &h); err != nil {
+        panic(err)
+    }
 
     ops := make([]porcupine.Operation, 0, len(h.Operations))
     for _, op := range h.Operations {
         ops = append(ops, porcupine.Operation{
             ClientId: op.Client,
-            Input: input{Operation: op.Operation, Value: op.Value},
-            Call: op.Invoke,
-            Output: output{Success: op.Success, Value: op.Result},
-            Return: op.Complete,
+            Input:    input{Operation: op.Operation, Value: op.Value},
+            Call:     op.Invoke,
+            Output:   output{Success: op.Success, Value: op.Result},
+            Return:   op.Complete,
         })
     }
 
     m := model(h.Capacity)
     result, info := porcupine.CheckOperationsVerbose(m, ops, 10*time.Second)
     if len(os.Args) >= 3 {
-        if err := porcupine.VisualizePath(m, info, os.Args[2]); err != nil { panic(err) }
+        if err := porcupine.VisualizePath(m, info, os.Args[2]); err != nil {
+            panic(err)
+        }
     }
+
+    prefix := fmt.Sprintf(
+        "capacity=%d profile=%s seed=%d ops_per_side=%d operations=%d",
+        h.Capacity, h.Profile, h.Seed, h.OpsPerSide, len(ops),
+    )
     switch result {
     case porcupine.Ok:
-        fmt.Printf("PASS seed=%d operations=%d\n", h.Seed, len(ops))
+        fmt.Printf("PASS %s\n", prefix)
     case porcupine.Illegal:
-        fmt.Printf("FAIL seed=%d operations=%d\n", h.Seed, len(ops))
+        fmt.Printf("FAIL %s\n", prefix)
         os.Exit(1)
     default:
-        fmt.Printf("UNKNOWN seed=%d operations=%d\n", h.Seed, len(ops))
+        fmt.Printf("UNKNOWN %s\n", prefix)
         os.Exit(3)
     }
 }
