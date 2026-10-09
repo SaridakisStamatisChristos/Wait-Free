@@ -42,6 +42,7 @@ EXPECTED_PERFORMANCE_ARTIFACTS = {
 }
 EXPECTED_CAPACITIES = [2, 64, 256, 1024, 65536]
 EXPECTED_PAYLOADS = [8, 16, 64, 256]
+ALLOWED_FULL_EVENTS = {"workflow_dispatch", "create"}
 
 
 def parse_run_ids(value: str) -> list[int]:
@@ -139,8 +140,12 @@ def validate_campaign_metadata(
     performance_report = []
     for run in performance_runs:
         run_id = int(run["id"])
-        if run.get("event") != "workflow_dispatch":
-            raise ValueError(f"performance run {run_id} is not a workflow_dispatch full campaign")
+        event = str(run.get("event", ""))
+        if event not in ALLOWED_FULL_EVENTS:
+            raise ValueError(
+                f"performance run {run_id} has unsupported full-campaign event {event!r}; "
+                f"allowed={sorted(ALLOWED_FULL_EVENTS)}"
+            )
 
         names = {str(artifact.get("name", "")) for artifact in artifacts_by_run[run_id]}
         missing_artifacts = sorted(EXPECTED_PERFORMANCE_ARTIFACTS - names)
@@ -156,6 +161,15 @@ def validate_campaign_metadata(
         if len(indices) != 1:
             raise ValueError(f"performance run {run_id} has inconsistent run_index metadata: {sorted(indices)}")
         run_index = next(iter(indices))
+
+        if event == "create":
+            expected_branch = f"final-campaign/run-{run_index}"
+            if run.get("head_branch") != expected_branch:
+                raise ValueError(
+                    f"create-triggered performance run {run_id} must originate from "
+                    f"{expected_branch!r}, got {run.get('head_branch')!r}"
+                )
+
         if run_index in final_run_indices:
             raise ValueError(f"duplicate final performance run_index: {run_index}")
         final_run_indices.add(run_index)
@@ -163,6 +177,8 @@ def validate_campaign_metadata(
             {
                 "run_id": run_id,
                 "run_index": run_index,
+                "event": event,
+                "head_branch": run.get("head_branch"),
                 "artifact_names": sorted(EXPECTED_PERFORMANCE_ARTIFACTS),
             }
         )
@@ -176,6 +192,7 @@ def validate_campaign_metadata(
             name: sorted(workflow_runs[name]) for name in sorted(REQUIRED_QUALIFICATION)
         },
         "performance_workflow": PERFORMANCE_WORKFLOW,
+        "allowed_full_events": sorted(ALLOWED_FULL_EVENTS),
         "performance_runs": sorted(performance_report, key=lambda item: item["run_index"]),
         "selected_run_ids": sorted(run_ids),
         "status": "PASS",

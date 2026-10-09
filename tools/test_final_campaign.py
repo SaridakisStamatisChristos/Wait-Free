@@ -38,7 +38,7 @@ def protocol(run_index: int):
     }
 
 
-def build_fixture(performance_count: int = 3):
+def build_fixture(performance_count: int = 3, performance_event: str = "workflow_dispatch"):
     repo = "owner/repo"
     sha = "a" * 40
     runs = []
@@ -64,8 +64,11 @@ def build_fixture(performance_count: int = 3):
             "id": next_id,
             "name": validator.PERFORMANCE_WORKFLOW,
             "head_sha": sha,
+            "head_branch": (
+                f"final-campaign/run-{run_index}" if performance_event == "create" else "main"
+            ),
             "conclusion": "success",
-            "event": "workflow_dispatch",
+            "event": performance_event,
             "repository": {"full_name": repo},
         }
         runs.append(run)
@@ -84,6 +87,12 @@ class FinalCampaignTests(unittest.TestCase):
         report = validator.validate_campaign_metadata(repo, runs, artifacts, protocols)
         self.assertEqual(report["status"], "PASS")
         self.assertEqual([item["run_index"] for item in report["performance_runs"]], [1, 2, 3])
+
+    def test_valid_create_triggered_campaign_passes(self):
+        repo, runs, artifacts, protocols = build_fixture(3, "create")
+        report = validator.validate_campaign_metadata(repo, runs, artifacts, protocols)
+        self.assertEqual(report["status"], "PASS")
+        self.assertEqual([item["event"] for item in report["performance_runs"]], ["create"] * 3)
 
     def test_requires_every_qualification_class(self):
         repo, runs, artifacts, protocols = build_fixture(3)
@@ -129,6 +138,20 @@ class FinalCampaignTests(unittest.TestCase):
         bad["win_ci_lower_gt"] = 1.01
         with self.assertRaisesRegex(ValueError, "WIN threshold"):
             validator.validate_protocol(bad)
+
+    def test_rejects_create_trigger_with_wrong_branch(self):
+        repo, runs, artifacts, protocols = build_fixture(3, "create")
+        performance = next(run for run in runs if run["name"] == validator.PERFORMANCE_WORKFLOW)
+        performance["head_branch"] = "final-campaign/run-5"
+        with self.assertRaisesRegex(ValueError, "must originate"):
+            validator.validate_campaign_metadata(repo, runs, artifacts, protocols)
+
+    def test_rejects_unapproved_full_event(self):
+        repo, runs, artifacts, protocols = build_fixture(3)
+        performance = next(run for run in runs if run["name"] == validator.PERFORMANCE_WORKFLOW)
+        performance["event"] = "push"
+        with self.assertRaisesRegex(ValueError, "unsupported full-campaign event"):
+            validator.validate_campaign_metadata(repo, runs, artifacts, protocols)
 
 
 if __name__ == "__main__":
