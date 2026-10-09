@@ -14,34 +14,52 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: linux-arm64-gcc
+          - name: linux-arm64-gcc-cxx20
             runner: ubuntu-24.04-arm
             family: unix
             cc: gcc
             cxx: g++
-          - name: linux-arm64-clang
+            standard: 20
+          - name: linux-arm64-gcc-cxx23
+            runner: ubuntu-24.04-arm
+            family: unix
+            cc: gcc
+            cxx: g++
+            standard: 23
+          - name: linux-arm64-clang-cxx20
             runner: ubuntu-24.04-arm
             family: unix
             cc: clang
             cxx: clang++
+            standard: 20
+          - name: linux-arm64-clang-cxx23
+            runner: ubuntu-24.04-arm
+            family: unix
+            cc: clang
+            cxx: clang++
+            standard: 23
           - name: windows-x64-msvc
             runner: windows-2025
             family: windows
             cmake_arch: x64
+            standard: 20
           - name: windows-arm64-msvc
             runner: windows-11-arm
             family: windows
             cmake_arch: ARM64
+            standard: 20
           - name: macos-intel-appleclang
             runner: macos-15-intel
             family: unix
             cc: clang
             cxx: clang++
+            standard: 20
           - name: macos-arm64-appleclang
             runner: macos-15
             family: unix
             cc: clang
             cxx: clang++
+            standard: 20
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     steps:
@@ -66,6 +84,7 @@ jobs:
             echo "runner_os=$RUNNER_OS"
             echo "runner_arch=$RUNNER_ARCH"
             echo "qualification=${{ matrix.name }}"
+            echo "cxx_standard=${{ matrix.standard }}"
             cmake --version | head -1
             "${{ matrix.cxx }}" --version | head -1
             uname -a
@@ -76,6 +95,8 @@ jobs:
         shell: bash
         run: >-
           cmake -S . -B build/portability -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_CXX_STANDARD=${{ matrix.standard }}
+          -DCMAKE_CXX_STANDARD_REQUIRED=ON
           -DVERIQUEUE_BUILD_BENCHMARKS=OFF
           -DVERIQUEUE_BUILD_BASELINES=OFF
           -DVERIQUEUE_BUILD_FUZZERS=OFF
@@ -106,6 +127,7 @@ jobs:
             "runner_os=$env:RUNNER_OS"
             "runner_arch=$env:RUNNER_ARCH"
             "qualification=${{ matrix.name }}"
+            "cxx_standard=${{ matrix.standard }}"
             (cmake --version | Select-Object -First 1)
           ) | Tee-Object -FilePath evidence/portability/context.txt
 
@@ -114,6 +136,8 @@ jobs:
         shell: pwsh
         run: >-
           cmake -S . -B build/portability -A ${{ matrix.cmake_arch }}
+          -DCMAKE_CXX_STANDARD=${{ matrix.standard }}
+          -DCMAKE_CXX_STANDARD_REQUIRED=ON
           -DVERIQUEUE_BUILD_BENCHMARKS=OFF
           -DVERIQUEUE_BUILD_BASELINES=OFF
           -DVERIQUEUE_BUILD_FUZZERS=OFF
