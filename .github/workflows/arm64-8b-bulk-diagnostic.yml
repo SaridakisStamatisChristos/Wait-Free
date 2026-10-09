@@ -4,16 +4,16 @@ on:
   pull_request:
     paths:
       - '.github/workflows/arm64-8b-bulk-diagnostic.yml'
+      - 'include/veriqueue/spsc_queue.hpp'
 
 permissions:
   contents: read
 
 env:
   PRE_OPT: d1382588262b2275ecde9bf1a6948e67fcd056f3
-  POST_PR21: 73ef0b53de84c8169b198fd70b8f1a381858827c
 
 jobs:
-  equivalence:
+  hybrid:
     strategy:
       fail-fast: false
       matrix:
@@ -27,91 +27,96 @@ jobs:
             cc: clang
             cxx: clang++
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 40
+    timeout-minutes: 50
     steps:
-      - name: Checkout identical current harnesses
+      - name: Checkout hybrid candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: candidate
+      - name: Checkout current-main reference
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: current
+          fetch-depth: 0
+      - name: Checkout identical harness for old-header reference
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.base.sha }}
           path: old
           fetch-depth: 0
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.base.sha }}
-          path: pr21
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y ninja-build clang
-      - name: Inject old and PR21 queue headers only
+      - name: Inject pre-PR21 queue header only
         run: |
           git -C old fetch --no-tags --depth=1 origin "$PRE_OPT"
           git -C old show FETCH_HEAD:include/veriqueue/spsc_queue.hpp > /tmp/old.hpp
           cp /tmp/old.hpp old/include/veriqueue/spsc_queue.hpp
-          git -C old fetch --no-tags --depth=1 origin "$POST_PR21"
-          git -C old show FETCH_HEAD:include/veriqueue/spsc_queue.hpp > /tmp/pr21.hpp
-          cp /tmp/pr21.hpp pr21/include/veriqueue/spsc_queue.hpp
-          cmp old/bench/bench_hotpath_variants.cpp pr21/bench/bench_hotpath_variants.cpp
-      - name: Build old, PR21-default, and PR21-forced-dual
+          test "$(git -C old diff --name-only)" = "include/veriqueue/spsc_queue.hpp"
+          cmp candidate/bench/bench_hotpath_variants.cpp current/bench/bench_hotpath_variants.cpp
+          cmp candidate/bench/bench_hotpath_variants.cpp old/bench/bench_hotpath_variants.cpp
+          cmp candidate/tools/run_regression_campaign.py current/tools/run_regression_campaign.py
+          cmp candidate/tools/run_regression_campaign.py old/tools/run_regression_campaign.py
+      - name: Build candidate, current, and old under identical compiler
         env:
           CC: ${{ matrix.cc }}
           CXX: ${{ matrix.cxx }}
         run: |
-          cmake -S old -B build/old -G Ninja -DCMAKE_BUILD_TYPE=Release \
-            -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF \
-            -DVERIQUEUE_BUILD_BENCHMARKS=ON -DVERIQUEUE_BUILD_BASELINES=OFF
-          cmake -S pr21 -B build/pr21 -G Ninja -DCMAKE_BUILD_TYPE=Release \
-            -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF \
-            -DVERIQUEUE_BUILD_BENCHMARKS=ON -DVERIQUEUE_BUILD_BASELINES=OFF
-          cmake -S pr21 -B build/pr21dual -G Ninja -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_CXX_FLAGS=-DVERIQUEUE_FORCE_DUAL_OWNER_CURSOR \
-            -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF \
-            -DVERIQUEUE_BUILD_BENCHMARKS=ON -DVERIQUEUE_BUILD_BASELINES=OFF
-          cmake --build build/old --target bench_hotpath_variants -j2
-          cmake --build build/pr21 --target bench_hotpath_variants -j2
-          cmake --build build/pr21dual --target bench_hotpath_variants -j2
-      - name: Make bulk64 wrappers
-        run: |
-          for role in old pr21 pr21dual; do
-            cat > "build/${role}/bench_bulk_64" <<EOF
-          #!/usr/bin/env bash
-          exec "$GITHUB_WORKSPACE/build/${role}/bench_hotpath_variants" "\$1" "\$2" "\$3" "\$4" bulk 64
-          EOF
-            chmod +x "build/${role}/bench_bulk_64"
+          for role in candidate current old; do
+            cmake -S "$role" -B "build/$role" -G Ninja -DCMAKE_BUILD_TYPE=Release \
+              -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF \
+              -DVERIQUEUE_BUILD_BENCHMARKS=ON -DVERIQUEUE_BUILD_BASELINES=OFF
+            cmake --build "build/$role" --target bench_hotpath_variants -j2
           done
-      - name: Compare PR21 default and forced-dual to old baseline
+      - name: Make bulk wrappers
         run: |
-          ROOT="pr21/evidence/pr21-dual-equivalence/${{ matrix.compiler }}"
+          for role in candidate current old; do
+            for batch in 4 16 64; do
+              cat > "build/${role}/bench_bulk_${batch}" <<EOF
+          #!/usr/bin/env bash
+          exec "$GITHUB_WORKSPACE/build/${role}/bench_hotpath_variants" "\$1" "\$2" "\$3" "\$4" bulk ${batch}
+          EOF
+              chmod +x "build/${role}/bench_bulk_${batch}"
+            done
+          done
+      - name: Compare hybrid to current and old baselines
+        run: |
+          ROOT="candidate/evidence/gcc-arm64-8b-hybrid/${{ matrix.compiler }}"
           mkdir -p "$ROOT"
-          for role in pr21 pr21dual; do
+          for ref in current old; do
             offset=0
-            if [ "$role" = "pr21dual" ]; then offset=100; fi
-            OUT="$ROOT/${role}-vs-old"
+            if [ "$ref" = "old" ]; then offset=100; fi
+            OUT="$ROOT/vs-${ref}"
             mkdir -p "$OUT"
-            python pr21/tools/run_regression_campaign.py \
-              --candidate "$GITHUB_WORKSPACE/build/${role}/bench_hotpath_variants" \
-              --reference "$GITHUB_WORKSPACE/build/old/bench_hotpath_variants" \
+            python candidate/tools/run_regression_campaign.py \
+              --candidate "$GITHUB_WORKSPACE/build/candidate/bench_hotpath_variants" \
+              --reference "$GITHUB_WORKSPACE/build/${ref}/bench_hotpath_variants" \
               --capacities 256,1024 --payloads 8 --transfers 1000000 \
-              --warmups 4 --repetitions 60 --seed "$((20261700 + offset))" \
+              --warmups 4 --repetitions 60 --seed "$((20261800 + offset))" \
               --output "$OUT/scalar-raw.jsonl"
-            python pr21/tools/analyze_regression_campaign.py "$OUT/scalar-raw.jsonl" \
+            python candidate/tools/analyze_regression_campaign.py "$OUT/scalar-raw.jsonl" \
               --json-output "$OUT/scalar-summary.json" --markdown-output "$OUT/scalar-summary.md" \
-              --bootstrap-seed "$((20261701 + offset))" || true
+              --bootstrap-seed "$((20261801 + offset))" || true
             cat "$OUT/scalar-summary.md"
-            python pr21/tools/run_regression_campaign.py \
-              --candidate "$GITHUB_WORKSPACE/build/${role}/bench_bulk_64" \
-              --reference "$GITHUB_WORKSPACE/build/old/bench_bulk_64" \
-              --capacities 256,1024 --payloads 8 --transfers 1000000 \
-              --warmups 4 --repetitions 60 --seed "$((20261764 + offset))" \
-              --output "$OUT/bulk64-raw.jsonl"
-            python pr21/tools/analyze_regression_campaign.py "$OUT/bulk64-raw.jsonl" \
-              --json-output "$OUT/bulk64-summary.json" --markdown-output "$OUT/bulk64-summary.md" \
-              --bootstrap-seed "$((20261764 + offset))" || true
-            cat "$OUT/bulk64-summary.md"
+            for batch in 4 16 64; do
+              python candidate/tools/run_regression_campaign.py \
+                --candidate "$GITHUB_WORKSPACE/build/candidate/bench_bulk_${batch}" \
+                --reference "$GITHUB_WORKSPACE/build/${ref}/bench_bulk_${batch}" \
+                --capacities 256,1024 --payloads 8 --transfers 1000000 \
+                --warmups 4 --repetitions 60 --seed "$((20261810 + batch + offset))" \
+                --output "$OUT/bulk${batch}-raw.jsonl"
+              python candidate/tools/analyze_regression_campaign.py "$OUT/bulk${batch}-raw.jsonl" \
+                --json-output "$OUT/bulk${batch}-summary.json" --markdown-output "$OUT/bulk${batch}-summary.md" \
+                --bootstrap-seed "$((20261810 + batch + offset))" || true
+              cat "$OUT/bulk${batch}-summary.md"
+            done
           done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: pr21-dual-equivalence-${{ matrix.compiler }}
-          path: pr21/evidence/pr21-dual-equivalence/${{ matrix.compiler }}/
+          name: gcc-arm64-8b-hybrid-${{ matrix.compiler }}
+          path: candidate/evidence/gcc-arm64-8b-hybrid/${{ matrix.compiler }}/
