@@ -122,10 +122,25 @@ endif()
 
 if(VERIQUEUE_BUILD_BASELINES)
   include(FetchContent)
+
   FetchContent_Declare(rigtorp_spsc
     GIT_REPOSITORY https://github.com/rigtorp/SPSCQueue.git
     GIT_TAG 59a6a938513ea5004817383711ed35d32385d3ee)
-  FetchContent_MakeAvailable(rigtorp_spsc)
+
+  # These two projects are used only as source/header baselines. SOURCE_SUBDIR
+  # deliberately points at a non-project directory so MakeAvailable downloads
+  # the pinned sources without importing their build flags or test targets.
+  FetchContent_Declare(moodycamel_readerwriterqueue
+    GIT_REPOSITORY https://github.com/cameron314/readerwriterqueue.git
+    GIT_TAG 6867b56452352acf077fccd5f6cc7e3a8cfde0fb
+    SOURCE_SUBDIR __veriqueue_headers_only)
+  FetchContent_Declare(drogalis_spsc
+    GIT_REPOSITORY https://github.com/drogalis/SPSC-Queue.git
+    GIT_TAG c959bd4f7204dd73c4e75a2b00c3459c3a5e9a96
+    SOURCE_SUBDIR __veriqueue_headers_only)
+
+  FetchContent_MakeAvailable(rigtorp_spsc moodycamel_readerwriterqueue drogalis_spsc)
+
   find_package(Boost REQUIRED)
   find_package(Threads REQUIRED)
   add_executable(bench_compare bench/bench_compare.cpp bench/environment.cpp)
@@ -136,6 +151,8 @@ if(VERIQUEUE_BUILD_BASELINES)
   # them SYSTEM so their compiler-specific warnings cannot fail our -Werror gate.
   target_include_directories(bench_compare SYSTEM PRIVATE
     ${rigtorp_spsc_SOURCE_DIR}/include
-    ${Boost_INCLUDE_DIRS})
+    ${Boost_INCLUDE_DIRS}
+    ${moodycamel_readerwriterqueue_SOURCE_DIR}
+    ${drogalis_spsc_SOURCE_DIR}/include)
   veriqueue_apply_warnings(bench_compare)
 endif()
