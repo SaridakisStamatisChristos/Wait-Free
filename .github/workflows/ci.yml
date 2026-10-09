@@ -59,6 +59,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - name: Install baseline dependency
         run: sudo apt-get update && sudo apt-get install -y libboost-dev
       - name: Configure all benchmark targets
@@ -81,5 +84,18 @@ jobs:
           ./build/bench/bench_compare boost_lockfree 256 64 2000
           ./build/bench/bench_compare moodycamel 1024 256 2000
           ./build/bench/bench_compare drogalis 65536 8 2000
+      - name: Paired statistics smoke
+        run: |
+          mkdir -p /tmp/veriqueue-paired
+          python tools/run_compare_campaign.py \
+            --program build/bench/bench_compare \
+            --capacities 64 --payloads 8 --transfers 10000 \
+            --warmups 0 --repetitions 2 \
+            --output /tmp/veriqueue-paired/raw.jsonl
+          python tools/analyze_compare_campaign.py \
+            /tmp/veriqueue-paired/raw.jsonl \
+            --json-output /tmp/veriqueue-paired/summary.json \
+            --markdown-output /tmp/veriqueue-paired/summary.md
+          cat /tmp/veriqueue-paired/summary.md
       - name: Assembly audit
         run: CXX=c++ tools/audit_assembly.sh /tmp/veriqueue-assembly.s
