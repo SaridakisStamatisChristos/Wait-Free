@@ -45,6 +45,8 @@ result run_scalar(std::uint64_t transfers) {
             if (q.try_push(next)) {
                 ++next;
                 ++produced;
+            } else {
+                std::this_thread::yield();
             }
         }
     });
@@ -61,6 +63,8 @@ result run_scalar(std::uint64_t transfers) {
                 }
                 ++expected;
                 ++consumed;
+            } else {
+                std::this_thread::yield();
             }
         }
     });
@@ -92,11 +96,17 @@ result run_bulk(std::uint64_t transfers, std::size_t batch_width) {
         while (next <= transfers && !failed.load(std::memory_order_relaxed)) {
             const std::size_t remaining = static_cast<std::size_t>(transfers - next + 1U);
             const std::size_t wanted = (std::min)(batch_width, remaining);
-            for (std::size_t i = 0; i < wanted; ++i) values[i] = next + i;
+            for (std::size_t i = 0; i < wanted; ++i) {
+                values[i] = next + static_cast<std::uint64_t>(i);
+            }
             const std::size_t count =
                 q.try_push_bulk(std::span<const std::uint64_t>{values}.first(wanted));
-            next += count;
-            produced += count;
+            if (count == 0U) {
+                std::this_thread::yield();
+            } else {
+                next += static_cast<std::uint64_t>(count);
+                produced += static_cast<std::uint64_t>(count);
+            }
         }
     });
 
@@ -107,6 +117,10 @@ result run_bulk(std::uint64_t transfers, std::size_t batch_width) {
         while (expected <= transfers && !failed.load(std::memory_order_relaxed)) {
             const std::size_t count =
                 q.try_pop_bulk(std::span<std::uint64_t>{values}.first(batch_width));
+            if (count == 0U) {
+                std::this_thread::yield();
+                continue;
+            }
             for (std::size_t i = 0; i < count; ++i) {
                 if (values[i] != expected) {
                     failed.store(true, std::memory_order_relaxed);
@@ -145,6 +159,8 @@ result run_consume(std::uint64_t transfers) {
             if (q.try_push(next)) {
                 ++next;
                 ++produced;
+            } else {
+                std::this_thread::yield();
             }
         }
     });
@@ -153,7 +169,7 @@ result run_consume(std::uint64_t transfers) {
         wait_for_start(ready, go);
         std::uint64_t expected = 1;
         while (expected <= transfers && !failed.load(std::memory_order_relaxed)) {
-            q.try_consume([&](std::uint64_t& value) noexcept {
+            const bool did_consume = q.try_consume([&](std::uint64_t& value) noexcept {
                 if (value != expected) {
                     failed.store(true, std::memory_order_relaxed);
                     return;
@@ -161,6 +177,7 @@ result run_consume(std::uint64_t transfers) {
                 ++expected;
                 ++consumed;
             });
+            if (!did_consume) std::this_thread::yield();
         }
     });
 
