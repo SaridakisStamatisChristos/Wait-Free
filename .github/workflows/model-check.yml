@@ -1,0 +1,77 @@
+name: Model Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  relacy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure Relacy
+        run: cmake -S . -B build/relacy -G Ninja -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF -DVERIQUEUE_BUILD_RELACY=ON
+      - name: Build
+        run: cmake --build build/relacy --target spsc_relacy -j2
+      - name: Verify
+        run: |
+          mkdir -p evidence/relacy
+          { echo "commit=$GITHUB_SHA"; c++ --version | head -1; ./build/relacy/spsc_relacy; } \
+            2>&1 | tee evidence/relacy/relacy.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: relacy-evidence
+          path: evidence/relacy/relacy.log
+
+  linearizability:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+          cache-dependency-path: verify/linearizability/go.mod
+      - name: Build C++ history generator
+        run: |
+          cmake -S . -B build/lin -G Ninja -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF -DVERIQUEUE_BUILD_LINEARIZABILITY=ON
+          cmake --build build/lin --target history_generator -j2
+      - name: Download checker dependency
+        working-directory: verify/linearizability
+        run: go mod download
+      - name: Check seeded histories
+        run: |
+          mkdir -p evidence/linearizability verify/histories/corpus
+          : > evidence/linearizability/summary.log
+          for seed in $(seq 1 64); do
+            h="verify/histories/corpus/history-${seed}.json"
+            ./build/lin/history_generator "$h" "$seed" >> evidence/linearizability/summary.log
+            (cd verify/linearizability && go run . "../../$h") >> evidence/linearizability/summary.log
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linearizability-evidence
+          path: |
+            evidence/linearizability/summary.log
+            verify/histories/corpus/*.json
+
+  mutation-smoke:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python tools/run_mutation_campaign.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mutation-evidence
+          path: evidence/relacy/mutation-results.json

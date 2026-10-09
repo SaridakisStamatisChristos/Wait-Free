@@ -1,0 +1,53 @@
+name: Sanitizers
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  asan-ubsan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: >-
+          cmake -S . -B build/asan -G Ninja -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer'
+          -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=address,undefined'
+      - name: Build
+        run: cmake --build build/asan -j2
+      - name: Test
+        run: |
+          mkdir -p evidence/sanitizer
+          ctest --test-dir build/asan --output-on-failure 2>&1 | tee evidence/sanitizer/asan-ubsan.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: asan-ubsan-evidence
+          path: evidence/sanitizer/asan-ubsan.log
+
+  tsan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: >-
+          cmake -S . -B build/tsan -G Ninja -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_CXX_FLAGS='-fsanitize=thread -O1 -g'
+          -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=thread'
+      - name: Build
+        run: cmake --build build/tsan -j2
+      - name: Stress under TSan
+        run: |
+          mkdir -p evidence/sanitizer
+          ctest --test-dir build/tsan -R 'stress_spsc|stress_burst|stress_jitter|stress_affinity' --output-on-failure \
+            2>&1 | tee evidence/sanitizer/tsan.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tsan-evidence
+          path: evidence/sanitizer/tsan.log

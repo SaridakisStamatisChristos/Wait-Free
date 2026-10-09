@@ -1,0 +1,11 @@
+Checks: >
+  -*,
+  bugprone-*,
+  concurrency-*,
+  performance-*,
+  portability-*,
+  modernize-use-nullptr,
+  readability-duplicate-include
+WarningsAsErrors: ''
+HeaderFilterRegex: 'include/veriqueue/.*'
+FormatStyle: file
