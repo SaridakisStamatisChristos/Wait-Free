@@ -1,0 +1,104 @@
+name: Performance Regression Gate
+
+on:
+  pull_request:
+    paths:
+      - 'include/**'
+      - 'bench/**'
+      - 'CMakeLists.txt'
+      - 'tools/run_regression_campaign.py'
+      - 'tools/analyze_regression_campaign.py'
+      - 'tools/test_regression_campaign.py'
+      - 'docs/PERFORMANCE_REGRESSION_POLICY.md'
+      - '.github/workflows/performance-regression.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  policy-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile regression tooling
+        run: >-
+          python -m py_compile
+          tools/run_regression_campaign.py
+          tools/analyze_regression_campaign.py
+          tools/test_regression_campaign.py
+      - name: Run regression policy tests
+        run: python -m unittest -v tools/test_regression_campaign.py
+
+  paired-regression:
+    name: ${{ matrix.arch }} / gcc
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: linux-x64
+          - runner: ubuntu-24.04-arm
+            arch: linux-arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    steps:
+      - name: Checkout candidate head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: candidate
+      - name: Checkout reference base
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: reference
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install benchmark dependencies
+        run: sudo apt-get update && sudo apt-get install -y libboost-dev ninja-build
+      - name: Configure candidate
+        run: >-
+          cmake -S candidate -B build/candidate -G Ninja -DCMAKE_BUILD_TYPE=Release
+          -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF
+          -DVERIQUEUE_BUILD_BENCHMARKS=OFF -DVERIQUEUE_BUILD_BASELINES=ON
+      - name: Configure reference
+        run: >-
+          cmake -S reference -B build/reference -G Ninja -DCMAKE_BUILD_TYPE=Release
+          -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF
+          -DVERIQUEUE_BUILD_BENCHMARKS=OFF -DVERIQUEUE_BUILD_BASELINES=ON
+      - name: Build candidate and reference
+        run: |
+          cmake --build build/candidate --target bench_compare -j2
+          cmake --build build/reference --target bench_compare -j2
+      - name: Run paired candidate/reference campaign
+        run: |
+          mkdir -p "candidate/evidence/regression/${{ matrix.arch }}"
+          python candidate/tools/run_regression_campaign.py \
+            --candidate "$GITHUB_WORKSPACE/build/candidate/bench_compare" \
+            --reference "$GITHUB_WORKSPACE/build/reference/bench_compare" \
+            --capacities 64,1024 \
+            --payloads 8,64 \
+            --transfers 100000 \
+            --warmups 2 \
+            --repetitions 15 \
+            --seed 20261009 \
+            --output "candidate/evidence/regression/${{ matrix.arch }}/raw.jsonl"
+      - name: Analyze paired regression evidence
+        run: |
+          python candidate/tools/analyze_regression_campaign.py \
+            "candidate/evidence/regression/${{ matrix.arch }}/raw.jsonl" \
+            --json-output "candidate/evidence/regression/${{ matrix.arch }}/summary.json" \
+            --markdown-output "candidate/evidence/regression/${{ matrix.arch }}/summary.md" \
+            --bootstrap-seed 20261009
+          cat "candidate/evidence/regression/${{ matrix.arch }}/summary.md"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: performance-regression-${{ matrix.arch }}
+          path: candidate/evidence/regression/${{ matrix.arch }}/
