@@ -4,6 +4,7 @@
 #include <exception>
 #include <iostream>
 #include <stdexcept>
+#include <string>
 #include <string_view>
 
 #define VQ_CHECK(expr)                                                                            \
