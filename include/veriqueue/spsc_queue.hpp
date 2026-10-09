@@ -31,6 +31,8 @@ class spsc_queue final {
     static_assert(detail::is_power_of_two(CacheLine), "CacheLine must be a power of two");
     static_assert(CacheLine >= alignof(std::atomic<Index>),
                   "CacheLine must satisfy atomic alignment");
+    static_assert(std::is_nothrow_destructible_v<T>,
+                  "T must be nothrow destructible because try_pop and queue destruction are noexcept");
 
 #ifdef VERIQUEUE_DISABLE_PADDING
     static constexpr std::size_t control_alignment = alignof(std::atomic<Index>);
@@ -132,6 +134,8 @@ public:
     }
 
     [[nodiscard]] bool empty() const noexcept {
+        // Advisory concurrent observation: the independently loaded cursors need not
+        // belong to one linearizable queue state.
         const Index head = consumer_.published_head.load(std::memory_order_acquire);
         const Index tail = producer_.published_tail.load(std::memory_order_acquire);
         return head == tail;
@@ -142,9 +146,14 @@ public:
     }
 
     [[nodiscard]] std::size_t size_approx() const noexcept {
+        // The two cursors are observed independently. Under concurrency they may come
+        // from different logical instants, and unsigned modular subtraction can then
+        // produce a value outside the physical queue range. Preserve the deliberately
+        // advisory semantics while guaranteeing the useful physical bound [0, Capacity].
         const Index head = consumer_.published_head.load(std::memory_order_acquire);
         const Index tail = producer_.published_tail.load(std::memory_order_acquire);
-        return static_cast<std::size_t>(distance(tail, head));
+        const Index observed = distance(tail, head);
+        return observed > capacity_index ? Capacity : static_cast<std::size_t>(observed);
     }
 
 #ifdef VERIQUEUE_TESTING
