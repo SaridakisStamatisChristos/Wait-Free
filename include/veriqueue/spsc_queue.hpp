@@ -24,15 +24,6 @@ namespace veriqueue {
 #pragma warning(disable : 4324) // Cache-line alignas intentionally adds tail padding.
 #endif
 
-// The controlled hot-path ablation showed broad scalar wins on tested AArch64
-// GitHub runners, while an unconditional switch materially regressed GCC/x86-64
-// cells. Keep the proven legacy owner-local cursor on non-ARM64 targets and use
-// the published atomic itself as the owner cursor on ARM64. Peer synchronization
-// remains acquire/release on both paths.
-//
-// VERIQUEUE_FORCE_SINGLE_OWNER_CURSOR and VERIQUEUE_FORCE_DUAL_OWNER_CURSOR are
-// verification-only compile switches used to exercise either state machine on a
-// host architecture without changing the default production selection.
 #if defined(VERIQUEUE_FORCE_SINGLE_OWNER_CURSOR) && defined(VERIQUEUE_FORCE_DUAL_OWNER_CURSOR)
 #error "Only one VeriQueue owner-cursor strategy may be forced"
 #endif
@@ -51,6 +42,10 @@ namespace veriqueue {
 #define VERIQUEUE_DETAIL_ARM64_STORAGE_STRIPE 1
 #else
 #define VERIQUEUE_DETAIL_ARM64_STORAGE_STRIPE 0
+#endif
+
+#ifndef VERIQUEUE_EXPERIMENTAL_ARM64_8B_BULK_SHADOW_MODE
+#define VERIQUEUE_EXPERIMENTAL_ARM64_8B_BULK_SHADOW_MODE 0
 #endif
 
 template <
@@ -84,12 +79,6 @@ class spsc_queue final {
     static constexpr Index capacity_index = static_cast<Index>(Capacity);
     static constexpr Index mask_index = static_cast<Index>(Capacity - 1);
 
-    // Evidence-backed storage optimization: on AArch64, exactly-16-byte slots
-    // benefit from spreading the low three logical-index bits across eight distant
-    // storage regions. Capacity remains unchanged and the mapping is a permutation,
-    // so queue semantics, object footprint, and synchronization are unaffected.
-    // Capacities below eight retain the sequential mapping because an 8-way stripe
-    // cannot be represented without changing storage size.
     static constexpr bool use_arm64_16b_storage_stripe =
         VERIQUEUE_DETAIL_ARM64_STORAGE_STRIPE &&
         sizeof(detail::slot<T>) == 16 &&
@@ -99,6 +88,9 @@ class spsc_queue final {
 #if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
         std::atomic<Index> published_tail{0};
         Index cached_head{0};
+#if (VERIQUEUE_EXPERIMENTAL_ARM64_8B_BULK_SHADOW_MODE & 1)
+        Index bulk_tail{0};
+#endif
 #else
         Index local_tail{0};
         Index cached_head{0};
@@ -110,6 +102,9 @@ class spsc_queue final {
 #if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
         std::atomic<Index> published_head{0};
         Index cached_tail{0};
+#if (VERIQUEUE_EXPERIMENTAL_ARM64_8B_BULK_SHADOW_MODE & 2)
+        Index bulk_head{0};
+#endif
 #else
         Index local_head{0};
         Index cached_tail{0};
@@ -129,10 +124,6 @@ public:
     spsc_queue& operator=(spsc_queue&&) = delete;
 
     ~spsc_queue() noexcept {
-        // Contract: external quiescence. No producer/consumer operation may overlap destruction.
-        // In the single-owner strategy the owner cursor is the published atomic itself. Once
-        // externally quiescent, relaxed loads are sufficient because destruction is not a
-        // synchronization edge.
 #if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
         Index head = consumer_.published_head.load(std::memory_order_relaxed);
         const Index tail = producer_.published_tail.load(std::memory_order_relaxed);
@@ -167,6 +158,10 @@ public:
         ++tail;
 #if !VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
         producer_.local_tail = tail;
+#else
+#if (VERIQUEUE_EXPERIMENTAL_ARM64_8B_BULK_SHADOW_MODE & 1)
+        if constexpr (sizeof(detail::slot<T>) == 8) producer_.bulk_tail = tail;
+#endif
 #endif
         producer_.published_tail.store(tail, std::memory_order_release);
         return true;
@@ -190,7 +185,16 @@ public:
         if (values.empty()) return 0;
 
 #if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
-        Index tail = producer_.published_tail.load(std::memory_order_relaxed);
+        Index tail;
+#if (VERIQUEUE_EXPERIMENTAL_ARM64_8B_BULK_SHADOW_MODE & 1)
+        if constexpr (sizeof(detail::slot<T>) == 8) {
+            tail = producer_.bulk_tail;
+        } else {
+            tail = producer_.published_tail.load(std::memory_order_relaxed);
+        }
+#else
+        tail = producer_.published_tail.load(std::memory_order_relaxed);
+#endif
 #else
         Index tail = producer_.local_tail;
 #endif
@@ -216,6 +220,10 @@ public:
 
 #if !VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
         producer_.local_tail = tail;
+#else
+#if (VERIQUEUE_EXPERIMENTAL_ARM64_8B_BULK_SHADOW_MODE & 1)
+        if constexpr (sizeof(detail::slot<T>) == 8) producer_.bulk_tail = tail;
+#endif
 #endif
         producer_.published_tail.store(tail, std::memory_order_release);
         return count;
@@ -244,6 +252,10 @@ public:
         ++head;
 #if !VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
         consumer_.local_head = head;
+#else
+#if (VERIQUEUE_EXPERIMENTAL_ARM64_8B_BULK_SHADOW_MODE & 2)
+        if constexpr (sizeof(detail::slot<T>) == 8) consumer_.bulk_head = head;
+#endif
 #endif
         consumer_.published_head.store(head, std::memory_order_release);
         return true;
@@ -255,7 +267,16 @@ public:
         if (output.empty()) return 0;
 
 #if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
-        Index head = consumer_.published_head.load(std::memory_order_relaxed);
+        Index head;
+#if (VERIQUEUE_EXPERIMENTAL_ARM64_8B_BULK_SHADOW_MODE & 2)
+        if constexpr (sizeof(detail::slot<T>) == 8) {
+            head = consumer_.bulk_head;
+        } else {
+            head = consumer_.published_head.load(std::memory_order_relaxed);
+        }
+#else
+        head = consumer_.published_head.load(std::memory_order_relaxed);
+#endif
 #else
         Index head = consumer_.local_head;
 #endif
@@ -280,6 +301,10 @@ public:
 
 #if !VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
         consumer_.local_head = head;
+#else
+#if (VERIQUEUE_EXPERIMENTAL_ARM64_8B_BULK_SHADOW_MODE & 2)
+        if constexpr (sizeof(detail::slot<T>) == 8) consumer_.bulk_head = head;
+#endif
 #endif
         consumer_.published_head.store(head, std::memory_order_release);
         return count;
@@ -308,14 +333,16 @@ public:
         ++head;
 #if !VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
         consumer_.local_head = head;
+#else
+#if (VERIQUEUE_EXPERIMENTAL_ARM64_8B_BULK_SHADOW_MODE & 2)
+        if constexpr (sizeof(detail::slot<T>) == 8) consumer_.bulk_head = head;
+#endif
 #endif
         consumer_.published_head.store(head, std::memory_order_release);
         return true;
     }
 
     [[nodiscard]] bool empty() const noexcept {
-        // Advisory concurrent observation: the independently loaded cursors need not
-        // belong to one linearizable queue state.
         const Index head = consumer_.published_head.load(std::memory_order_acquire);
         const Index tail = producer_.published_tail.load(std::memory_order_acquire);
         return head == tail;
@@ -326,10 +353,6 @@ public:
     }
 
     [[nodiscard]] std::size_t size_approx() const noexcept {
-        // The two cursors are observed independently. Under concurrency they may come
-        // from different logical instants, and unsigned modular subtraction can then
-        // produce a value outside the physical queue range. Preserve the deliberately
-        // advisory semantics while guaranteeing the useful physical bound [0, Capacity].
         const Index head = consumer_.published_head.load(std::memory_order_acquire);
         const Index tail = producer_.published_tail.load(std::memory_order_acquire);
         const Index observed = distance(tail, head);
@@ -350,13 +373,7 @@ public:
 #if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
         const Index tail = producer_.published_tail.load(std::memory_order_relaxed);
         const Index head = consumer_.published_head.load(std::memory_order_relaxed);
-        return {
-            tail,
-            producer_.cached_head,
-            head,
-            consumer_.cached_tail,
-            tail,
-            head};
+        return {tail, producer_.cached_head, head, consumer_.cached_tail, tail, head};
 #else
         return {
             producer_.local_tail,
@@ -409,6 +426,7 @@ private:
     alignas(storage_alignment) std::array<detail::slot<T>, Capacity> slots_;
 };
 
+#undef VERIQUEUE_EXPERIMENTAL_ARM64_8B_BULK_SHADOW_MODE
 #undef VERIQUEUE_DETAIL_ARM64_STORAGE_STRIPE
 #undef VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
 
