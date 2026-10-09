@@ -20,11 +20,9 @@ inline constexpr std::size_t cache_line = 64;
 
 template <std::size_t Bytes>
 struct padding_block final {
+    static_assert(Bytes > 0);
     std::array<std::byte, Bytes> bytes{};
 };
-
-template <>
-struct padding_block<0> final {};
 
 template <class T>
 inline constexpr std::size_t storage_alignment =
@@ -33,14 +31,19 @@ inline constexpr std::size_t storage_alignment =
         : alignof(veriqueue::detail::slot<T>);
 
 // The storage region itself starts on at least a cache-line boundary and retains
-// stricter slot<T> alignment for over-aligned T. Padding is placed inside that
-// region, before the slot array, so 64/128-byte guards move cache-set placement
-// while a 96-byte guard produces the requested 64+32 phase skew for normally
-// aligned payloads. The compiler may add only the extra padding required to
-// preserve alignof(slot<T>) for over-aligned T.
+// stricter slot<T> alignment for over-aligned T. Non-zero padding is explicit and
+// byte-exact for normally aligned payloads. The zero-padding specialization has no
+// empty member at all, so the control experiment starts slots at the storage base
+// without relying on [[no_unique_address]] implementation behavior.
 template <class T, std::size_t Capacity, std::size_t PaddingBytes>
 struct alignas(storage_alignment<T>) slot_storage final {
-    [[no_unique_address]] padding_block<PaddingBytes> padding{};
+    static_assert(PaddingBytes > 0);
+    padding_block<PaddingBytes> padding{};
+    std::array<veriqueue::detail::slot<T>, Capacity> slots{};
+};
+
+template <class T, std::size_t Capacity>
+struct alignas(storage_alignment<T>) slot_storage<T, Capacity, 0> final {
     std::array<veriqueue::detail::slot<T>, Capacity> slots{};
 };
 
