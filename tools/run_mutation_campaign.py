@@ -40,6 +40,14 @@ MUTANTS = [
     (22, "omit-full-check", "capacity"),
     (23, "publish-old-head", "publication-value"),
     (24, "publish-old-tail", "publication-value"),
+    (25, "bulk-publish-tail-before-slot-writes", "bulk-publication-order"),
+    (26, "bulk-publish-head-before-slot-reads", "bulk-publication-order"),
+    (27, "bulk-publish-only-first-tail-advance", "bulk-publication-value"),
+    (28, "bulk-publish-only-first-head-advance", "bulk-publication-value"),
+    (29, "bulk-overaccept-capacity-by-one", "bulk-capacity"),
+    (30, "bulk-second-element-wrong-slot", "bulk-slot-mapping"),
+    (31, "consume-publish-head-before-read", "consume-publication-order"),
+    (32, "consume-read-next-slot", "consume-slot-mapping"),
 ]
 
 

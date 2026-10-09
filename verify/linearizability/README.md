@@ -7,7 +7,7 @@
 The generator accepts:
 
 ```text
-history_generator <history.json> <seed> <capacity> <ops-per-side> <profile>
+history_generator <history.json> <seed> <capacity> <ops-per-side> <profile> [mode]
 ```
 
 Supported capacities are `1,2,4,8`. Supported schedule profiles are:
@@ -17,7 +17,12 @@ Supported capacities are `1,2,4,8`. Supported schedule profiles are:
 - `producer-heavy`
 - `consumer-heavy`
 
-The seed, capacity, operation count, and profile are embedded in the JSON history, making every case directly replayable.
+Supported API modes are:
+
+- `scalar` — scalar push/pop only
+- `mixed` — scalar push/pop plus native `push_bulk`, `pop_bulk`, and `consume`
+
+The default mode is `scalar` for backward compatibility. Seed, capacity, operation count, profile, and mode are embedded in the JSON history, making every case directly replayable.
 
 Typical single-case use:
 
@@ -29,13 +34,29 @@ cmake -S . -B build/lin -G Ninja \
 cmake --build build/lin --target history_generator
 (cd verify/linearizability && go build -o ../../build/lin/history_checker .)
 
-./build/lin/history_generator history.json 123 2 8 burst
+./build/lin/history_generator history.json 123 2 8 burst mixed
 ./build/lin/history_checker history.json history.html
 ```
 
+## Bulk-operation model
+
+A successful bulk operation is checked as one atomic FIFO-prefix effect. The checker requires:
+
+- returned count is nonnegative and cannot exceed the abstract capacity/data bound
+- `success` agrees with whether the returned count is nonzero
+- pushed values are exactly the returned-length prefix of the caller input
+- popped values are exactly the returned-length FIFO prefix of the abstract queue
+- the whole accepted/retired prefix takes effect as one Porcupine operation
+
+For a **positive** concurrent bulk operation, Porcupine deliberately does not require the returned count to equal the maximum prefix available in the abstract state chosen as its serialization point. VeriQueue computes a batch count from an acquired peer cursor and publishes the completed batch later; an overlapping peer operation can change free/data capacity between those events. Requiring both overlapping batches to be maximal at a single serialization order can therefore reject a correct execution.
+
+The stronger no-overlap rule—return the longest prefix that fits—is independently enforced by deterministic unit/model tests. Zero-result operations remain required to serialize at a state where no progress is available.
+
+This separation is intentional: Porcupine tests atomicity, FIFO identity, loss/duplication/phantom behavior, and legal prefix size under overlap; deterministic tests validate exact sequential count semantics.
+
 ## Campaign
 
-`tools/run_linearizability_campaign.py` executes a deterministic product matrix over capacities, schedule profiles, and seeds. The default GitHub Actions gate runs 128 short histories (4 capacities × 4 profiles × 8 seeds), each with 8 operations per side.
+`tools/run_linearizability_campaign.py` executes a deterministic product matrix over capacities, schedule profiles, API modes, and seeds. The default GitHub Actions gate runs 256 short histories (4 capacities × 4 profiles × 2 modes × 8 seeds), each with 8 operations per side.
 
 The campaign records `PASS`, `FAIL`, `UNKNOWN`, and harness `ERROR` separately. `UNKNOWN` is never accepted as success. A non-PASS history is preserved with an HTML visualization; an illegal history is additionally delta-debugged, and the shrinker requires candidates to preserve the checker's exact failure exit code so an illegal counterexample cannot silently shrink into a timeout.
 
