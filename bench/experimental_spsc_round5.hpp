@@ -3,6 +3,7 @@
 #include "experimental_spsc_round4.hpp"
 #include "veriqueue/detail/config.hpp"
 #include "veriqueue/detail/slot.hpp"
+#include "veriqueue/spsc_queue.hpp"
 
 #include <algorithm>
 #include <array>
@@ -42,11 +43,10 @@ inline constexpr std::size_t architecture_selective_stripe =
 #define VQBENCH_R5_SINGLE_OWNER_CURSOR 0
 #endif
 
-// Production-shaped candidate. The state machine, control layout, memory orders,
-// modular-distance arithmetic, bulk behavior, and object footprint mirror the
-// production queue on each architecture. The only intended behavioral/codegen
-// difference is slot_for(): AArch64 + exactly-16-byte slots use the validated
-// 8-way permutation; every other case uses the production sequential mapping.
+// Production-shaped striped specialization. It is instantiated only for the
+// one evidence-backed case (AArch64 + exactly-16-byte slots). All unaffected
+// specializations alias the actual production veriqueue::spsc_queue type below,
+// removing class-template/code-layout drift from control cells entirely.
 template <
     class T,
     std::size_t Capacity,
@@ -285,13 +285,9 @@ private:
     }
 
     [[nodiscard]] veriqueue::detail::slot<T>& slot_for(Index logical_index) noexcept {
-        if constexpr (architecture_selective_stripe<T> == 1) {
-            return slots_[static_cast<std::size_t>(logical_index & mask_index)];
-        } else {
-            const auto physical = vqbench::experimental::round4::striped_index<Capacity, 8>(
-                static_cast<std::size_t>(logical_index));
-            return slots_[physical];
-        }
+        const auto physical = vqbench::experimental::round4::striped_index<Capacity, 8>(
+            static_cast<std::size_t>(logical_index));
+        return slots_[physical];
     }
 
     producer_state producer_{};
@@ -299,8 +295,13 @@ private:
     alignas(storage_alignment) std::array<veriqueue::detail::slot<T>, Capacity> slots_;
 };
 
+// Unaffected cases are literally the production type. Only the selected ARM64
+// 16-byte specialization uses the striped experimental implementation.
 template <class T, std::size_t Capacity>
-using architecture_selective = architecture_selective_queue<T, Capacity>;
+using architecture_selective = std::conditional_t<
+    architecture_selective_stripe<T> == 8,
+    architecture_selective_queue<T, Capacity>,
+    veriqueue::spsc_queue<T, Capacity>>;
 
 #undef VQBENCH_R5_SINGLE_OWNER_CURSOR
 
