@@ -1,0 +1,133 @@
+name: Hot-path Round 4B Selective Stripe Confirmation
+
+on:
+  pull_request:
+    paths:
+      - 'bench/experimental_spsc_round4b.hpp'
+      - 'bench/bench_hotpath_round4b.cpp'
+      - 'tools/run_hotpath_round4b.py'
+      - 'tools/analyze_hotpath_v2.py'
+      - '.github/workflows/hotpath-round4b.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  confirm:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: x64-gcc
+            runner: ubuntu-24.04
+            cc: gcc
+            cxx: g++
+            topology_policy: x64-diagnostic
+          - name: x64-clang
+            runner: ubuntu-24.04
+            cc: clang
+            cxx: clang++
+            topology_policy: x64-diagnostic
+          - name: arm64-gcc
+            runner: ubuntu-24.04-arm
+            cc: gcc
+            cxx: g++
+            topology_policy: default
+          - name: arm64-clang
+            runner: ubuntu-24.04-arm
+            cc: clang
+            cxx: clang++
+            topology_policy: default
+    name: confirm / ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Record environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/hotpath-round4b
+          {
+            echo "commit=$GITHUB_SHA"
+            echo "runner_os=$RUNNER_OS"
+            echo "runner_arch=$RUNNER_ARCH"
+            echo "platform=${{ matrix.name }}"
+            echo "candidate=selective16_stripe8"
+            echo "observer_counter_policy=final-only"
+            "$CXX" --version | head -1
+            uname -a
+            python tools/topology_matrix.py
+          } | tee evidence/hotpath-round4b/environment.txt
+
+      - name: Validate Python tooling
+        run: >-
+          python -m py_compile
+          tools/topology_matrix.py
+          tools/run_hotpath_round4b.py
+          tools/analyze_hotpath_v2.py
+
+      - name: Build confirmation benchmark
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          "$CXX" -std=c++20 -O3 -DNDEBUG -pthread -Wall -Wextra -Wpedantic -Werror \
+            -Iinclude -Ibench bench/bench_hotpath_round4b.cpp bench/environment.cpp \
+            -o build/bench_hotpath_round4b
+
+      - name: Correctness and affinity smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          for payload in 8 16; do
+            ./build/bench_hotpath_round4b production "$payload" 100000
+            ./build/bench_hotpath_round4b selective16_stripe8 "$payload" 100000
+          done
+
+      - name: Confirm mandatory cells
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/hotpath-round4b/raw
+          python tools/run_hotpath_round4b.py \
+            --program build/bench_hotpath_round4b \
+            --payload 8 \
+            --transfers 600000 \
+            --warmups 5 \
+            --repetitions 40 \
+            --seed 20261050 \
+            --topology-policy '${{ matrix.topology_policy }}' \
+            --output evidence/hotpath-round4b/raw/c1024-p8.jsonl
+          python tools/run_hotpath_round4b.py \
+            --program build/bench_hotpath_round4b \
+            --payload 16 \
+            --transfers 600000 \
+            --warmups 5 \
+            --repetitions 40 \
+            --seed 20261051 \
+            --topology-policy '${{ matrix.topology_policy }}' \
+            --output evidence/hotpath-round4b/raw/c1024-p16.jsonl
+
+      - name: Analyze confirmation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/analyze_hotpath_v2.py evidence/hotpath-round4b/raw/*.jsonl \
+            --require-repetitions 40 \
+            --bootstrap-seed 20261050 \
+            --json-output evidence/hotpath-round4b/summary.json \
+            --markdown-output evidence/hotpath-round4b/summary.md
+          cat evidence/hotpath-round4b/summary.md
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hotpath-round4b-${{ matrix.name }}
+          path: evidence/hotpath-round4b/
+          if-no-files-found: error
