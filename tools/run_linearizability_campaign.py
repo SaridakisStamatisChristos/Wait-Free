@@ -52,8 +52,9 @@ with summary_log.open("w") as log:
             if stop:
                 break
             for seed in range(1, args.seeds + 1):
-                history = CORPUS / f"c{capacity}-{profile}-o{args.ops_per_side}-s{seed}.json"
-                visualization = EVIDENCE / f"c{capacity}-{profile}-o{args.ops_per_side}-s{seed}.html"
+                stem = f"c{capacity}-{profile}-o{args.ops_per_side}-s{seed}"
+                history = CORPUS / f"{stem}.json"
+                visualization = EVIDENCE / f"{stem}.html"
 
                 generated = subprocess.run([
                     str(args.generator),
@@ -70,7 +71,7 @@ with summary_log.open("w") as log:
                     checker_output = "history generation failed"
                 else:
                     checked = subprocess.run([
-                        str(args.checker), str(history), str(visualization)
+                        str(args.checker), str(history)
                     ], text=True, capture_output=True)
                     checker_output = checked.stdout + checked.stderr
                     log.write(checker_output)
@@ -91,9 +92,21 @@ with summary_log.open("w") as log:
                     "ops_per_side": args.ops_per_side,
                     "status": status,
                     "history": str(history.relative_to(ROOT)),
+                    "replay": f"{args.checker} {history}",
                 }
                 results.append(result)
                 print(f"{status} capacity={capacity} profile={profile} seed={seed} ops_per_side={args.ops_per_side}")
+
+                if status in {"FAIL", "UNKNOWN"}:
+                    # Generate a visualization only for a non-PASS result. This keeps
+                    # the ordinary campaign compact while preserving rich diagnostics.
+                    visualized = subprocess.run([
+                        str(args.checker), str(history), str(visualization)
+                    ], text=True, capture_output=True)
+                    log.write(visualized.stdout)
+                    log.write(visualized.stderr)
+                    if visualization.exists():
+                        result["visualization"] = str(visualization.relative_to(ROOT))
 
                 if status == "FAIL":
                     preserved = EVIDENCE / "counterexamples"
