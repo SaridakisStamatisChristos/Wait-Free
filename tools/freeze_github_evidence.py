@@ -49,6 +49,10 @@ def artifact_destination(name: str) -> pathlib.PurePosixPath:
     return pathlib.PurePosixPath("artifacts") / _slug(name)
 
 
+def artifact_run_destination(name: str, run_id: int) -> pathlib.PurePosixPath:
+    return artifact_destination(name) / f"run-{run_id}"
+
+
 def _request(url: str, token: str, *, binary: bool) -> bytes | dict:
     headers = {
         "Accept": "application/vnd.github+json",
@@ -152,7 +156,7 @@ def safe_extract_zip(
                 raise ValueError(f"artifact file exceeds repository-safe limit: {member}")
             total += info.file_size
             if total > max_total_bytes:
-                raise ValueError("artifact extraction exceeds campaign size limit")
+                raise ValueError("artifact extraction exceeds per-artifact size limit")
 
             target = destination / pathlib.Path(*member.parts)
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -168,6 +172,10 @@ def sha256_file(path: pathlib.Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _tree_size(root: pathlib.Path) -> int:
+    return sum(path.stat().st_size for path in root.rglob("*") if path.is_file())
 
 
 def _selected_run_metadata(run: dict) -> dict:
@@ -204,6 +212,85 @@ def _artifact_metadata(artifact: dict, destination: str, archive_sha256: str) ->
     result["destination"] = destination
     result["downloaded_archive_sha256"] = archive_sha256
     return result
+
+
+def _parse_key_value_file(path: pathlib.Path) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        if "=" not in raw:
+            continue
+        key, value = raw.split("=", 1)
+        key = key.strip()
+        if key:
+            result[key] = value.strip()
+    return result
+
+
+def _benchmark_context(root: pathlib.Path) -> dict:
+    contexts: dict[str, dict] = {}
+    for raw_path in sorted(root.rglob("raw-compare.jsonl")):
+        relative = raw_path.relative_to(root)
+        key_parts = list(relative.parts[:-1])
+        key = "/".join(key_parts)
+        records = []
+        for line in raw_path.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                records.append(json.loads(line))
+        if not records:
+            continue
+
+        environments = []
+        seen_environments = set()
+        for record in records:
+            environment = record.get("environment")
+            if isinstance(environment, dict):
+                encoded = json.dumps(environment, sort_keys=True)
+                if encoded not in seen_environments:
+                    seen_environments.add(encoded)
+                    environments.append(environment)
+
+        context: dict[str, object] = {
+            "raw_file": relative.as_posix(),
+            "record_count": len(records),
+            "campaign_seeds": sorted({record.get("campaign_seed") for record in records}),
+            "capacities": sorted({record.get("capacity") for record in records}),
+            "payload_bytes": sorted({record.get("payload_bytes") for record in records}),
+            "transfers": sorted({record.get("transfers") for record in records}),
+            "implementations": sorted({str(record.get("implementation")) for record in records}),
+            "topologies": sorted({str(record.get("topology")) for record in records}),
+            "environments": environments,
+            "comparator_revisions": {
+                "boost_version": records[0].get("boost_version"),
+                "rigtorp_commit": records[0].get("rigtorp_commit"),
+                "moodycamel_commit": records[0].get("moodycamel_commit"),
+                "drogalis_commit": records[0].get("drogalis_commit"),
+            },
+            "stdlib": None,
+            "compiler_flags": None,
+            "runner_image": None,
+        }
+
+        run_contexts = list(raw_path.parent.rglob("run-context.txt"))
+        if run_contexts:
+            run_context = _parse_key_value_file(run_contexts[0])
+            context["run_context_file"] = run_contexts[0].relative_to(root).as_posix()
+            context["runner_image"] = {
+                "os": run_context.get("runner_image_os"),
+                "version": run_context.get("runner_image_version"),
+            }
+            context["stdlib"] = run_context.get("stdlib")
+            context["compiler_flags"] = run_context.get("compiler_flags")
+
+        compile_commands = list(raw_path.parent.rglob("compile_commands.json"))
+        if compile_commands:
+            context["compile_commands_file"] = compile_commands[0].relative_to(root).as_posix()
+
+        protocol_files = list(raw_path.parent.rglob("protocol.json"))
+        if protocol_files:
+            context["protocol_file"] = protocol_files[0].relative_to(root).as_posix()
+
+        contexts[key] = context
+    return contexts
 
 
 def _write_checksums(root: pathlib.Path) -> None:
@@ -264,7 +351,7 @@ def freeze_campaign(
                 if artifact.get("expired"):
                     raise ValueError(f"artifact {artifact.get('name')} from run {run_id} is expired")
                 name = str(artifact.get("name", ""))
-                destination_rel = artifact_destination(name)
+                destination_rel = artifact_run_destination(name, run_id)
                 destination_key = destination_rel.as_posix()
                 owner = claimed_destinations.get(destination_key)
                 if owner is not None:
@@ -292,6 +379,9 @@ def freeze_campaign(
                 finally:
                     archive_path.unlink(missing_ok=True)
 
+                if _tree_size(campaign_root) > MAX_CAMPAIGN_BYTES:
+                    raise ValueError("frozen campaign exceeds campaign size limit")
+
                 for path in extracted:
                     file_provenance.append(
                         {
@@ -316,18 +406,25 @@ def freeze_campaign(
             path = metadata_dir / f"{workflow_slug}-{run['id']}.json"
             path.write_text(json.dumps(run, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
+        benchmark_context = _benchmark_context(campaign_root)
         manifest = {
             "schema_version": 1,
             "repository": repository,
             "campaign_date": campaign_date,
+            "veriqueue_commit": source_sha,
+            "workflow_source_commit": source_sha,
             "source_commit": source_sha,
             "source_run_ids": run_ids,
             "source_runs": source_runs,
+            "benchmark_context": benchmark_context,
             "files": sorted(file_provenance, key=lambda item: item["path"]),
+            "hash_ledger": "SHA256SUMS.txt",
             "notes": [
                 "All payload files were downloaded from GitHub Actions artifacts.",
-                "The freezer does not synthesize missing hardware or compiler facts.",
-                "SHA256SUMS.txt covers the extracted payload plus manifest/source-run metadata.",
+                "Repeated workflow runs are retained independently under run-<id> directories.",
+                "Hardware/compiler fields are extracted only when the source artifacts contain them.",
+                "Unknown environment facts remain null; the freezer never fabricates missing metadata.",
+                "SHA256SUMS.txt covers extracted payloads plus manifest/source-run metadata.",
             ],
         }
         (campaign_root / "manifest.json").write_text(
