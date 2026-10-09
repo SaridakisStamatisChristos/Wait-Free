@@ -37,27 +37,22 @@ jobs:
         with:
           go-version: '1.23.x'
           cache-dependency-path: verify/linearizability/go.mod
-      - name: Build C++ history generator
+      - name: Build history generator
         run: |
           cmake -S . -B build/lin -G Ninja -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF -DVERIQUEUE_BUILD_LINEARIZABILITY=ON
           cmake --build build/lin --target history_generator -j2
-      - name: Download checker dependency
+      - name: Build independent Porcupine checker
         working-directory: verify/linearizability
-        run: go mod download
-      - name: Check seeded histories
         run: |
-          mkdir -p evidence/linearizability verify/histories/corpus
-          : > evidence/linearizability/summary.log
-          for seed in $(seq 1 64); do
-            h="verify/histories/corpus/history-${seed}.json"
-            ./build/lin/history_generator "$h" "$seed" >> evidence/linearizability/summary.log
-            html="evidence/linearizability/history-${seed}.html"
-            if ! verify/linearizability/check_history.sh "$h" "$html" >> evidence/linearizability/summary.log; then
-              python tools/shrink_history.py "$h" verify/linearizability/check_history.sh
-              cp "${h%.json}.min.json" evidence/linearizability/
-              exit 1
-            fi
-          done
+          go mod download
+          go build -o ../../build/lin/history_checker .
+      - name: Run reproducible history matrix
+        run: |
+          python tools/run_linearizability_campaign.py \
+            --capacities 1,2,4,8 \
+            --profiles uniform,burst,producer-heavy,consumer-heavy \
+            --seeds 8 \
+            --ops-per-side 8
       - uses: actions/upload-artifact@v4
         if: always()
         with:
