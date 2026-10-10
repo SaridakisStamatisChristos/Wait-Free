@@ -9,6 +9,8 @@ from typing import Any
 
 IMPLEMENTATIONS = (
     "vq",
+    "split",
+    "split_cached",
     "raw_seq",
     "raw_tiled",
     "typed_seq",
