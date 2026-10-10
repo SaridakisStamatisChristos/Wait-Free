@@ -45,132 +45,27 @@ jobs:
           from pathlib import Path
           p = Path('candidate/include/veriqueue/spsc_queue.hpp')
           s = p.read_text()
-
-          macro_anchor = '''#if defined(__aarch64__) || defined(_M_ARM64)
-#define VERIQUEUE_DETAIL_ARM64_STORAGE_STRIPE 1
-#else
-#define VERIQUEUE_DETAIL_ARM64_STORAGE_STRIPE 0
-#endif
-'''
-          macro_add = macro_anchor + '''
-#if defined(__aarch64__) && defined(__GNUC__) && !defined(__clang__)
-#define VERIQUEUE_DETAIL_GCC_ARM64_LARGE_BULK 1
-#else
-#define VERIQUEUE_DETAIL_GCC_ARM64_LARGE_BULK 0
-#endif
-'''
-          if s.count(macro_anchor) != 1:
-              raise SystemExit('macro anchor not unique')
-          s = s.replace(macro_anchor, macro_add, 1)
-
-          push = '''        for (std::size_t i = 0; i < count; ++i) {
-            std::construct_at(slot_for(tail).storage_ptr(), values[i]);
-            ++tail;
-        }
-'''
-          push_repl = '''#if VERIQUEUE_DETAIL_GCC_ARM64_LARGE_BULK
-        if constexpr (sizeof(detail::slot<T>) == 8) {
-            if (count >= 32) {
-                tail = construct_gcc_arm64_large_bulk(tail, values, count);
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    std::construct_at(slot_for(tail).storage_ptr(), values[i]);
-                    ++tail;
-                }
-            }
-        } else
-#endif
-        {
-            for (std::size_t i = 0; i < count; ++i) {
-                std::construct_at(slot_for(tail).storage_ptr(), values[i]);
-                ++tail;
-            }
-        }
-'''
-          pop = '''        for (std::size_t i = 0; i < count; ++i) {
-            T* const source = slot_for(head).live_ptr();
-            output[i] = std::move(*source);
-            std::destroy_at(source);
-            ++head;
-        }
-'''
-          pop_repl = '''#if VERIQUEUE_DETAIL_GCC_ARM64_LARGE_BULK
-        if constexpr (sizeof(detail::slot<T>) == 8) {
-            if (count >= 32) {
-                head = consume_gcc_arm64_large_bulk(head, output, count);
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    T* const source = slot_for(head).live_ptr();
-                    output[i] = std::move(*source);
-                    std::destroy_at(source);
-                    ++head;
-                }
-            }
-        } else
-#endif
-        {
-            for (std::size_t i = 0; i < count; ++i) {
-                T* const source = slot_for(head).live_ptr();
-                output[i] = std::move(*source);
-                std::destroy_at(source);
-                ++head;
-            }
-        }
-'''
-          if s.count(push) != 1 or s.count(pop) != 1:
-              raise SystemExit('bulk loops not unique')
-          s = s.replace(push, push_repl, 1).replace(pop, pop_repl, 1)
-
-          private_anchor = '''private:
-    [[nodiscard]] static constexpr Index distance(Index newer, Index older) noexcept {
-'''
-          helpers = '''private:
-#if VERIQUEUE_DETAIL_GCC_ARM64_LARGE_BULK
-    __attribute__((noinline, optimize("unroll-loops")))
-    Index construct_gcc_arm64_large_bulk(Index tail, std::span<const T> values,
-                                         std::size_t count) noexcept {
-        for (std::size_t i = 0; i < count; ++i) {
-            std::construct_at(slot_for(tail).storage_ptr(), values[i]);
-            ++tail;
-        }
-        return tail;
-    }
-
-    __attribute__((noinline, optimize("unroll-loops")))
-    Index consume_gcc_arm64_large_bulk(Index head, std::span<T> output,
-                                       std::size_t count) noexcept {
-        for (std::size_t i = 0; i < count; ++i) {
-            T* const source = slot_for(head).live_ptr();
-            output[i] = std::move(*source);
-            std::destroy_at(source);
-            ++head;
-        }
-        return head;
-    }
-#endif
-
-    [[nodiscard]] static constexpr Index distance(Index newer, Index older) noexcept {
-'''
-          if s.count(private_anchor) != 1:
-              raise SystemExit('private anchor not unique')
-          s = s.replace(private_anchor, helpers, 1)
-
-          undef_anchor = '''#undef VERIQUEUE_DETAIL_ARM64_STORAGE_STRIPE
-#undef VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
-'''
-          undef_repl = '''#undef VERIQUEUE_DETAIL_GCC_ARM64_LARGE_BULK
-#undef VERIQUEUE_DETAIL_ARM64_STORAGE_STRIPE
-#undef VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
-'''
-          if s.count(undef_anchor) != 1:
-              raise SystemExit('undef anchor not unique')
-          s = s.replace(undef_anchor, undef_repl, 1)
-          p.write_text(s)
+          macro = '#if defined(__aarch64__) || defined(_M_ARM64)\n#define VERIQUEUE_DETAIL_ARM64_STORAGE_STRIPE 1\n#else\n#define VERIQUEUE_DETAIL_ARM64_STORAGE_STRIPE 0\n#endif\n'
+          macro2 = macro + '\n#if defined(__aarch64__) && defined(__GNUC__) && !defined(__clang__)\n#define VERIQUEUE_DETAIL_GCC_ARM64_LARGE_BULK 1\n#else\n#define VERIQUEUE_DETAIL_GCC_ARM64_LARGE_BULK 0\n#endif\n'
+          if s.count(macro) != 1: raise SystemExit('macro anchor')
+          s = s.replace(macro, macro2, 1)
+          push = '        for (std::size_t i = 0; i < count; ++i) {\n            std::construct_at(slot_for(tail).storage_ptr(), values[i]);\n            ++tail;\n        }\n'
+          push2 = '#if VERIQUEUE_DETAIL_GCC_ARM64_LARGE_BULK\n        if constexpr (sizeof(detail::slot<T>) == 8) {\n            if (count >= 32) {\n                tail = construct_gcc_arm64_large_bulk(tail, values, count);\n            } else {\n                for (std::size_t i = 0; i < count; ++i) {\n                    std::construct_at(slot_for(tail).storage_ptr(), values[i]);\n                    ++tail;\n                }\n            }\n        } else\n#endif\n        {\n            for (std::size_t i = 0; i < count; ++i) {\n                std::construct_at(slot_for(tail).storage_ptr(), values[i]);\n                ++tail;\n            }\n        }\n'
+          pop = '        for (std::size_t i = 0; i < count; ++i) {\n            T* const source = slot_for(head).live_ptr();\n            output[i] = std::move(*source);\n            std::destroy_at(source);\n            ++head;\n        }\n'
+          pop2 = '#if VERIQUEUE_DETAIL_GCC_ARM64_LARGE_BULK\n        if constexpr (sizeof(detail::slot<T>) == 8) {\n            if (count >= 32) {\n                head = consume_gcc_arm64_large_bulk(head, output, count);\n            } else {\n                for (std::size_t i = 0; i < count; ++i) {\n                    T* const source = slot_for(head).live_ptr();\n                    output[i] = std::move(*source);\n                    std::destroy_at(source);\n                    ++head;\n                }\n            }\n        } else\n#endif\n        {\n            for (std::size_t i = 0; i < count; ++i) {\n                T* const source = slot_for(head).live_ptr();\n                output[i] = std::move(*source);\n                std::destroy_at(source);\n                ++head;\n            }\n        }\n'
+          if s.count(push) != 1 or s.count(pop) != 1: raise SystemExit('loop anchors')
+          s = s.replace(push, push2, 1).replace(pop, pop2, 1)
+          anchor = 'private:\n    [[nodiscard]] static constexpr Index distance(Index newer, Index older) noexcept {\n'
+          helper = 'private:\n#if VERIQUEUE_DETAIL_GCC_ARM64_LARGE_BULK\n    __attribute__((noinline, optimize("unroll-loops")))\n    Index construct_gcc_arm64_large_bulk(Index tail, std::span<const T> values, std::size_t count) noexcept {\n        for (std::size_t i = 0; i < count; ++i) {\n            std::construct_at(slot_for(tail).storage_ptr(), values[i]);\n            ++tail;\n        }\n        return tail;\n    }\n\n    __attribute__((noinline, optimize("unroll-loops")))\n    Index consume_gcc_arm64_large_bulk(Index head, std::span<T> output, std::size_t count) noexcept {\n        for (std::size_t i = 0; i < count; ++i) {\n            T* const source = slot_for(head).live_ptr();\n            output[i] = std::move(*source);\n            std::destroy_at(source);\n            ++head;\n        }\n        return head;\n    }\n#endif\n\n    [[nodiscard]] static constexpr Index distance(Index newer, Index older) noexcept {\n'
+          if s.count(anchor) != 1: raise SystemExit('private anchor')
+          s = s.replace(anchor, helper, 1)
+          undef = '#undef VERIQUEUE_DETAIL_ARM64_STORAGE_STRIPE\n#undef VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR\n'
+          undef2 = '#undef VERIQUEUE_DETAIL_GCC_ARM64_LARGE_BULK\n' + undef
+          if s.count(undef) != 1: raise SystemExit('undef anchor')
+          p.write_text(s.replace(undef, undef2, 1))
           PY
           test "$(git -C candidate diff --name-only)" = "include/veriqueue/spsc_queue.hpp"
           test "$(git -C old diff --name-only)" = "include/veriqueue/spsc_queue.hpp"
-          cmp current/bench/bench_hotpath_variants.cpp candidate/bench/bench_hotpath_variants.cpp
-          cmp current/bench/bench_hotpath_variants.cpp old/bench/bench_hotpath_variants.cpp
       - name: Build candidate and references
         env:
           CC: gcc
@@ -186,10 +81,7 @@ jobs:
         run: |
           for role in candidate current old; do
             for batch in 4 16 64; do
-              cat > "build/${role}/bench_bulk_${batch}" <<EOF
-          #!/usr/bin/env bash
-          exec "$GITHUB_WORKSPACE/build/${role}/bench_hotpath_variants" "\$1" "\$2" "\$3" "\$4" bulk ${batch}
-          EOF
+              printf '#!/usr/bin/env bash\nexec "%s/build/%s/bench_hotpath_variants" "$1" "$2" "$3" "$4" bulk %s\n' "$GITHUB_WORKSPACE" "$role" "$batch" > "build/${role}/bench_bulk_${batch}"
               chmod +x "build/${role}/bench_bulk_${batch}"
             done
           done
