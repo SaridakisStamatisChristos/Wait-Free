@@ -1,0 +1,177 @@
+name: Clean Four-Line Layout
+
+on:
+  pull_request:
+    paths:
+      - 'bench/clean_four_line_variants.hpp'
+      - 'bench/bench_clean_four_line_compare.cpp'
+      - '.github/workflows/clean-four-line-layout.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: clean-four-line-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+  CANDIDATES: veriqueue,clean_inline,clean_heap
+  EXTERNALS: rigtorp,boost_lockfree,moodycamel,drogalis
+  IMPLEMENTATIONS: veriqueue,clean_inline,clean_heap,rigtorp,boost_lockfree,moodycamel,drogalis
+
+jobs:
+  tooling:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate tooling
+        run: |
+          python -m py_compile \
+            tools/run_comparator_campaign.py \
+            tools/analyze_policy_campaign.py
+          python tools/test_policy_campaign.py
+      - name: Compile candidate smoke
+        run: |
+          g++ -std=c++20 -O3 -DNDEBUG -pthread \
+            -Wall -Wextra -Wpedantic -Wconversion -Wshadow \
+            -Wold-style-cast -Wcast-align -Wundef -Werror \
+            -Iinclude -Ibench -x c++ -o /tmp/clean-four-line-smoke - <<'CPP'
+          #include "clean_four_line_variants.hpp"
+          #include <cstdint>
+          struct p16 { std::uint64_t a; std::uint64_t b; };
+          int main() {
+              vqbench::experimental::clean_four_line::inline_queue<p16, 64> inline_q;
+              vqbench::experimental::clean_four_line::heap_queue<p16, 64> heap_q;
+              p16 in{1, 2}, out{};
+              if (!inline_q.try_push(in) || !inline_q.try_pop(out)) return 1;
+              if (!heap_q.try_push(in) || !heap_q.try_pop(out)) return 2;
+              return out.a == 1 && out.b == 2 ? 0 : 3;
+          }
+          CPP
+          /tmp/clean-four-line-smoke
+
+  compare:
+    name: arm64 / ${{ matrix.compiler }} / cap-${{ matrix.capacity }}
+    needs: tooling
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+        capacity: [64, 256, 1024, 65536]
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y ninja-build libboost-dev clang
+      - name: Select compiler
+        id: compiler
+        shell: bash
+        run: |
+          if [[ "${{ matrix.compiler }}" == "gcc" ]]; then
+            echo "cc=gcc" >> "$GITHUB_OUTPUT"
+            echo "cxx=g++" >> "$GITHUB_OUTPUT"
+            echo "id=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "cc=clang" >> "$GITHUB_OUTPUT"
+            echo "cxx=clang++" >> "$GITHUB_OUTPUT"
+            echo "id=2" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Fetch pinned comparators
+        env:
+          CC: ${{ steps.compiler.outputs.cc }}
+          CXX: ${{ steps.compiler.outputs.cxx }}
+        run: |
+          cmake -S . -B build/clean-four-line -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DVERIQUEUE_BUILD_TESTS=OFF \
+            -DVERIQUEUE_BUILD_STRESS=OFF \
+            -DVERIQUEUE_BUILD_BENCHMARKS=OFF \
+            -DVERIQUEUE_BUILD_BASELINES=ON
+      - name: Compile comparator
+        env:
+          CXX: ${{ steps.compiler.outputs.cxx }}
+        run: |
+          "$CXX" -std=c++20 -O3 -DNDEBUG -pthread \
+            -Wall -Wextra -Wpedantic -Wconversion -Wshadow \
+            -Wold-style-cast -Wcast-align -Wundef -Werror \
+            -DVERIQUEUE_POLICY_CAPACITY=${{ matrix.capacity }} \
+            -Iinclude -Ibench \
+            -isystem build/clean-four-line/_deps/rigtorp_spsc-src/include \
+            -isystem build/clean-four-line/_deps/moodycamel_readerwriterqueue-src \
+            -isystem build/clean-four-line/_deps/drogalis_spsc-src/include \
+            bench/bench_clean_four_line_compare.cpp bench/environment.cpp \
+            -o build/clean-four-line/bench_clean_four_line_compare
+      - name: Run randomized paired campaign
+        run: |
+          seed=$((2026103900 + ${{ steps.compiler.outputs.id }} * 10000 + ${{ matrix.capacity }}))
+          output="evidence/clean-four-line/raw/arm64-${{ matrix.compiler }}-cap${{ matrix.capacity }}.jsonl"
+          python tools/run_comparator_campaign.py \
+            --program build/clean-four-line/bench_clean_four_line_compare \
+            --capacity "${{ matrix.capacity }}" \
+            --payloads 8,16,64,256 \
+            --implementations "$IMPLEMENTATIONS" \
+            --transfers 1000000 \
+            --warmups 5 \
+            --repetitions 50 \
+            --seed "$seed" \
+            --lane "arm64-${{ matrix.compiler }}" \
+            --architecture arm64 \
+            --compiler "${{ matrix.compiler }}" \
+            --source-commit "$SOURCE_COMMIT" \
+            --output "$output"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: clean-four-line-${{ matrix.compiler }}-cap${{ matrix.capacity }}
+          path: evidence/clean-four-line/raw/*.jsonl
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate:
+    name: aggregate-clean-four-line
+    needs: compare
+    if: ${{ always() && needs.compare.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: clean-four-line-*
+          path: evidence/clean-four-line/shards
+          merge-multiple: true
+      - name: Analyze
+        run: |
+          python tools/analyze_policy_campaign.py evidence/clean-four-line/shards \
+            --candidates "$CANDIDATES" \
+            --externals "$EXTERNALS" \
+            --json-output evidence/clean-four-line/summary.json \
+            --markdown-output evidence/clean-four-line/summary.md \
+            --csv-output evidence/clean-four-line/cells.csv \
+            --bootstrap-seed 20261039 \
+            --bootstrap-samples 20000
+          cat evidence/clean-four-line/summary.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: clean-four-line-summary
+          path: evidence/clean-four-line
+          if-no-files-found: error
+          retention-days: 90
