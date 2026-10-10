@@ -24,11 +24,9 @@ namespace veriqueue {
 #pragma warning(disable : 4324) // Cache-line alignas intentionally adds tail padding.
 #endif
 
-// The controlled hot-path ablation showed broad scalar wins on tested AArch64
-// GitHub runners, while an unconditional switch materially regressed GCC/x86-64
-// cells. Keep the proven legacy owner-local cursor on non-ARM64 targets and use
-// the published atomic itself as the owner cursor on ARM64. Peer synchronization
-// remains acquire/release on both paths.
+// Owner-cursor policy. Controlled ablation proved the single-owner cursor on
+// tested AArch64 GitHub runners while x86-64 benefits from owner-private cursors.
+// Peer synchronization remains acquire/release on every path.
 //
 // VERIQUEUE_FORCE_SINGLE_OWNER_CURSOR and VERIQUEUE_FORCE_DUAL_OWNER_CURSOR are
 // verification-only compile switches used to exercise either state machine on a
@@ -45,6 +43,53 @@ namespace veriqueue {
 #define VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR 1
 #else
 #define VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR 0
+#endif
+
+// Control-placement policy. The full 80-cell external qualification campaign
+// showed that separating owner-private cursor/cache state from the peer-visible
+// published atomic is the dominant x86-64 policy for both GCC and Clang. Keep
+// other architectures/compilers on the previous co-located layout until they
+// have equivalent evidence.
+//
+// These force switches exist only to run the same correctness suite against both
+// compile-time layouts. They never introduce a runtime policy branch.
+#if defined(VERIQUEUE_FORCE_SPLIT_CONTROL) && defined(VERIQUEUE_FORCE_COLOCATED_CONTROL)
+#error "Only one VeriQueue control-placement strategy may be forced"
+#endif
+#if defined(VERIQUEUE_FORCE_SINGLE_OWNER_CURSOR) && defined(VERIQUEUE_FORCE_SPLIT_CONTROL)
+#error "Split control requires an owner-private cursor"
+#endif
+
+#if defined(VERIQUEUE_FORCE_SPLIT_CONTROL)
+#define VERIQUEUE_DETAIL_SPLIT_CONTROL 1
+#elif defined(VERIQUEUE_FORCE_COLOCATED_CONTROL)
+#define VERIQUEUE_DETAIL_SPLIT_CONTROL 0
+#elif defined(__x86_64__) && !defined(_MSC_VER) && \
+    (defined(__GNUC__) || defined(__clang__))
+#define VERIQUEUE_DETAIL_SPLIT_CONTROL 1
+#else
+#define VERIQUEUE_DETAIL_SPLIT_CONTROL 0
+#endif
+
+// Producer-fullness policy. On the qualified x86-64/GCC lane, cached-full-limit
+// equality is measurably stronger than recomputing distance(tail, cached_head) on
+// every producer operation. Clang retains the distance form because it won that
+// lane. Other lanes keep the previous distance policy. Both forms refresh from
+// the same acquire-loaded published head and preserve identical capacity rules.
+#if defined(VERIQUEUE_FORCE_CACHED_FULL_LIMIT) && \
+    defined(VERIQUEUE_FORCE_CACHED_HEAD_DISTANCE)
+#error "Only one VeriQueue producer-fullness strategy may be forced"
+#endif
+
+#if defined(VERIQUEUE_FORCE_CACHED_FULL_LIMIT)
+#define VERIQUEUE_DETAIL_CACHED_FULL_LIMIT 1
+#elif defined(VERIQUEUE_FORCE_CACHED_HEAD_DISTANCE)
+#define VERIQUEUE_DETAIL_CACHED_FULL_LIMIT 0
+#elif VERIQUEUE_DETAIL_SPLIT_CONTROL && defined(__x86_64__) && \
+    defined(__GNUC__) && !defined(__clang__) && !defined(_MSC_VER)
+#define VERIQUEUE_DETAIL_CACHED_FULL_LIMIT 1
+#else
+#define VERIQUEUE_DETAIL_CACHED_FULL_LIMIT 0
 #endif
 
 #if defined(__aarch64__) || defined(_M_ARM64)
@@ -104,10 +149,18 @@ class spsc_queue final {
     struct alignas(control_alignment) producer_state final {
 #if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
         std::atomic<Index> published_tail{0};
-        Index cached_head{0};
 #else
         Index local_tail{0};
+#endif
+#if VERIQUEUE_DETAIL_CACHED_FULL_LIMIT
+        Index cached_full_limit{capacity_index};
+#else
         Index cached_head{0};
+#endif
+#if !VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
+#if VERIQUEUE_DETAIL_SPLIT_CONTROL
+        alignas(control_alignment)
+#endif
         std::atomic<Index> published_tail{0};
 #endif
     };
@@ -119,6 +172,9 @@ class spsc_queue final {
 #else
         Index local_head{0};
         Index cached_tail{0};
+#if VERIQUEUE_DETAIL_SPLIT_CONTROL
+        alignas(control_alignment)
+#endif
         std::atomic<Index> published_head{0};
 #endif
     };
@@ -161,6 +217,15 @@ public:
         Index tail = producer_.local_tail;
 #endif
 
+#if VERIQUEUE_DETAIL_CACHED_FULL_LIMIT
+        if (tail == producer_.cached_full_limit) {
+            const Index head = consumer_.published_head.load(std::memory_order_acquire);
+            producer_.cached_full_limit = static_cast<Index>(head + capacity_index);
+            if (tail == producer_.cached_full_limit) {
+                return false;
+            }
+        }
+#else
         if (distance(tail, producer_.cached_head) == capacity_index) {
             producer_.cached_head =
                 consumer_.published_head.load(std::memory_order_acquire);
@@ -168,6 +233,7 @@ public:
                 return false;
             }
         }
+#endif
 
         std::construct_at(slot_for(tail).storage_ptr(), std::forward<Args>(args)...);
         ++tail;
@@ -201,10 +267,19 @@ public:
 #else
         Index tail = producer_.local_tail;
 #endif
-        Index used = distance(tail, producer_.cached_head);
-        Index available = static_cast<Index>(capacity_index - used);
         const std::size_t target = (std::min)(values.size(), Capacity);
 
+#if VERIQUEUE_DETAIL_CACHED_FULL_LIMIT
+        Index available = distance(producer_.cached_full_limit, tail);
+        if (static_cast<std::size_t>(available) < target) {
+            const Index head = consumer_.published_head.load(std::memory_order_acquire);
+            producer_.cached_full_limit = static_cast<Index>(head + capacity_index);
+            available = distance(producer_.cached_full_limit, tail);
+            if (available == 0) return 0;
+        }
+#else
+        Index used = distance(tail, producer_.cached_head);
+        Index available = static_cast<Index>(capacity_index - used);
         if (static_cast<std::size_t>(available) < target) {
             producer_.cached_head =
                 consumer_.published_head.load(std::memory_order_acquire);
@@ -212,6 +287,7 @@ public:
             available = static_cast<Index>(capacity_index - used);
             if (available == 0) return 0;
         }
+#endif
 
         const std::size_t count =
             (std::min)(values.size(), static_cast<std::size_t>(available));
@@ -355,12 +431,18 @@ public:
     };
 
     [[nodiscard]] test_snapshot testing_snapshot() const noexcept {
+#if VERIQUEUE_DETAIL_CACHED_FULL_LIMIT
+        const Index cached_head =
+            static_cast<Index>(producer_.cached_full_limit - capacity_index);
+#else
+        const Index cached_head = producer_.cached_head;
+#endif
 #if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
         const Index tail = producer_.published_tail.load(std::memory_order_relaxed);
         const Index head = consumer_.published_head.load(std::memory_order_relaxed);
         return {
             tail,
-            producer_.cached_head,
+            cached_head,
             head,
             consumer_.cached_tail,
             tail,
@@ -368,7 +450,7 @@ public:
 #else
         return {
             producer_.local_tail,
-            producer_.cached_head,
+            cached_head,
             consumer_.local_head,
             consumer_.cached_tail,
             producer_.published_tail.load(std::memory_order_relaxed),
@@ -378,6 +460,14 @@ public:
 
     [[nodiscard]] static constexpr bool testing_storage_striped() noexcept {
         return use_arm64_16b_storage_stripe;
+    }
+
+    [[nodiscard]] static constexpr bool testing_split_control() noexcept {
+        return VERIQUEUE_DETAIL_SPLIT_CONTROL != 0;
+    }
+
+    [[nodiscard]] static constexpr bool testing_cached_full_limit() noexcept {
+        return VERIQUEUE_DETAIL_CACHED_FULL_LIMIT != 0;
     }
 
     [[nodiscard]] static constexpr std::size_t testing_slot_index(Index logical_index) noexcept {
@@ -419,6 +509,8 @@ private:
 
 #undef VERIQUEUE_DETAIL_GCC_ARM64_BULK_OPT
 #undef VERIQUEUE_DETAIL_ARM64_STORAGE_STRIPE
+#undef VERIQUEUE_DETAIL_CACHED_FULL_LIMIT
+#undef VERIQUEUE_DETAIL_SPLIT_CONTROL
 #undef VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
 
 #if defined(_MSC_VER)
