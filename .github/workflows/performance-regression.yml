@@ -1,3 +1,4 @@
+# Diagnostic trigger only; benchmark PR #25 is not for merge.
 name: Performance Regression Gate
 
 on:

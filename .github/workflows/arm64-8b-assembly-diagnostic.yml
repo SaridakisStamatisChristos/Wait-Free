@@ -1,0 +1,86 @@
+name: ARM64 8B Assembly Diagnostic
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/arm64-8b-assembly-diagnostic.yml'
+
+permissions:
+  contents: read
+
+env:
+  PRE_OPT: d1382588262b2275ecde9bf1a6948e67fcd056f3
+  POST_PR21: 73ef0b53de84c8169b198fd70b8f1a381858827c
+
+jobs:
+  assembly:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    steps:
+      - name: Checkout identical current trees
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: old
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: pr21
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: current
+      - name: Inject historical headers
+        run: |
+          git -C old fetch --no-tags --depth=1 origin "$PRE_OPT"
+          git -C old show FETCH_HEAD:include/veriqueue/spsc_queue.hpp > old/include/veriqueue/spsc_queue.hpp
+          git -C old fetch --no-tags --depth=1 origin "$POST_PR21"
+          git -C old show FETCH_HEAD:include/veriqueue/spsc_queue.hpp > pr21/include/veriqueue/spsc_queue.hpp
+      - name: Generate wrapper source
+        run: |
+          for role in old pr21 current; do
+            cat > "$role/asm_probe.cpp" <<'EOF'
+          #include "veriqueue/spsc_queue.hpp"
+          #include <cstdint>
+          #include <span>
+          struct payload8 { std::uint64_t value; };
+          using queue_t = veriqueue::spsc_queue<payload8, 256>;
+          __attribute__((noinline)) std::size_t probe_push_bulk(queue_t* q, const payload8* p, std::size_t n) {
+              return q->try_push_bulk(std::span<const payload8>{p, n});
+          }
+          __attribute__((noinline)) std::size_t probe_pop_bulk(queue_t* q, payload8* p, std::size_t n) {
+              return q->try_pop_bulk(std::span<payload8>{p, n});
+          }
+          __attribute__((noinline)) bool probe_push(queue_t* q, payload8 v) { return q->try_push(v); }
+          __attribute__((noinline)) bool probe_pop(queue_t* q, payload8& v) { return q->try_pop(v); }
+          EOF
+          done
+      - name: Compile assembly
+        run: |
+          mkdir -p evidence/asm
+          for role in old pr21 current; do
+            g++ -std=c++20 -O3 -DNDEBUG -I"$role/include" -S -fverbose-asm \
+              "$role/asm_probe.cpp" -o "evidence/asm/${role}.s"
+            g++ -std=c++20 -O3 -DNDEBUG -I"$role/include" -c \
+              "$role/asm_probe.cpp" -o "evidence/asm/${role}.o"
+            objdump -d -C "evidence/asm/${role}.o" > "evidence/asm/${role}.objdump.txt"
+          done
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          for role in ('old','pr21','current'):
+              text = Path(f'evidence/asm/{role}.objdump.txt').read_text()
+              print(f'===== {role} =====')
+              for fn in ('probe_push_bulk','probe_pop_bulk','probe_push(','probe_pop('):
+                  idx = text.find(fn)
+                  if idx >= 0:
+                      start = text.rfind('\n', 0, idx)
+                      end = text.find('\n\n', idx)
+                      print(text[start+1:end if end >= 0 else None])
+          PY
+      - name: Upload assembly evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: arm64-gcc-8b-assembly
+          path: evidence/asm/
