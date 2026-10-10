@@ -1,0 +1,135 @@
+name: ARM Loss Confirmation
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/arm-loss-confirmation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: arm-loss-confirm-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+  CANDIDATES: veriqueue,raw_cached_seq,raw_cached_global,tile32_l8,tile64_l8,tile128_l8,tile256_l8
+  EXTERNALS: rigtorp,boost_lockfree,moodycamel,drogalis
+  IMPLEMENTATIONS: veriqueue,raw_cached_seq,raw_cached_global,tile32_l8,tile64_l8,tile128_l8,tile256_l8,rigtorp,boost_lockfree,moodycamel,drogalis
+
+jobs:
+  compare:
+    name: arm64 / ${{ matrix.compiler }} / cap-${{ matrix.capacity }}
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+        capacity: [64, 256, 1024, 65536]
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y ninja-build libboost-dev clang
+      - name: Select compiler
+        id: compiler
+        shell: bash
+        run: |
+          if [[ "${{ matrix.compiler }}" == "gcc" ]]; then
+            echo "cc=gcc" >> "$GITHUB_OUTPUT"
+            echo "cxx=g++" >> "$GITHUB_OUTPUT"
+            echo "id=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "cc=clang" >> "$GITHUB_OUTPUT"
+            echo "cxx=clang++" >> "$GITHUB_OUTPUT"
+            echo "id=2" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Fetch pinned comparators
+        env:
+          CC: ${{ steps.compiler.outputs.cc }}
+          CXX: ${{ steps.compiler.outputs.cxx }}
+        run: |
+          cmake -S . -B build/arm-confirm -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DVERIQUEUE_BUILD_TESTS=OFF \
+            -DVERIQUEUE_BUILD_STRESS=OFF \
+            -DVERIQUEUE_BUILD_BENCHMARKS=OFF \
+            -DVERIQUEUE_BUILD_BASELINES=ON
+      - name: Compile comparator
+        env:
+          CXX: ${{ steps.compiler.outputs.cxx }}
+        run: |
+          "$CXX" -std=c++20 -O3 -DNDEBUG -pthread \
+            -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wold-style-cast -Wcast-align -Wundef -Werror \
+            -DVERIQUEUE_POLICY_CAPACITY=${{ matrix.capacity }} \
+            -Iinclude -Ibench \
+            -isystem build/arm-confirm/_deps/rigtorp_spsc-src/include \
+            -isystem build/arm-confirm/_deps/moodycamel_readerwriterqueue-src \
+            -isystem build/arm-confirm/_deps/drogalis_spsc-src/include \
+            bench/bench_arm_loss_compare.cpp bench/environment.cpp \
+            -o build/arm-confirm/bench_arm_loss_compare
+      - name: Run long randomized paired campaign
+        run: |
+          seed=$((2026101400 + ${{ steps.compiler.outputs.id }} * 10000 + ${{ matrix.capacity }}))
+          output="evidence/arm-confirm/raw/arm64-${{ matrix.compiler }}-cap${{ matrix.capacity }}.jsonl"
+          python tools/run_comparator_campaign.py \
+            --program build/arm-confirm/bench_arm_loss_compare \
+            --capacity "${{ matrix.capacity }}" \
+            --payloads 8,16,64,256 \
+            --implementations "$IMPLEMENTATIONS" \
+            --transfers 1000000 \
+            --warmups 5 \
+            --repetitions 50 \
+            --seed "$seed" \
+            --lane "arm64-${{ matrix.compiler }}" \
+            --architecture arm64 \
+            --compiler "${{ matrix.compiler }}" \
+            --source-commit "$SOURCE_COMMIT" \
+            --output "$output"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arm-confirm-${{ matrix.compiler }}-cap${{ matrix.capacity }}
+          path: evidence/arm-confirm/raw/*.jsonl
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate:
+    name: aggregate-arm-confirmation
+    needs: compare
+    if: ${{ always() && needs.compare.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: arm-confirm-*
+          path: evidence/arm-confirm/shards
+          merge-multiple: true
+      - name: Analyze
+        run: |
+          python tools/analyze_policy_campaign.py evidence/arm-confirm/shards \
+            --candidates "$CANDIDATES" --externals "$EXTERNALS" \
+            --json-output evidence/arm-confirm/summary.json \
+            --markdown-output evidence/arm-confirm/summary.md \
+            --csv-output evidence/arm-confirm/cells.csv \
+            --bootstrap-seed 20261014 --bootstrap-samples 20000
+          cat evidence/arm-confirm/summary.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arm-confirm-summary
+          path: evidence/arm-confirm
+          if-no-files-found: error
+          retention-days: 90
