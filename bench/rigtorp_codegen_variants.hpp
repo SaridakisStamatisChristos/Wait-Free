@@ -19,7 +19,8 @@ template <
     class Allocator = std::allocator<T>,
     bool SplitConsumer = false,
     bool GroupOwnerCache = false,
-    std::size_t ControlSpan = arm_destructive_span>
+    std::size_t ControlSpan = arm_destructive_span,
+    bool CachePeer = true>
 class dynamic_raw_queue final {
     static_assert(Capacity >= 1);
     static_assert(std::is_nothrow_destructible_v<T>);
@@ -62,9 +63,13 @@ public:
     {
         const auto write = write_.load(std::memory_order_relaxed);
         const auto next_write = next(write);
-        if (next_write == read_cache_) {
-            read_cache_ = read_.load(std::memory_order_acquire);
-            if (next_write == read_cache_) return false;
+        if constexpr (CachePeer) {
+            if (next_write == read_cache_) {
+                read_cache_ = read_.load(std::memory_order_acquire);
+                if (next_write == read_cache_) return false;
+            }
+        } else {
+            if (next_write == read_.load(std::memory_order_acquire)) return false;
         }
         ::new (static_cast<void*>(slot_ptr(write))) T(value);
         write_.store(next_write, std::memory_order_release);
@@ -82,9 +87,13 @@ public:
             return true;
         } else {
             const auto read = read_.load(std::memory_order_relaxed);
-            if (read == write_cache_) {
-                write_cache_ = write_.load(std::memory_order_acquire);
-                if (read == write_cache_) return false;
+            if constexpr (CachePeer) {
+                if (read == write_cache_) {
+                    write_cache_ = write_.load(std::memory_order_acquire);
+                    if (read == write_cache_) return false;
+                }
+            } else {
+                if (read == write_.load(std::memory_order_acquire)) return false;
             }
             T* const source = slot_ptr(read);
             output = std::move(*source);
@@ -99,9 +108,13 @@ private:
     // physical capacity and acquire/release protocol match dynamic_raw.
     [[nodiscard]] T* front() noexcept {
         const auto read = read_.load(std::memory_order_relaxed);
-        if (read == write_cache_) {
-            write_cache_ = write_.load(std::memory_order_acquire);
-            if (read == write_cache_) return nullptr;
+        if constexpr (CachePeer) {
+            if (read == write_cache_) {
+                write_cache_ = write_.load(std::memory_order_acquire);
+                if (read == write_cache_) return nullptr;
+            }
+        } else {
+            if (read == write_.load(std::memory_order_acquire)) return nullptr;
         }
         return slot_ptr(read);
     }
@@ -130,6 +143,9 @@ private:
     alignas(owner_cache_alignment) std::size_t write_cache_{0};
     [[no_unique_address]] reserved_bytes reserved_;
 };
+
+template <class T, std::size_t Capacity>
+using dynamic_direct_queue = dynamic_raw_queue<T, Capacity, std::allocator<T>, true, true, 256, false>;
 
 template <class T, std::size_t Capacity>
 using dynamic_ctrl64_queue = dynamic_raw_queue<T, Capacity, std::allocator<T>, true, true, 64>;
