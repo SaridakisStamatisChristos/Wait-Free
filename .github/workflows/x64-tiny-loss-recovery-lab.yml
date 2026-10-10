@@ -1,0 +1,129 @@
+name: x64 Tiny Loss Recovery Lab
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'bench/tiny_capacity_variants.hpp'
+      - 'bench/bench_tiny_loss_compare.cpp'
+      - '.github/workflows/x64-tiny-loss-recovery-lab.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: x64-tiny-loss-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+  CANDIDATES: veriqueue,split_control,split_cached_limit,split_padded,split_padded_cached
+  EXTERNALS: rigtorp,boost_lockfree,moodycamel,drogalis
+  IMPLEMENTATIONS: veriqueue,split_control,split_cached_limit,split_padded,split_padded_cached,rigtorp,boost_lockfree,moodycamel,drogalis
+
+jobs:
+  compare:
+    name: x64 / ${{ matrix.compiler }} / cap-2
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y ninja-build libboost-dev clang
+      - name: Select compiler
+        id: compiler
+        shell: bash
+        run: |
+          if [[ "${{ matrix.compiler }}" == "gcc" ]]; then
+            echo "cc=gcc" >> "$GITHUB_OUTPUT"
+            echo "cxx=g++" >> "$GITHUB_OUTPUT"
+            echo "id=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "cc=clang" >> "$GITHUB_OUTPUT"
+            echo "cxx=clang++" >> "$GITHUB_OUTPUT"
+            echo "id=2" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Fetch pinned comparators
+        env:
+          CC: ${{ steps.compiler.outputs.cc }}
+          CXX: ${{ steps.compiler.outputs.cxx }}
+        run: |
+          cmake -S . -B build/tiny -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DVERIQUEUE_BUILD_TESTS=OFF \
+            -DVERIQUEUE_BUILD_STRESS=OFF \
+            -DVERIQUEUE_BUILD_BENCHMARKS=OFF \
+            -DVERIQUEUE_BUILD_BASELINES=ON
+      - name: Compile comparator
+        env:
+          CXX: ${{ steps.compiler.outputs.cxx }}
+        run: |
+          "$CXX" -std=c++20 -O3 -DNDEBUG -pthread \
+            -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wold-style-cast -Wcast-align -Wundef -Werror \
+            -DVERIQUEUE_POLICY_CAPACITY=2 -Iinclude -Ibench \
+            -isystem build/tiny/_deps/rigtorp_spsc-src/include \
+            -isystem build/tiny/_deps/moodycamel_readerwriterqueue-src \
+            -isystem build/tiny/_deps/drogalis_spsc-src/include \
+            bench/bench_tiny_loss_compare.cpp bench/environment.cpp \
+            -o build/tiny/bench_tiny_loss_compare
+      - name: Run randomized cap-2 campaign
+        run: |
+          seed=$((2026101300 + ${{ steps.compiler.outputs.id }} * 10000))
+          output="evidence/tiny-loss/raw/x64-${{ matrix.compiler }}-cap2.jsonl"
+          python tools/run_comparator_campaign.py \
+            --program build/tiny/bench_tiny_loss_compare \
+            --capacity 2 --payloads 8,16,64,256 \
+            --implementations "$IMPLEMENTATIONS" \
+            --transfers 500000 --warmups 3 --repetitions 20 \
+            --seed "$seed" --lane "x64-${{ matrix.compiler }}" \
+            --architecture x64 --compiler "${{ matrix.compiler }}" \
+            --source-commit "$SOURCE_COMMIT" --output "$output"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tiny-loss-${{ matrix.compiler }}
+          path: evidence/tiny-loss/raw/*.jsonl
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate:
+    name: aggregate-tiny-loss-results
+    needs: compare
+    if: ${{ always() && needs.compare.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: tiny-loss-*
+          path: evidence/tiny-loss/shards
+          merge-multiple: true
+      - name: Analyze
+        run: |
+          python tools/analyze_policy_campaign.py evidence/tiny-loss/shards \
+            --candidates "$CANDIDATES" --externals "$EXTERNALS" \
+            --json-output evidence/tiny-loss/summary.json \
+            --markdown-output evidence/tiny-loss/summary.md \
+            --csv-output evidence/tiny-loss/cells.csv \
+            --bootstrap-seed 20261013 --bootstrap-samples 10000
+          cat evidence/tiny-loss/summary.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tiny-loss-summary
+          path: evidence/tiny-loss
+          if-no-files-found: error
+          retention-days: 90
