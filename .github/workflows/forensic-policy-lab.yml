@@ -39,6 +39,7 @@ on:
       - 'tools/test_policy_campaign.py'
       - 'tools/assembly_policy_probe.cpp'
       - 'tools/analyze_policy_assembly.py'
+      - 'tools/test_policy_assembly.py'
       - '.github/workflows/forensic-policy-lab.yml'
 
 permissions:
@@ -73,8 +74,11 @@ jobs:
           tools/analyze_policy_campaign.py
           tools/analyze_policy_assembly.py
           tools/test_policy_campaign.py
+          tools/test_policy_assembly.py
       - name: Run policy analyzer self-test
         run: python tools/test_policy_campaign.py
+      - name: Run assembly analyzer self-test
+        run: python tools/test_policy_assembly.py
       - name: Compile and run tiled-layout invariants
         run: |
           g++ -std=c++20 -O2 -Wall -Wextra -Wpedantic -Wconversion -Wshadow \
