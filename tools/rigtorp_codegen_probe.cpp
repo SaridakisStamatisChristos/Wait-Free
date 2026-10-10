@@ -54,18 +54,26 @@ struct probe_payload final {
     VQ_PROBE(static_slot, CAP, BYTES, vqbench::experimental::rigtorp_codegen::static_slot_queue) \
     VQ_UPSTREAM(CAP, BYTES)
 
+VQ_CASE(2, 8)
+VQ_CASE(2, 16)
+VQ_CASE(2, 64)
+VQ_CASE(2, 256)
 VQ_CASE(64, 8)
 VQ_CASE(64, 16)
 VQ_CASE(64, 64)
+VQ_CASE(64, 256)
 VQ_CASE(256, 8)
 VQ_CASE(256, 16)
 VQ_CASE(256, 64)
+VQ_CASE(256, 256)
 VQ_CASE(1024, 8)
 VQ_CASE(1024, 16)
 VQ_CASE(1024, 64)
+VQ_CASE(1024, 256)
 VQ_CASE(65536, 8)
 VQ_CASE(65536, 16)
 VQ_CASE(65536, 64)
+VQ_CASE(65536, 256)
 
 #undef VQ_CASE
 #undef VQ_UPSTREAM

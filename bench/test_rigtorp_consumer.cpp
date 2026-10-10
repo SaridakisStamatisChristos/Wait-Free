@@ -138,6 +138,7 @@ void suite() {
     model<Split, Grouped, 4, ControlSpan>();
     model<Split, Grouped, 64, ControlSpan>();
     model<Split, Grouped, 1024, ControlSpan>();
+    model<Split, Grouped, 65536, ControlSpan>();
     lifetime<Split, Grouped, ControlSpan>();
     exception<Split, Grouped, ControlSpan>();
     concurrent<Split, Grouped, ControlSpan>();

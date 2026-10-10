@@ -1,4 +1,4 @@
-name: Dynamic Raw Control Spacing
+name: Dynamic Raw Full ARM Coverage
 
 on:
   pull_request:
@@ -75,7 +75,7 @@ jobs:
       fail-fast: false
       matrix:
         compiler: [gcc, clang]
-        capacity: [64, 256, 1024, 65536]
+        capacity: [2, 64, 256, 1024, 65536]
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 120
     steps:
@@ -215,18 +215,18 @@ jobs:
           /tmp/consumer-contract
       - uses: actions/upload-artifact@v4
         with:
-          name: raw-control-inline-assembly-${{ matrix.compiler }}-cap${{ matrix.capacity }}
+          name: raw-arm-coverage-inline-assembly-${{ matrix.compiler }}-cap${{ matrix.capacity }}
           path: build/rigtorp-codegen/*.s
           if-no-files-found: error
           retention-days: 90
       - name: Run randomized paired campaign
         run: |
-          seed=$((2026104600 + ${{ steps.compiler.outputs.id }} * 10000 + ${{ matrix.capacity }}))
+          seed=$((2026104700 + ${{ steps.compiler.outputs.id }} * 10000 + ${{ matrix.capacity }}))
           output="evidence/rigtorp-codegen/raw/arm64-${{ matrix.compiler }}-cap${{ matrix.capacity }}.jsonl"
           python tools/run_comparator_campaign.py \
             --program build/rigtorp-codegen/bench_compare_codegen \
             --capacity "${{ matrix.capacity }}" \
-            --payloads 8,16,64 \
+            --payloads 8,16,64,256 \
             --implementations "$IMPLEMENTATIONS" \
             --transfers 1000000 \
             --warmups 5 \
@@ -327,7 +327,7 @@ jobs:
             --json-output evidence/rigtorp-codegen/summary.json \
             --markdown-output evidence/rigtorp-codegen/summary.md \
             --csv-output evidence/rigtorp-codegen/cells.csv \
-            --bootstrap-seed 20261046 \
+            --bootstrap-seed 20261047 \
             --bootstrap-samples 20000
           cat evidence/rigtorp-codegen/summary.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
