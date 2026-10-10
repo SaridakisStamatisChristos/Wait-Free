@@ -1,0 +1,192 @@
+name: Isolated Published Cursor Lab
+
+on:
+  pull_request:
+    paths:
+      - 'bench/isolated_cursor_variant.hpp'
+      - 'bench/bench_isolated_cursor_compare.cpp'
+      - '.github/workflows/isolated-cursor-lab.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: isolated-cursor-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+  CANDIDATES: veriqueue,isolated_distance,isolated_cached_limit,single_owner_cursor,split_control
+  EXTERNALS: rigtorp,boost_lockfree,moodycamel,drogalis
+  IMPLEMENTATIONS: veriqueue,isolated_distance,isolated_cached_limit,single_owner_cursor,split_control,rigtorp,boost_lockfree,moodycamel,drogalis
+
+jobs:
+  tooling:
+    name: isolated-cursor-tooling
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate tooling
+        run: |
+          python -m py_compile tools/run_comparator_campaign.py tools/analyze_policy_campaign.py
+          python tools/test_policy_campaign.py
+      - name: Compile candidate smoke
+        run: |
+          g++ -std=c++20 -O3 -DNDEBUG -pthread \
+            -Wall -Wextra -Wpedantic -Wconversion -Wshadow \
+            -Wold-style-cast -Wcast-align -Wundef -Werror \
+            -Iinclude -Ibench -x c++ -o /tmp/isolated-smoke - <<'CPP'
+          #include "isolated_cursor_variant.hpp"
+          #include <cstdint>
+          struct p16 { std::uint64_t a; std::uint64_t b; };
+          int main() {
+              vqbench::experimental::isolated_cursor::isolated_cached_limit<p16, 64> q;
+              p16 in{1, 2};
+              p16 out{};
+              if (!q.try_push(in) || !q.try_pop(out)) return 1;
+              return out.a == 1 && out.b == 2 ? 0 : 2;
+          }
+          CPP
+          /tmp/isolated-smoke
+
+  compare:
+    name: ${{ matrix.runner }} / ${{ matrix.compiler }} / cap-${{ matrix.capacity }}
+    needs: tooling
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+        compiler: [gcc, clang]
+        capacity: [64, 256, 1024, 65536]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y ninja-build libboost-dev clang
+      - name: Resolve lane metadata
+        id: meta
+        shell: bash
+        run: |
+          if [[ "${{ matrix.runner }}" == "ubuntu-24.04-arm" ]]; then
+            arch=arm64
+            arch_id=2
+          else
+            arch=x64
+            arch_id=1
+          fi
+          if [[ "${{ matrix.compiler }}" == "gcc" ]]; then
+            cc=gcc
+            cxx=g++
+            compiler_id=1
+          else
+            cc=clang
+            cxx=clang++
+            compiler_id=2
+          fi
+          echo "arch=$arch" >> "$GITHUB_OUTPUT"
+          echo "cc=$cc" >> "$GITHUB_OUTPUT"
+          echo "cxx=$cxx" >> "$GITHUB_OUTPUT"
+          echo "compiler_id=$compiler_id" >> "$GITHUB_OUTPUT"
+          echo "arch_id=$arch_id" >> "$GITHUB_OUTPUT"
+      - name: Fetch pinned comparators
+        env:
+          CC: ${{ steps.meta.outputs.cc }}
+          CXX: ${{ steps.meta.outputs.cxx }}
+        run: |
+          cmake -S . -B build/isolated -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DVERIQUEUE_BUILD_TESTS=OFF \
+            -DVERIQUEUE_BUILD_STRESS=OFF \
+            -DVERIQUEUE_BUILD_BENCHMARKS=OFF \
+            -DVERIQUEUE_BUILD_BASELINES=ON
+      - name: Compile comparator
+        env:
+          CXX: ${{ steps.meta.outputs.cxx }}
+        run: |
+          "$CXX" -std=c++20 -O3 -DNDEBUG -pthread \
+            -Wall -Wextra -Wpedantic -Wconversion -Wshadow \
+            -Wold-style-cast -Wcast-align -Wundef -Werror \
+            -DVERIQUEUE_POLICY_CAPACITY=${{ matrix.capacity }} \
+            -Iinclude -Ibench \
+            -isystem build/isolated/_deps/rigtorp_spsc-src/include \
+            -isystem build/isolated/_deps/moodycamel_readerwriterqueue-src \
+            -isystem build/isolated/_deps/drogalis_spsc-src/include \
+            bench/bench_isolated_cursor_compare.cpp bench/environment.cpp \
+            -o build/isolated/bench_isolated_cursor_compare
+      - name: Run randomized qualification
+        run: |
+          seed=$((2026101500 + \
+            ${{ steps.meta.outputs.arch_id }} * 100000 + \
+            ${{ steps.meta.outputs.compiler_id }} * 10000 + \
+            ${{ matrix.capacity }}))
+          lane="${{ steps.meta.outputs.arch }}-${{ matrix.compiler }}"
+          output="evidence/isolated/raw/${lane}-cap${{ matrix.capacity }}.jsonl"
+          python tools/run_comparator_campaign.py \
+            --program build/isolated/bench_isolated_cursor_compare \
+            --capacity "${{ matrix.capacity }}" \
+            --payloads 8,16,64,256 \
+            --implementations "$IMPLEMENTATIONS" \
+            --transfers 1000000 \
+            --warmups 5 \
+            --repetitions 30 \
+            --seed "$seed" \
+            --lane "$lane" \
+            --architecture "${{ steps.meta.outputs.arch }}" \
+            --compiler "${{ matrix.compiler }}" \
+            --source-commit "$SOURCE_COMMIT" \
+            --output "$output"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: isolated-${{ steps.meta.outputs.arch }}-${{ matrix.compiler }}-cap${{ matrix.capacity }}
+          path: evidence/isolated/raw/*.jsonl
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate:
+    name: aggregate-isolated-cursor-results
+    needs: compare
+    if: ${{ always() && needs.compare.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: isolated-*
+          path: evidence/isolated/shards
+          merge-multiple: true
+      - name: Analyze
+        run: |
+          python tools/analyze_policy_campaign.py evidence/isolated/shards \
+            --candidates "$CANDIDATES" \
+            --externals "$EXTERNALS" \
+            --json-output evidence/isolated/summary.json \
+            --markdown-output evidence/isolated/summary.md \
+            --csv-output evidence/isolated/cells.csv \
+            --bootstrap-seed 20261015 \
+            --bootstrap-samples 20000
+          cat evidence/isolated/summary.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: isolated-summary
+          path: evidence/isolated
+          if-no-files-found: error
+          retention-days: 90
