@@ -9,14 +9,30 @@
 
 template <std::size_t Bytes>
 struct probe_payload final {
-    std::array<std::uint64_t, Bytes / 8> words{};
+    std::uint64_t sequence = 0;
+    std::array<std::byte, Bytes - sizeof(std::uint64_t)> bytes{};
 };
+
+template <>
+struct probe_payload<8> final {
+    std::uint64_t sequence = 0;
+};
+
+static_assert(sizeof(probe_payload<8>) == 8);
+static_assert(sizeof(probe_payload<16>) == 16);
+static_assert(sizeof(probe_payload<64>) == 64);
+static_assert(sizeof(probe_payload<256>) == 256);
 
 #if defined(_MSC_VER)
 #define VQ_NOINLINE __declspec(noinline)
 #else
 #define VQ_NOINLINE __attribute__((noinline))
 #endif
+
+#define VQ_INIT(NAME, CAP, BYTES, TYPE) \
+    extern "C" VQ_NOINLINE void NAME##_init_c##CAP##_p##BYTES(void* storage) { \
+        ::new (storage) TYPE<probe_payload<BYTES>, CAP>(); \
+    }
 
 #define VQ_PROBE(NAME, CAP, BYTES, TYPE) \
     using NAME##_c##CAP##_p##BYTES = TYPE<probe_payload<BYTES>, CAP>; \
@@ -44,8 +60,11 @@ struct probe_payload final {
     }
 
 #define VQ_CASE(CAP, BYTES) \
+    VQ_INIT(dynamic_progress, CAP, BYTES, vqbench::experimental::rigtorp_codegen::dynamic_progress_queue) \
+    VQ_INIT(dynamic_managed, CAP, BYTES, vqbench::experimental::rigtorp_codegen::dynamic_managed_queue) \
     VQ_PROBE(production, CAP, BYTES, veriqueue::spsc_queue) \
     VQ_PROBE(dynamic_raw, CAP, BYTES, vqbench::experimental::rigtorp_codegen::dynamic_raw_queue) \
+    VQ_PROBE(dynamic_managed, CAP, BYTES, vqbench::experimental::rigtorp_codegen::dynamic_managed_queue) \
     VQ_PROBE(dynamic_progress, CAP, BYTES, vqbench::experimental::rigtorp_codegen::dynamic_progress_queue) \
     VQ_PROBE(dynamic_direct, CAP, BYTES, vqbench::experimental::rigtorp_codegen::dynamic_direct_queue) \
     VQ_PROBE(dynamic_ctrl64, CAP, BYTES, vqbench::experimental::rigtorp_codegen::dynamic_ctrl64_queue) \
@@ -80,6 +99,7 @@ VQ_CASE(65536, 256)
 #undef VQ_CASE
 #undef VQ_UPSTREAM
 #undef VQ_PROBE
+#undef VQ_INIT
 #undef VQ_NOINLINE
 
 int main() { return 0; }

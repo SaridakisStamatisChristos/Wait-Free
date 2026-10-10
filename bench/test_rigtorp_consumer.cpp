@@ -1,6 +1,7 @@
 #include "rigtorp_codegen_variants.hpp"
 
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <deque>
 #include <memory>
@@ -14,11 +15,11 @@ void check(bool condition) {
 }
 
 template <bool Split, bool Grouped, std::size_t Capacity,
-          std::size_t ControlSpan = 256, bool CachePeer = true, bool CacheOnProgress = false>
+          std::size_t ControlSpan = 256, bool CachePeer = true, bool CacheOnProgress = false, bool SlotStorage = false>
 void model() {
     using queue = vqbench::experimental::rigtorp_codegen::dynamic_raw_queue<
         std::uint64_t, Capacity, std::allocator<std::uint64_t>,
-        Split, Grouped, ControlSpan, CachePeer, CacheOnProgress>;
+        Split, Grouped, ControlSpan, CachePeer, CacheOnProgress, SlotStorage>;
     queue q;
     std::deque<std::uint64_t> expected;
     std::mt19937_64 rng(20261043 + Capacity);
@@ -65,10 +66,10 @@ struct tracked {
 };
 
 template <bool Split, bool Grouped, std::size_t ControlSpan = 256,
-          bool CachePeer = true, bool CacheOnProgress = false>
+          bool CachePeer = true, bool CacheOnProgress = false, bool SlotStorage = false>
 void lifetime() {
     using queue = vqbench::experimental::rigtorp_codegen::dynamic_raw_queue<
-        tracked, 2, std::allocator<tracked>, Split, Grouped, ControlSpan, CachePeer, CacheOnProgress>;
+        tracked, 2, std::allocator<tracked>, Split, Grouped, ControlSpan, CachePeer, CacheOnProgress, SlotStorage>;
     check(tracked::alive == 0);
     {
         tracked in(42), out;
@@ -97,10 +98,10 @@ struct throwing {
 };
 
 template <bool Split, bool Grouped, std::size_t ControlSpan = 256,
-          bool CachePeer = true, bool CacheOnProgress = false>
+          bool CachePeer = true, bool CacheOnProgress = false, bool SlotStorage = false>
 void exception() {
     using queue = vqbench::experimental::rigtorp_codegen::dynamic_raw_queue<
-        throwing, 2, std::allocator<throwing>, Split, Grouped, ControlSpan, CachePeer, CacheOnProgress>;
+        throwing, 2, std::allocator<throwing>, Split, Grouped, ControlSpan, CachePeer, CacheOnProgress, SlotStorage>;
     queue q;
     throwing in, out;
     throwing::fail = true;
@@ -113,10 +114,10 @@ void exception() {
 }
 
 template <bool Split, bool Grouped, std::size_t ControlSpan = 256,
-          bool CachePeer = true, bool CacheOnProgress = false>
+          bool CachePeer = true, bool CacheOnProgress = false, bool SlotStorage = false>
 void concurrent() {
     using queue = vqbench::experimental::rigtorp_codegen::dynamic_raw_queue<
-        std::uint64_t, 64, std::allocator<std::uint64_t>, Split, Grouped, ControlSpan, CachePeer, CacheOnProgress>;
+        std::uint64_t, 64, std::allocator<std::uint64_t>, Split, Grouped, ControlSpan, CachePeer, CacheOnProgress, SlotStorage>;
     queue q;
     std::atomic<bool> failed{false};
     std::thread producer([&] {
@@ -137,17 +138,102 @@ void concurrent() {
 }
 
 template <bool Split, bool Grouped, std::size_t ControlSpan = 256,
-          bool CachePeer = true, bool CacheOnProgress = false>
+          bool CachePeer = true, bool CacheOnProgress = false, bool SlotStorage = false>
 void suite() {
-    model<Split, Grouped, 1, ControlSpan, CachePeer, CacheOnProgress>();
-    model<Split, Grouped, 2, ControlSpan, CachePeer, CacheOnProgress>();
-    model<Split, Grouped, 4, ControlSpan, CachePeer, CacheOnProgress>();
-    model<Split, Grouped, 64, ControlSpan, CachePeer, CacheOnProgress>();
-    model<Split, Grouped, 1024, ControlSpan, CachePeer, CacheOnProgress>();
-    model<Split, Grouped, 65536, ControlSpan, CachePeer, CacheOnProgress>();
-    lifetime<Split, Grouped, ControlSpan, CachePeer, CacheOnProgress>();
-    exception<Split, Grouped, ControlSpan, CachePeer, CacheOnProgress>();
-    concurrent<Split, Grouped, ControlSpan, CachePeer, CacheOnProgress>();
+    model<Split, Grouped, 1, ControlSpan, CachePeer, CacheOnProgress, SlotStorage>();
+    model<Split, Grouped, 2, ControlSpan, CachePeer, CacheOnProgress, SlotStorage>();
+    model<Split, Grouped, 4, ControlSpan, CachePeer, CacheOnProgress, SlotStorage>();
+    model<Split, Grouped, 64, ControlSpan, CachePeer, CacheOnProgress, SlotStorage>();
+    model<Split, Grouped, 1024, ControlSpan, CachePeer, CacheOnProgress, SlotStorage>();
+    model<Split, Grouped, 65536, ControlSpan, CachePeer, CacheOnProgress, SlotStorage>();
+    lifetime<Split, Grouped, ControlSpan, CachePeer, CacheOnProgress, SlotStorage>();
+    exception<Split, Grouped, ControlSpan, CachePeer, CacheOnProgress, SlotStorage>();
+    concurrent<Split, Grouped, ControlSpan, CachePeer, CacheOnProgress, SlotStorage>();
+}
+
+struct allocation_record {
+    static inline int allocations = 0;
+    static inline int deallocations = 0;
+    static inline std::size_t bytes = 0;
+    static inline std::size_t alignment = 0;
+};
+
+template <class T>
+struct recording_allocator {
+    using value_type = T;
+    [[nodiscard]] T* allocate(std::size_t count) {
+        ++allocation_record::allocations;
+        allocation_record::bytes = count * sizeof(T);
+        allocation_record::alignment = alignof(T);
+        return std::allocator<T>{}.allocate(count);
+    }
+    void deallocate(T* pointer, std::size_t count) noexcept {
+        ++allocation_record::deallocations;
+        std::allocator<T>{}.deallocate(pointer, count);
+    }
+};
+
+struct alignas(128) nondefault {
+    static inline int alive = 0;
+    static inline int copies = 0;
+    std::uint64_t value;
+    nondefault() = delete;
+    explicit nondefault(std::uint64_t v) : value(v) { ++alive; }
+    nondefault(const nondefault& other) : value(other.value) {
+        check(reinterpret_cast<std::uintptr_t>(this) % alignof(nondefault) == 0);
+        ++alive;
+        ++copies;
+    }
+    nondefault& operator=(nondefault&& other) noexcept {
+        value = other.value;
+        return *this;
+    }
+    ~nondefault() noexcept { --alive; }
+};
+
+template <bool Managed>
+void allocation_and_reuse() {
+    using queue = vqbench::experimental::rigtorp_codegen::dynamic_raw_queue<
+        nondefault, 2, recording_allocator<nondefault>, true, true, 256, true, true, Managed>;
+    allocation_record::allocations = 0;
+    allocation_record::deallocations = 0;
+    check(nondefault::alive == 0);
+    {
+        nondefault in(0), out(UINT64_MAX);
+        {
+            queue q;
+            check(nondefault::alive == 2); // No persistent/default-constructed T.
+            check(allocation_record::allocations == 1);
+            check(allocation_record::bytes == (3 + 2 * 2) * sizeof(nondefault));
+            check(allocation_record::alignment == alignof(nondefault));
+            for (std::uint64_t i = 0; i < 1000; ++i) {
+                in.value = i;
+                check(q.try_push(in) && q.try_push(in));
+                check(nondefault::alive == 4);
+                const int copies = nondefault::copies;
+                check(!q.try_push(in) && nondefault::copies == copies);
+                check(q.try_pop(out) && out.value == i);
+                check(q.try_pop(out) && out.value == i);
+                check(nondefault::alive == 2);
+                out.value = UINT64_MAX;
+                check(!q.try_pop(out) && out.value == UINT64_MAX);
+            }
+            check(q.try_push(in) && q.try_push(in)); // Cleanup of live leftovers.
+        }
+        check(nondefault::alive == 2);
+        check(allocation_record::deallocations == 1);
+    }
+    check(nondefault::alive == 0);
+}
+
+void managed_storage_contract() {
+    allocation_and_reuse<false>();
+    allocation_and_reuse<true>();
+    using namespace vqbench::experimental::rigtorp_codegen;
+    static_assert(sizeof(dynamic_managed_queue<nondefault, 2>) ==
+                  sizeof(dynamic_progress_queue<nondefault, 2>));
+    static_assert(alignof(dynamic_managed_queue<nondefault, 2>) ==
+                  alignof(dynamic_progress_queue<nondefault, 2>));
 }
 } // namespace
 
@@ -181,4 +267,11 @@ int main() {
                   alignof(dynamic_combined_queue<std::uint64_t, 64>));
     suite<true, true, 256, true, true>();
     suite<false, true, 256, true, true>();
+    static_assert(sizeof(dynamic_managed_queue<std::uint64_t, 64>) ==
+                  sizeof(dynamic_progress_queue<std::uint64_t, 64>));
+    static_assert(alignof(dynamic_managed_queue<std::uint64_t, 64>) ==
+                  alignof(dynamic_progress_queue<std::uint64_t, 64>));
+    suite<true, true, 256, true, true, true>();
+    suite<false, true, 256, true, true, true>();
+    managed_storage_contract();
 }

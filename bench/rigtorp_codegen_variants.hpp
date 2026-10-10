@@ -21,13 +21,25 @@ template <
     bool GroupOwnerCache = false,
     std::size_t ControlSpan = arm_destructive_span,
     bool CachePeer = true,
-    bool CacheOnProgress = false>
+    bool CacheOnProgress = false,
+    bool SlotStorage = false>
 class dynamic_raw_queue final {
     static_assert(Capacity >= 1);
     static_assert(std::is_nothrow_destructible_v<T>);
     static_assert(!CacheOnProgress || CachePeer);
     static_assert(ControlSpan == arm_destructive_span ||
                   (ControlSpan == 64 && GroupOwnerCache));
+
+    using managed_slot = veriqueue::detail::slot<T>;
+    using storage_type = std::conditional_t<SlotStorage, managed_slot, T>;
+    using storage_allocator = std::conditional_t<
+        SlotStorage,
+        typename std::allocator_traits<Allocator>::template rebind_alloc<storage_type>,
+        Allocator>;
+    static_assert(sizeof(managed_slot) == sizeof(T));
+    static_assert(alignof(managed_slot) == alignof(T));
+    static_assert(std::is_trivially_default_constructible_v<managed_slot>);
+    static_assert(std::is_trivially_destructible_v<managed_slot>);
 
     struct no_reserved_bytes {};
     // Keep the standard-allocator object's size/alignment and allocation class
@@ -42,8 +54,13 @@ class dynamic_raw_queue final {
 
 public:
     dynamic_raw_queue() : capacity_(Capacity + 1), slots_(nullptr) {
-        slots_ = std::allocator_traits<Allocator>::allocate(
+        slots_ = std::allocator_traits<storage_allocator>::allocate(
             allocator_, capacity_ + 2 * padding);
+        if constexpr (SlotStorage) {
+            // Begin the byte-buffer lifetimes without constructing T or
+            // zeroing storage. Construction and live access stay separate.
+            std::uninitialized_default_construct_n(slots_, capacity_ + 2 * padding);
+        }
     }
 
     dynamic_raw_queue(const dynamic_raw_queue&) = delete;
@@ -56,7 +73,10 @@ public:
             std::destroy_at(slot_ptr(read));
             read = next(read);
         }
-        std::allocator_traits<Allocator>::deallocate(
+        if constexpr (SlotStorage) {
+            std::destroy_n(slots_, capacity_ + 2 * padding);
+        }
+        std::allocator_traits<storage_allocator>::deallocate(
             allocator_, slots_, capacity_ + 2 * padding);
     }
 
@@ -79,7 +99,7 @@ public:
         } else {
             if (next_write == read_.load(std::memory_order_acquire)) return false;
         }
-        ::new (static_cast<void*>(slot_ptr(write))) T(value);
+        ::new (static_cast<void*>(storage_ptr(write))) T(value);
         write_.store(next_write, std::memory_order_release);
         return true;
     }
@@ -151,18 +171,33 @@ private:
     }
 
     [[nodiscard]] T* slot_ptr(std::size_t index) noexcept {
-        return slots_ + padding + index;
+        if constexpr (SlotStorage) {
+            return slots_[padding + index].live_ptr();
+        } else {
+            return slots_ + padding + index;
+        }
+    }
+
+    [[nodiscard]] T* storage_ptr(std::size_t index) noexcept {
+        if constexpr (SlotStorage) {
+            return slots_[padding + index].storage_ptr();
+        } else {
+            return slots_ + padding + index;
+        }
     }
 
     std::size_t capacity_;
-    T* slots_;
-    [[no_unique_address]] Allocator allocator_{};
+    storage_type* slots_;
+    [[no_unique_address]] storage_allocator allocator_{};
     alignas(arm_destructive_span) std::atomic<std::size_t> write_{0};
     alignas(owner_cache_alignment) std::size_t read_cache_{0};
     alignas(ControlSpan) std::atomic<std::size_t> read_{0};
     alignas(owner_cache_alignment) std::size_t write_cache_{0};
     [[no_unique_address]] reserved_bytes reserved_;
 };
+
+template <class T, std::size_t Capacity>
+using dynamic_managed_queue = dynamic_raw_queue<T, Capacity, std::allocator<T>, true, true, 256, true, true, true>;
 
 template <class T, std::size_t Capacity>
 using dynamic_progress_queue = dynamic_raw_queue<T, Capacity, std::allocator<T>, true, true, 256, true, true>;

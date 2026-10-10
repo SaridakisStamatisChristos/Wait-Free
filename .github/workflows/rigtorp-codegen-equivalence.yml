@@ -1,4 +1,4 @@
-name: Dynamic Raw Failed Cache Store
+name: Runtime Managed Slot Representation
 
 on:
   pull_request:
@@ -6,6 +6,7 @@ on:
       - 'bench/rigtorp_codegen_variants.hpp'
       - 'tools/rigtorp_codegen_probe.cpp'
       - 'bench/test_rigtorp_consumer.cpp'
+      - 'tools/analyze_slot_representation.py'
       - '.github/workflows/rigtorp-codegen-equivalence.yml'
   workflow_dispatch:
 
@@ -18,9 +19,9 @@ concurrency:
 
 env:
   SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
-  CANDIDATES: veriqueue,dynamic_raw,raw_combined,raw_progress
+  CANDIDATES: veriqueue,dynamic_raw,raw_progress,raw_dynslot
   EXTERNALS: rigtorp,boost_lockfree,moodycamel,drogalis
-  IMPLEMENTATIONS: veriqueue,dynamic_raw,raw_combined,raw_progress,rigtorp,boost_lockfree,moodycamel,drogalis
+  IMPLEMENTATIONS: veriqueue,dynamic_raw,raw_progress,raw_dynslot,rigtorp,boost_lockfree,moodycamel,drogalis
 
 jobs:
   tooling:
@@ -35,7 +36,7 @@ jobs:
           python-version: '3.12'
       - name: Validate tooling
         run: |
-          python -m py_compile tools/run_comparator_campaign.py tools/analyze_policy_campaign.py
+          python -m py_compile tools/run_comparator_campaign.py tools/analyze_policy_campaign.py tools/analyze_slot_representation.py
           python tools/test_policy_campaign.py
       - name: Verify exact capacity, model, lifetime, exceptions and concurrent FIFO
         run: |
@@ -59,10 +60,12 @@ jobs:
               vqbench::experimental::rigtorp_codegen::dynamic_raw_queue<p16, 64> a;
               vqbench::experimental::rigtorp_codegen::static_raw_queue<p16, 64> b;
               vqbench::experimental::rigtorp_codegen::static_slot_queue<p16, 64> c;
+              vqbench::experimental::rigtorp_codegen::dynamic_managed_queue<p16, 64> d;
               p16 in{1, 2}, out{};
               if (!a.try_push(in) || !a.try_pop(out)) return 1;
               if (!b.try_push(in) || !b.try_pop(out)) return 2;
               if (!c.try_push(in) || !c.try_pop(out)) return 3;
+              if (!d.try_push(in) || !d.try_pop(out)) return 5;
               return out.a == 1 && out.b == 2 ? 0 : 4;
           }
           CPP
@@ -126,22 +129,6 @@ jobs:
                   [&](Payload& out) { return q->try_pop(out); },
                   transfers, cpus.producer, cpus.consumer);
           }
-          if (implementation == "dynamic_grouped") {
-              using queue = vqbench::experimental::rigtorp_codegen::dynamic_grouped_queue<Payload, Capacity>;
-              auto q = std::make_unique<queue>();
-              return run_pair<sizeof(Payload)>(
-                  [&](const Payload& value) { return q->try_push(value); },
-                  [&](Payload& out) { return q->try_pop(out); },
-                  transfers, cpus.producer, cpus.consumer);
-          }
-          if (implementation == "dynamic_split") {
-              using queue = vqbench::experimental::rigtorp_codegen::dynamic_split_queue<Payload, Capacity>;
-              auto q = std::make_unique<queue>();
-              return run_pair<sizeof(Payload)>(
-                  [&](const Payload& value) { return q->try_push(value); },
-                  [&](Payload& out) { return q->try_pop(out); },
-                  transfers, cpus.producer, cpus.consumer);
-          }
           if (implementation == "raw_progress") {
               using queue = vqbench::experimental::rigtorp_codegen::dynamic_progress_queue<Payload, Capacity>;
               auto q = std::make_unique<queue>();
@@ -150,40 +137,8 @@ jobs:
                   [&](Payload& out) { return q->try_pop(out); },
                   transfers, cpus.producer, cpus.consumer);
           }
-          if (implementation == "raw_direct") {
-              using queue = vqbench::experimental::rigtorp_codegen::dynamic_direct_queue<Payload, Capacity>;
-              auto q = std::make_unique<queue>();
-              return run_pair<sizeof(Payload)>(
-                  [&](const Payload& value) { return q->try_push(value); },
-                  [&](Payload& out) { return q->try_pop(out); },
-                  transfers, cpus.producer, cpus.consumer);
-          }
-          if (implementation == "raw_ctrl64") {
-              using queue = vqbench::experimental::rigtorp_codegen::dynamic_ctrl64_queue<Payload, Capacity>;
-              auto q = std::make_unique<queue>();
-              return run_pair<sizeof(Payload)>(
-                  [&](const Payload& value) { return q->try_push(value); },
-                  [&](Payload& out) { return q->try_pop(out); },
-                  transfers, cpus.producer, cpus.consumer);
-          }
-          if (implementation == "raw_combined") {
-              using queue = vqbench::experimental::rigtorp_codegen::dynamic_combined_queue<Payload, Capacity>;
-              auto q = std::make_unique<queue>();
-              return run_pair<sizeof(Payload)>(
-                  [&](const Payload& value) { return q->try_push(value); },
-                  [&](Payload& out) { return q->try_pop(out); },
-                  transfers, cpus.producer, cpus.consumer);
-          }
-          if (implementation == "static_raw") {
-              using queue = vqbench::experimental::rigtorp_codegen::static_raw_queue<Payload, Capacity>;
-              auto q = std::make_unique<queue>();
-              return run_pair<sizeof(Payload)>(
-                  [&](const Payload& value) { return q->try_push(value); },
-                  [&](Payload& out) { return q->try_pop(out); },
-                  transfers, cpus.producer, cpus.consumer);
-          }
-          if (implementation == "static_slot") {
-              using queue = vqbench::experimental::rigtorp_codegen::static_slot_queue<Payload, Capacity>;
+          if (implementation == "raw_dynslot") {
+              using queue = vqbench::experimental::rigtorp_codegen::dynamic_managed_queue<Payload, Capacity>;
               auto q = std::make_unique<queue>();
               return run_pair<sizeof(Payload)>(
                   [&](const Payload& value) { return q->try_push(value); },
@@ -231,13 +186,13 @@ jobs:
           /tmp/consumer-contract
       - uses: actions/upload-artifact@v4
         with:
-          name: raw-progress-cache-inline-assembly-${{ matrix.compiler }}-cap${{ matrix.capacity }}
+          name: runtime-managed-slot-inline-assembly-${{ matrix.compiler }}-cap${{ matrix.capacity }}
           path: build/rigtorp-codegen/*.s
           if-no-files-found: error
           retention-days: 90
       - name: Run randomized paired campaign
         run: |
-          seed=$((2026104900 + ${{ steps.compiler.outputs.id }} * 10000 + ${{ matrix.capacity }}))
+          seed=$((2026105100 + ${{ steps.compiler.outputs.id }} * 10000 + ${{ matrix.capacity }}))
           output="evidence/rigtorp-codegen/raw/arm64-${{ matrix.compiler }}-cap${{ matrix.capacity }}.jsonl"
           python tools/run_comparator_campaign.py \
             --program build/rigtorp-codegen/bench_compare_codegen \
@@ -314,7 +269,7 @@ jobs:
             -isystem build/assembly/_deps/rigtorp_spsc-src/include \
             tools/rigtorp_codegen_probe.cpp \
             -o evidence/rigtorp-codegen/assembly/${{ matrix.compiler }}.s
-          grep -E '^(production|dynamic_raw|dynamic_split|dynamic_grouped|dynamic_combined|dynamic_ctrl64|dynamic_direct|dynamic_progress|static_raw|static_slot|upstream)_(push|pop)_c[0-9]+_p[0-9]+:' \
+          grep -E '^(production|dynamic_raw|dynamic_split|dynamic_grouped|dynamic_combined|dynamic_ctrl64|dynamic_direct|dynamic_progress|dynamic_managed|static_raw|static_slot|upstream)_(push|pop|init)_c[0-9]+_p[0-9]+:' \
             evidence/rigtorp-codegen/assembly/${{ matrix.compiler }}.s \
             > evidence/rigtorp-codegen/assembly/${{ matrix.compiler }}-labels.txt || true
       - uses: actions/upload-artifact@v4
@@ -352,6 +307,8 @@ jobs:
             --csv-output evidence/rigtorp-codegen/cells.csv \
             --bootstrap-seed 20261049 \
             --bootstrap-samples 20000
+          python tools/analyze_slot_representation.py evidence/rigtorp-codegen/shards \
+            evidence/rigtorp-codegen/managed-vs-raw-progress.json
           cat evidence/rigtorp-codegen/summary.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
