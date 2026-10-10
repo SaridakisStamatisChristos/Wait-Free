@@ -14,7 +14,7 @@ namespace vqbench::experimental::clean_four_line {
 template <
     class T,
     std::size_t Capacity,
-    std::size_t Separation,
+    std::size_t Separation = 256,
     class Index = std::size_t>
 class inline_queue final {
     static_assert(Capacity >= 1);
@@ -91,7 +91,7 @@ private:
 template <
     class T,
     std::size_t Capacity,
-    std::size_t Separation,
+    std::size_t Separation = 256,
     class Index = std::size_t>
 class heap_queue final {
     static_assert(Capacity >= 1);
