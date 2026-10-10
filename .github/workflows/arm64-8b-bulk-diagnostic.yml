@@ -13,9 +13,9 @@ env:
   PRE_OPT: d1382588262b2275ecde9bf1a6948e67fcd056f3
 
 jobs:
-  large-batch-kernel:
+  side-isolation:
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 45
+    timeout-minutes: 55
     steps:
       - name: Checkout identical current trees
         uses: actions/checkout@v4
@@ -26,7 +26,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.CURRENT }}
-          path: candidate
+          path: push
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CURRENT }}
+          path: pop
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.CURRENT }}
@@ -37,79 +41,79 @@ jobs:
           python-version: '3.12'
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y ninja-build
-      - name: Inject old header and large-batch-only candidate
+      - name: Inject old header and one-sided candidates
         run: |
           git -C old fetch --no-tags --depth=1 origin "$PRE_OPT"
           git -C old show FETCH_HEAD:include/veriqueue/spsc_queue.hpp > old/include/veriqueue/spsc_queue.hpp
           python3 - <<'PY'
           from pathlib import Path
-          p = Path('candidate/include/veriqueue/spsc_queue.hpp')
-          s = p.read_text()
-          macro = '#if defined(__aarch64__) || defined(_M_ARM64)\n#define VERIQUEUE_DETAIL_ARM64_STORAGE_STRIPE 1\n#else\n#define VERIQUEUE_DETAIL_ARM64_STORAGE_STRIPE 0\n#endif\n'
-          macro2 = macro + '\n#if defined(__aarch64__) && defined(__GNUC__) && !defined(__clang__)\n#define VERIQUEUE_DETAIL_GCC_ARM64_LARGE_BULK 1\n#else\n#define VERIQUEUE_DETAIL_GCC_ARM64_LARGE_BULK 0\n#endif\n'
-          if s.count(macro) != 1: raise SystemExit('macro anchor')
-          s = s.replace(macro, macro2, 1)
-          push = '        for (std::size_t i = 0; i < count; ++i) {\n            std::construct_at(slot_for(tail).storage_ptr(), values[i]);\n            ++tail;\n        }\n'
-          push2 = '#if VERIQUEUE_DETAIL_GCC_ARM64_LARGE_BULK\n        if constexpr (sizeof(detail::slot<T>) == 8) {\n            if (count >= 32) {\n                tail = construct_gcc_arm64_large_bulk(tail, values, count);\n            } else {\n                for (std::size_t i = 0; i < count; ++i) {\n                    std::construct_at(slot_for(tail).storage_ptr(), values[i]);\n                    ++tail;\n                }\n            }\n        } else\n#endif\n        {\n            for (std::size_t i = 0; i < count; ++i) {\n                std::construct_at(slot_for(tail).storage_ptr(), values[i]);\n                ++tail;\n            }\n        }\n'
-          pop = '        for (std::size_t i = 0; i < count; ++i) {\n            T* const source = slot_for(head).live_ptr();\n            output[i] = std::move(*source);\n            std::destroy_at(source);\n            ++head;\n        }\n'
-          pop2 = '#if VERIQUEUE_DETAIL_GCC_ARM64_LARGE_BULK\n        if constexpr (sizeof(detail::slot<T>) == 8) {\n            if (count >= 32) {\n                head = consume_gcc_arm64_large_bulk(head, output, count);\n            } else {\n                for (std::size_t i = 0; i < count; ++i) {\n                    T* const source = slot_for(head).live_ptr();\n                    output[i] = std::move(*source);\n                    std::destroy_at(source);\n                    ++head;\n                }\n            }\n        } else\n#endif\n        {\n            for (std::size_t i = 0; i < count; ++i) {\n                T* const source = slot_for(head).live_ptr();\n                output[i] = std::move(*source);\n                std::destroy_at(source);\n                ++head;\n            }\n        }\n'
-          if s.count(push) != 1 or s.count(pop) != 1: raise SystemExit('loop anchors')
-          s = s.replace(push, push2, 1).replace(pop, pop2, 1)
-          anchor = 'private:\n    [[nodiscard]] static constexpr Index distance(Index newer, Index older) noexcept {\n'
-          helper = 'private:\n#if VERIQUEUE_DETAIL_GCC_ARM64_LARGE_BULK\n    __attribute__((noinline, optimize("unroll-loops")))\n    Index construct_gcc_arm64_large_bulk(Index tail, std::span<const T> values, std::size_t count) noexcept {\n        for (std::size_t i = 0; i < count; ++i) {\n            std::construct_at(slot_for(tail).storage_ptr(), values[i]);\n            ++tail;\n        }\n        return tail;\n    }\n\n    __attribute__((noinline, optimize("unroll-loops")))\n    Index consume_gcc_arm64_large_bulk(Index head, std::span<T> output, std::size_t count) noexcept {\n        for (std::size_t i = 0; i < count; ++i) {\n            T* const source = slot_for(head).live_ptr();\n            output[i] = std::move(*source);\n            std::destroy_at(source);\n            ++head;\n        }\n        return head;\n    }\n#endif\n\n    [[nodiscard]] static constexpr Index distance(Index newer, Index older) noexcept {\n'
-          if s.count(anchor) != 1: raise SystemExit('private anchor')
-          s = s.replace(anchor, helper, 1)
+          macro_anchor = '#if defined(__aarch64__) || defined(_M_ARM64)\n#define VERIQUEUE_DETAIL_ARM64_STORAGE_STRIPE 1\n#else\n#define VERIQUEUE_DETAIL_ARM64_STORAGE_STRIPE 0\n#endif\n'
+          macro = macro_anchor + '\n#if defined(__aarch64__) && defined(__GNUC__) && !defined(__clang__)\n#define VQ_GCC_ARM64_BULK_OPT __attribute__((optimize("unroll-loops")))\n#else\n#define VQ_GCC_ARM64_BULK_OPT\n#endif\n'
+          push_marker = '    [[nodiscard]] std::size_t try_push_bulk(std::span<const T> values) noexcept\n'
+          pop_marker = '    [[nodiscard]] std::size_t try_pop_bulk(std::span<T> output) noexcept\n'
           undef = '#undef VERIQUEUE_DETAIL_ARM64_STORAGE_STRIPE\n#undef VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR\n'
-          undef2 = '#undef VERIQUEUE_DETAIL_GCC_ARM64_LARGE_BULK\n' + undef
-          if s.count(undef) != 1: raise SystemExit('undef anchor')
-          p.write_text(s.replace(undef, undef2, 1))
+          for role, target in [('push', push_marker), ('pop', pop_marker)]:
+              p = Path(role) / 'include/veriqueue/spsc_queue.hpp'
+              s = p.read_text()
+              if s.count(macro_anchor) != 1 or s.count(target) != 1 or s.count(undef) != 1:
+                  raise SystemExit(role + ' anchors')
+              s = s.replace(macro_anchor, macro, 1)
+              s = s.replace(target, '    VQ_GCC_ARM64_BULK_OPT\n' + target, 1)
+              s = s.replace(undef, '#undef VQ_GCC_ARM64_BULK_OPT\n' + undef, 1)
+              p.write_text(s)
           PY
-          test "$(git -C candidate diff --name-only)" = "include/veriqueue/spsc_queue.hpp"
           test "$(git -C old diff --name-only)" = "include/veriqueue/spsc_queue.hpp"
-      - name: Build candidate and references
+          test "$(git -C push diff --name-only)" = "include/veriqueue/spsc_queue.hpp"
+          test "$(git -C pop diff --name-only)" = "include/veriqueue/spsc_queue.hpp"
+      - name: Build variants
         env:
           CC: gcc
           CXX: g++
         run: |
-          for role in candidate current old; do
+          for role in current push pop old; do
             cmake -S "$role" -B "build/$role" -G Ninja -DCMAKE_BUILD_TYPE=Release \
               -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF \
               -DVERIQUEUE_BUILD_BENCHMARKS=ON -DVERIQUEUE_BUILD_BASELINES=OFF
             cmake --build "build/$role" --target bench_hotpath_variants -j2
           done
-      - name: Make bulk wrappers
+      - name: Make wrappers
         run: |
-          for role in candidate current old; do
+          for role in current push pop old; do
             for batch in 4 16 64; do
               printf '#!/usr/bin/env bash\nexec "%s/build/%s/bench_hotpath_variants" "$1" "$2" "$3" "$4" bulk %s\n' "$GITHUB_WORKSPACE" "$role" "$batch" > "build/${role}/bench_bulk_${batch}"
               chmod +x "build/${role}/bench_bulk_${batch}"
             done
           done
-      - name: Compare large-batch kernel to current and old
+      - name: Compare one-sided variants
         run: |
-          ROOT="candidate/evidence/large-batch-kernel"
+          ROOT="push/evidence/side-isolation"
           mkdir -p "$ROOT"
-          for ref in current old; do
-            offset=0
-            if [ "$ref" = "old" ]; then offset=100; fi
-            OUT="$ROOT/vs-${ref}"
-            mkdir -p "$OUT"
-            for batch in 4 16 64; do
-              python candidate/tools/run_regression_campaign.py \
-                --candidate "$GITHUB_WORKSPACE/build/candidate/bench_bulk_${batch}" \
-                --reference "$GITHUB_WORKSPACE/build/${ref}/bench_bulk_${batch}" \
-                --capacities 256,1024 --payloads 8 --transfers 1000000 \
-                --warmups 4 --repetitions 60 --seed "$((20262610 + batch + offset))" \
-                --output "$OUT/bulk${batch}-raw.jsonl"
-              python candidate/tools/analyze_regression_campaign.py "$OUT/bulk${batch}-raw.jsonl" \
-                --json-output "$OUT/bulk${batch}-summary.json" \
-                --markdown-output "$OUT/bulk${batch}-summary.md" \
-                --bootstrap-seed "$((20262610 + batch + offset))" || true
-              cat "$OUT/bulk${batch}-summary.md"
+          for role in push pop; do
+            role_offset=0
+            if [ "$role" = "pop" ]; then role_offset=200; fi
+            for ref in current old; do
+              ref_offset=0
+              if [ "$ref" = "old" ]; then ref_offset=100; fi
+              OUT="$ROOT/${role}-vs-${ref}"
+              mkdir -p "$OUT"
+              for batch in 4 16 64; do
+                python push/tools/run_regression_campaign.py \
+                  --candidate "$GITHUB_WORKSPACE/build/${role}/bench_bulk_${batch}" \
+                  --reference "$GITHUB_WORKSPACE/build/${ref}/bench_bulk_${batch}" \
+                  --capacities 256,1024 --payloads 8 --transfers 800000 \
+                  --warmups 4 --repetitions 50 \
+                  --seed "$((20262710 + batch + role_offset + ref_offset))" \
+                  --output "$OUT/bulk${batch}-raw.jsonl"
+                python push/tools/analyze_regression_campaign.py "$OUT/bulk${batch}-raw.jsonl" \
+                  --json-output "$OUT/bulk${batch}-summary.json" \
+                  --markdown-output "$OUT/bulk${batch}-summary.md" \
+                  --bootstrap-seed "$((20262710 + batch + role_offset + ref_offset))" || true
+                cat "$OUT/bulk${batch}-summary.md"
+              done
             done
           done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: gcc-arm64-large-batch-kernel
-          path: candidate/evidence/large-batch-kernel/
+          name: gcc-arm64-side-isolation
+          path: push/evidence/side-isolation/
