@@ -50,54 +50,16 @@ jobs:
           git -C old show FETCH_HEAD:include/veriqueue/spsc_queue.hpp > old/include/veriqueue/spsc_queue.hpp
           python3 - <<'PY'
           from pathlib import Path
-
-          push = '''        for (std::size_t i = 0; i < count; ++i) {
-            std::construct_at(slot_for(tail).storage_ptr(), values[i]);
-            ++tail;
-        }
-'''
-          pop = '''        for (std::size_t i = 0; i < count; ++i) {
-            T* const source = slot_for(head).live_ptr();
-            output[i] = std::move(*source);
-            std::destroy_at(source);
-            ++head;
-        }
-'''
+          push = "        for (std::size_t i = 0; i < count; ++i) {\n            std::construct_at(slot_for(tail).storage_ptr(), values[i]);\n            ++tail;\n        }\n"
+          pop = "        for (std::size_t i = 0; i < count; ++i) {\n            T* const source = slot_for(head).live_ptr();\n            output[i] = std::move(*source);\n            std::destroy_at(source);\n            ++head;\n        }\n"
           for factor in (4, 8, 16):
               p = Path(f'u{factor}/include/veriqueue/spsc_queue.hpp')
               s = p.read_text()
               if s.count(push) != 1 or s.count(pop) != 1:
                   raise SystemExit(f'bulk loops not unique for u{factor}')
-              push_opt = f'''#if defined(__aarch64__) && defined(__GNUC__) && !defined(__clang__)
-        if constexpr (sizeof(detail::slot<T>) == 8) {{
-#pragma GCC unroll {factor}
-            for (std::size_t i = 0; i < count; ++i) {{
-                std::construct_at(slot_for(tail).storage_ptr(), values[i]);
-                ++tail;
-            }}
-        }} else
-#endif
-        {{
-{push.rstrip()}
-        }}
-'''
-              pop_opt = f'''#if defined(__aarch64__) && defined(__GNUC__) && !defined(__clang__)
-        if constexpr (sizeof(detail::slot<T>) == 8) {{
-#pragma GCC unroll {factor}
-            for (std::size_t i = 0; i < count; ++i) {{
-                T* const source = slot_for(head).live_ptr();
-                output[i] = std::move(*source);
-                std::destroy_at(source);
-                ++head;
-            }}
-        }} else
-#endif
-        {{
-{pop.rstrip()}
-        }}
-'''
-              s = s.replace(push, push_opt, 1).replace(pop, pop_opt, 1)
-              p.write_text(s)
+              push_fast = "#if defined(__aarch64__) && defined(__GNUC__) && !defined(__clang__)\n        if constexpr (sizeof(detail::slot<T>) == 8) {\n#pragma GCC unroll " + str(factor) + "\n            for (std::size_t i = 0; i < count; ++i) {\n                std::construct_at(slot_for(tail).storage_ptr(), values[i]);\n                ++tail;\n            }\n        } else\n#endif\n        {\n" + push + "        }\n"
+              pop_fast = "#if defined(__aarch64__) && defined(__GNUC__) && !defined(__clang__)\n        if constexpr (sizeof(detail::slot<T>) == 8) {\n#pragma GCC unroll " + str(factor) + "\n            for (std::size_t i = 0; i < count; ++i) {\n                T* const source = slot_for(head).live_ptr();\n                output[i] = std::move(*source);\n                std::destroy_at(source);\n                ++head;\n            }\n        } else\n#endif\n        {\n" + pop + "        }\n"
+              p.write_text(s.replace(push, push_fast, 1).replace(pop, pop_fast, 1))
           PY
           test "$(git -C old diff --name-only)" = "include/veriqueue/spsc_queue.hpp"
           for role in u4 u8 u16; do
