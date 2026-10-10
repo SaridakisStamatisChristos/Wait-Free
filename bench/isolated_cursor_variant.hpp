@@ -13,18 +13,20 @@ namespace vqbench::experimental::isolated_cursor {
 
 inline constexpr std::size_t cache_line = 64;
 
-template <class Slot, std::size_t Capacity, class Index>
-[[nodiscard]] constexpr std::size_t production_like_slot_index(Index logical_index) noexcept {
+template <class Slot, std::size_t Capacity, bool UseProductionStripe, class Index>
+[[nodiscard]] constexpr std::size_t selected_slot_index(Index logical_index) noexcept {
     static_assert(Capacity >= 1 && (Capacity & (Capacity - 1)) == 0);
     const std::size_t bounded = static_cast<std::size_t>(logical_index) & (Capacity - 1);
 #if defined(__aarch64__) || defined(_M_ARM64)
-    if constexpr (sizeof(Slot) == 16 && Capacity >= 8) {
+    if constexpr (UseProductionStripe && sizeof(Slot) == 16 && Capacity >= 8) {
         constexpr std::size_t lanes = 8;
         constexpr std::size_t lane_span = Capacity / lanes;
         const std::size_t lane = bounded & (lanes - 1);
         const std::size_t ordinal = bounded >> 3;
         return lane * lane_span + ordinal;
     }
+#else
+    static_cast<void>(UseProductionStripe);
 #endif
     return bounded;
 }
@@ -34,8 +36,15 @@ template <class Slot, std::size_t Capacity, class Index>
 // cursor directly, so each successful operation performs one cursor store.
 // Cached peer state lives on a separate owner-private cache line, preventing
 // peer observation of the published cursor from pulling private cache metadata
-// into the coherency traffic.
-template <class T, std::size_t Capacity, bool CachedLimit, class Index = std::size_t>
+// into the coherency traffic. UseProductionStripe independently controls the
+// ARM64 16-byte storage permutation so cursor and storage effects can be tested
+// both separately and together.
+template <
+    class T,
+    std::size_t Capacity,
+    bool CachedLimit,
+    bool UseProductionStripe,
+    class Index = std::size_t>
 class isolated_published_cursor_queue final {
     static_assert(Capacity >= 1);
     static_assert((Capacity & (Capacity - 1)) == 0);
@@ -119,8 +128,10 @@ private:
 
     [[nodiscard]] veriqueue::detail::slot<T>& slot_for(Index logical_index) noexcept {
         constexpr auto slot_count = Capacity;
-        const std::size_t index =
-            production_like_slot_index<veriqueue::detail::slot<T>, slot_count>(logical_index);
+        const std::size_t index = selected_slot_index<
+            veriqueue::detail::slot<T>,
+            slot_count,
+            UseProductionStripe>(logical_index);
         return slots_[index];
     }
 
@@ -132,9 +143,19 @@ private:
 };
 
 template <class T, std::size_t Capacity>
-using isolated_distance = isolated_published_cursor_queue<T, Capacity, false>;
+using isolated_distance =
+    isolated_published_cursor_queue<T, Capacity, false, true>;
 
 template <class T, std::size_t Capacity>
-using isolated_cached_limit = isolated_published_cursor_queue<T, Capacity, true>;
+using isolated_cached_limit =
+    isolated_published_cursor_queue<T, Capacity, true, true>;
+
+template <class T, std::size_t Capacity>
+using isolated_seq_distance =
+    isolated_published_cursor_queue<T, Capacity, false, false>;
+
+template <class T, std::size_t Capacity>
+using isolated_seq_cached_limit =
+    isolated_published_cursor_queue<T, Capacity, true, false>;
 
 } // namespace vqbench::experimental::isolated_cursor
