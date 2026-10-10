@@ -1,0 +1,512 @@
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-uniform-scalar-o8-s1.json capacity=1 seed=1 ops_per_side=8 profile=uniform mode=scalar
+PASS capacity=1 profile=uniform mode=scalar seed=1 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-uniform-scalar-o8-s2.json capacity=1 seed=2 ops_per_side=8 profile=uniform mode=scalar
+PASS capacity=1 profile=uniform mode=scalar seed=2 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-uniform-scalar-o8-s3.json capacity=1 seed=3 ops_per_side=8 profile=uniform mode=scalar
+PASS capacity=1 profile=uniform mode=scalar seed=3 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-uniform-scalar-o8-s4.json capacity=1 seed=4 ops_per_side=8 profile=uniform mode=scalar
+PASS capacity=1 profile=uniform mode=scalar seed=4 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-uniform-scalar-o8-s5.json capacity=1 seed=5 ops_per_side=8 profile=uniform mode=scalar
+PASS capacity=1 profile=uniform mode=scalar seed=5 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-uniform-scalar-o8-s6.json capacity=1 seed=6 ops_per_side=8 profile=uniform mode=scalar
+PASS capacity=1 profile=uniform mode=scalar seed=6 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-uniform-scalar-o8-s7.json capacity=1 seed=7 ops_per_side=8 profile=uniform mode=scalar
+PASS capacity=1 profile=uniform mode=scalar seed=7 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-uniform-scalar-o8-s8.json capacity=1 seed=8 ops_per_side=8 profile=uniform mode=scalar
+PASS capacity=1 profile=uniform mode=scalar seed=8 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-uniform-mixed-o8-s1.json capacity=1 seed=1 ops_per_side=8 profile=uniform mode=mixed
+PASS capacity=1 profile=uniform mode=mixed seed=1 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-uniform-mixed-o8-s2.json capacity=1 seed=2 ops_per_side=8 profile=uniform mode=mixed
+PASS capacity=1 profile=uniform mode=mixed seed=2 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-uniform-mixed-o8-s3.json capacity=1 seed=3 ops_per_side=8 profile=uniform mode=mixed
+PASS capacity=1 profile=uniform mode=mixed seed=3 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-uniform-mixed-o8-s4.json capacity=1 seed=4 ops_per_side=8 profile=uniform mode=mixed
+PASS capacity=1 profile=uniform mode=mixed seed=4 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-uniform-mixed-o8-s5.json capacity=1 seed=5 ops_per_side=8 profile=uniform mode=mixed
+PASS capacity=1 profile=uniform mode=mixed seed=5 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-uniform-mixed-o8-s6.json capacity=1 seed=6 ops_per_side=8 profile=uniform mode=mixed
+PASS capacity=1 profile=uniform mode=mixed seed=6 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-uniform-mixed-o8-s7.json capacity=1 seed=7 ops_per_side=8 profile=uniform mode=mixed
+PASS capacity=1 profile=uniform mode=mixed seed=7 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-uniform-mixed-o8-s8.json capacity=1 seed=8 ops_per_side=8 profile=uniform mode=mixed
+PASS capacity=1 profile=uniform mode=mixed seed=8 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-burst-scalar-o8-s1.json capacity=1 seed=1 ops_per_side=8 profile=burst mode=scalar
+PASS capacity=1 profile=burst mode=scalar seed=1 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-burst-scalar-o8-s2.json capacity=1 seed=2 ops_per_side=8 profile=burst mode=scalar
+PASS capacity=1 profile=burst mode=scalar seed=2 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-burst-scalar-o8-s3.json capacity=1 seed=3 ops_per_side=8 profile=burst mode=scalar
+PASS capacity=1 profile=burst mode=scalar seed=3 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-burst-scalar-o8-s4.json capacity=1 seed=4 ops_per_side=8 profile=burst mode=scalar
+PASS capacity=1 profile=burst mode=scalar seed=4 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-burst-scalar-o8-s5.json capacity=1 seed=5 ops_per_side=8 profile=burst mode=scalar
+PASS capacity=1 profile=burst mode=scalar seed=5 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-burst-scalar-o8-s6.json capacity=1 seed=6 ops_per_side=8 profile=burst mode=scalar
+PASS capacity=1 profile=burst mode=scalar seed=6 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-burst-scalar-o8-s7.json capacity=1 seed=7 ops_per_side=8 profile=burst mode=scalar
+PASS capacity=1 profile=burst mode=scalar seed=7 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-burst-scalar-o8-s8.json capacity=1 seed=8 ops_per_side=8 profile=burst mode=scalar
+PASS capacity=1 profile=burst mode=scalar seed=8 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-burst-mixed-o8-s1.json capacity=1 seed=1 ops_per_side=8 profile=burst mode=mixed
+PASS capacity=1 profile=burst mode=mixed seed=1 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-burst-mixed-o8-s2.json capacity=1 seed=2 ops_per_side=8 profile=burst mode=mixed
+PASS capacity=1 profile=burst mode=mixed seed=2 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-burst-mixed-o8-s3.json capacity=1 seed=3 ops_per_side=8 profile=burst mode=mixed
+PASS capacity=1 profile=burst mode=mixed seed=3 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-burst-mixed-o8-s4.json capacity=1 seed=4 ops_per_side=8 profile=burst mode=mixed
+PASS capacity=1 profile=burst mode=mixed seed=4 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-burst-mixed-o8-s5.json capacity=1 seed=5 ops_per_side=8 profile=burst mode=mixed
+PASS capacity=1 profile=burst mode=mixed seed=5 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-burst-mixed-o8-s6.json capacity=1 seed=6 ops_per_side=8 profile=burst mode=mixed
+PASS capacity=1 profile=burst mode=mixed seed=6 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-burst-mixed-o8-s7.json capacity=1 seed=7 ops_per_side=8 profile=burst mode=mixed
+PASS capacity=1 profile=burst mode=mixed seed=7 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-burst-mixed-o8-s8.json capacity=1 seed=8 ops_per_side=8 profile=burst mode=mixed
+PASS capacity=1 profile=burst mode=mixed seed=8 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-producer-heavy-scalar-o8-s1.json capacity=1 seed=1 ops_per_side=8 profile=producer-heavy mode=scalar
+PASS capacity=1 profile=producer-heavy mode=scalar seed=1 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-producer-heavy-scalar-o8-s2.json capacity=1 seed=2 ops_per_side=8 profile=producer-heavy mode=scalar
+PASS capacity=1 profile=producer-heavy mode=scalar seed=2 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-producer-heavy-scalar-o8-s3.json capacity=1 seed=3 ops_per_side=8 profile=producer-heavy mode=scalar
+PASS capacity=1 profile=producer-heavy mode=scalar seed=3 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-producer-heavy-scalar-o8-s4.json capacity=1 seed=4 ops_per_side=8 profile=producer-heavy mode=scalar
+PASS capacity=1 profile=producer-heavy mode=scalar seed=4 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-producer-heavy-scalar-o8-s5.json capacity=1 seed=5 ops_per_side=8 profile=producer-heavy mode=scalar
+PASS capacity=1 profile=producer-heavy mode=scalar seed=5 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-producer-heavy-scalar-o8-s6.json capacity=1 seed=6 ops_per_side=8 profile=producer-heavy mode=scalar
+PASS capacity=1 profile=producer-heavy mode=scalar seed=6 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-producer-heavy-scalar-o8-s7.json capacity=1 seed=7 ops_per_side=8 profile=producer-heavy mode=scalar
+PASS capacity=1 profile=producer-heavy mode=scalar seed=7 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-producer-heavy-scalar-o8-s8.json capacity=1 seed=8 ops_per_side=8 profile=producer-heavy mode=scalar
+PASS capacity=1 profile=producer-heavy mode=scalar seed=8 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-producer-heavy-mixed-o8-s1.json capacity=1 seed=1 ops_per_side=8 profile=producer-heavy mode=mixed
+PASS capacity=1 profile=producer-heavy mode=mixed seed=1 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-producer-heavy-mixed-o8-s2.json capacity=1 seed=2 ops_per_side=8 profile=producer-heavy mode=mixed
+PASS capacity=1 profile=producer-heavy mode=mixed seed=2 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-producer-heavy-mixed-o8-s3.json capacity=1 seed=3 ops_per_side=8 profile=producer-heavy mode=mixed
+PASS capacity=1 profile=producer-heavy mode=mixed seed=3 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-producer-heavy-mixed-o8-s4.json capacity=1 seed=4 ops_per_side=8 profile=producer-heavy mode=mixed
+PASS capacity=1 profile=producer-heavy mode=mixed seed=4 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-producer-heavy-mixed-o8-s5.json capacity=1 seed=5 ops_per_side=8 profile=producer-heavy mode=mixed
+PASS capacity=1 profile=producer-heavy mode=mixed seed=5 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-producer-heavy-mixed-o8-s6.json capacity=1 seed=6 ops_per_side=8 profile=producer-heavy mode=mixed
+PASS capacity=1 profile=producer-heavy mode=mixed seed=6 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-producer-heavy-mixed-o8-s7.json capacity=1 seed=7 ops_per_side=8 profile=producer-heavy mode=mixed
+PASS capacity=1 profile=producer-heavy mode=mixed seed=7 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-producer-heavy-mixed-o8-s8.json capacity=1 seed=8 ops_per_side=8 profile=producer-heavy mode=mixed
+PASS capacity=1 profile=producer-heavy mode=mixed seed=8 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-consumer-heavy-scalar-o8-s1.json capacity=1 seed=1 ops_per_side=8 profile=consumer-heavy mode=scalar
+PASS capacity=1 profile=consumer-heavy mode=scalar seed=1 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-consumer-heavy-scalar-o8-s2.json capacity=1 seed=2 ops_per_side=8 profile=consumer-heavy mode=scalar
+PASS capacity=1 profile=consumer-heavy mode=scalar seed=2 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-consumer-heavy-scalar-o8-s3.json capacity=1 seed=3 ops_per_side=8 profile=consumer-heavy mode=scalar
+PASS capacity=1 profile=consumer-heavy mode=scalar seed=3 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-consumer-heavy-scalar-o8-s4.json capacity=1 seed=4 ops_per_side=8 profile=consumer-heavy mode=scalar
+PASS capacity=1 profile=consumer-heavy mode=scalar seed=4 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-consumer-heavy-scalar-o8-s5.json capacity=1 seed=5 ops_per_side=8 profile=consumer-heavy mode=scalar
+PASS capacity=1 profile=consumer-heavy mode=scalar seed=5 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-consumer-heavy-scalar-o8-s6.json capacity=1 seed=6 ops_per_side=8 profile=consumer-heavy mode=scalar
+PASS capacity=1 profile=consumer-heavy mode=scalar seed=6 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-consumer-heavy-scalar-o8-s7.json capacity=1 seed=7 ops_per_side=8 profile=consumer-heavy mode=scalar
+PASS capacity=1 profile=consumer-heavy mode=scalar seed=7 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-consumer-heavy-scalar-o8-s8.json capacity=1 seed=8 ops_per_side=8 profile=consumer-heavy mode=scalar
+PASS capacity=1 profile=consumer-heavy mode=scalar seed=8 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-consumer-heavy-mixed-o8-s1.json capacity=1 seed=1 ops_per_side=8 profile=consumer-heavy mode=mixed
+PASS capacity=1 profile=consumer-heavy mode=mixed seed=1 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-consumer-heavy-mixed-o8-s2.json capacity=1 seed=2 ops_per_side=8 profile=consumer-heavy mode=mixed
+PASS capacity=1 profile=consumer-heavy mode=mixed seed=2 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-consumer-heavy-mixed-o8-s3.json capacity=1 seed=3 ops_per_side=8 profile=consumer-heavy mode=mixed
+PASS capacity=1 profile=consumer-heavy mode=mixed seed=3 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-consumer-heavy-mixed-o8-s4.json capacity=1 seed=4 ops_per_side=8 profile=consumer-heavy mode=mixed
+PASS capacity=1 profile=consumer-heavy mode=mixed seed=4 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-consumer-heavy-mixed-o8-s5.json capacity=1 seed=5 ops_per_side=8 profile=consumer-heavy mode=mixed
+PASS capacity=1 profile=consumer-heavy mode=mixed seed=5 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-consumer-heavy-mixed-o8-s6.json capacity=1 seed=6 ops_per_side=8 profile=consumer-heavy mode=mixed
+PASS capacity=1 profile=consumer-heavy mode=mixed seed=6 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-consumer-heavy-mixed-o8-s7.json capacity=1 seed=7 ops_per_side=8 profile=consumer-heavy mode=mixed
+PASS capacity=1 profile=consumer-heavy mode=mixed seed=7 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c1-consumer-heavy-mixed-o8-s8.json capacity=1 seed=8 ops_per_side=8 profile=consumer-heavy mode=mixed
+PASS capacity=1 profile=consumer-heavy mode=mixed seed=8 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-uniform-scalar-o8-s1.json capacity=2 seed=1 ops_per_side=8 profile=uniform mode=scalar
+PASS capacity=2 profile=uniform mode=scalar seed=1 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-uniform-scalar-o8-s2.json capacity=2 seed=2 ops_per_side=8 profile=uniform mode=scalar
+PASS capacity=2 profile=uniform mode=scalar seed=2 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-uniform-scalar-o8-s3.json capacity=2 seed=3 ops_per_side=8 profile=uniform mode=scalar
+PASS capacity=2 profile=uniform mode=scalar seed=3 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-uniform-scalar-o8-s4.json capacity=2 seed=4 ops_per_side=8 profile=uniform mode=scalar
+PASS capacity=2 profile=uniform mode=scalar seed=4 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-uniform-scalar-o8-s5.json capacity=2 seed=5 ops_per_side=8 profile=uniform mode=scalar
+PASS capacity=2 profile=uniform mode=scalar seed=5 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-uniform-scalar-o8-s6.json capacity=2 seed=6 ops_per_side=8 profile=uniform mode=scalar
+PASS capacity=2 profile=uniform mode=scalar seed=6 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-uniform-scalar-o8-s7.json capacity=2 seed=7 ops_per_side=8 profile=uniform mode=scalar
+PASS capacity=2 profile=uniform mode=scalar seed=7 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-uniform-scalar-o8-s8.json capacity=2 seed=8 ops_per_side=8 profile=uniform mode=scalar
+PASS capacity=2 profile=uniform mode=scalar seed=8 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-uniform-mixed-o8-s1.json capacity=2 seed=1 ops_per_side=8 profile=uniform mode=mixed
+PASS capacity=2 profile=uniform mode=mixed seed=1 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-uniform-mixed-o8-s2.json capacity=2 seed=2 ops_per_side=8 profile=uniform mode=mixed
+PASS capacity=2 profile=uniform mode=mixed seed=2 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-uniform-mixed-o8-s3.json capacity=2 seed=3 ops_per_side=8 profile=uniform mode=mixed
+PASS capacity=2 profile=uniform mode=mixed seed=3 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-uniform-mixed-o8-s4.json capacity=2 seed=4 ops_per_side=8 profile=uniform mode=mixed
+PASS capacity=2 profile=uniform mode=mixed seed=4 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-uniform-mixed-o8-s5.json capacity=2 seed=5 ops_per_side=8 profile=uniform mode=mixed
+PASS capacity=2 profile=uniform mode=mixed seed=5 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-uniform-mixed-o8-s6.json capacity=2 seed=6 ops_per_side=8 profile=uniform mode=mixed
+PASS capacity=2 profile=uniform mode=mixed seed=6 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-uniform-mixed-o8-s7.json capacity=2 seed=7 ops_per_side=8 profile=uniform mode=mixed
+PASS capacity=2 profile=uniform mode=mixed seed=7 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-uniform-mixed-o8-s8.json capacity=2 seed=8 ops_per_side=8 profile=uniform mode=mixed
+PASS capacity=2 profile=uniform mode=mixed seed=8 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-burst-scalar-o8-s1.json capacity=2 seed=1 ops_per_side=8 profile=burst mode=scalar
+PASS capacity=2 profile=burst mode=scalar seed=1 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-burst-scalar-o8-s2.json capacity=2 seed=2 ops_per_side=8 profile=burst mode=scalar
+PASS capacity=2 profile=burst mode=scalar seed=2 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-burst-scalar-o8-s3.json capacity=2 seed=3 ops_per_side=8 profile=burst mode=scalar
+PASS capacity=2 profile=burst mode=scalar seed=3 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-burst-scalar-o8-s4.json capacity=2 seed=4 ops_per_side=8 profile=burst mode=scalar
+PASS capacity=2 profile=burst mode=scalar seed=4 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-burst-scalar-o8-s5.json capacity=2 seed=5 ops_per_side=8 profile=burst mode=scalar
+PASS capacity=2 profile=burst mode=scalar seed=5 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-burst-scalar-o8-s6.json capacity=2 seed=6 ops_per_side=8 profile=burst mode=scalar
+PASS capacity=2 profile=burst mode=scalar seed=6 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-burst-scalar-o8-s7.json capacity=2 seed=7 ops_per_side=8 profile=burst mode=scalar
+PASS capacity=2 profile=burst mode=scalar seed=7 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-burst-scalar-o8-s8.json capacity=2 seed=8 ops_per_side=8 profile=burst mode=scalar
+PASS capacity=2 profile=burst mode=scalar seed=8 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-burst-mixed-o8-s1.json capacity=2 seed=1 ops_per_side=8 profile=burst mode=mixed
+PASS capacity=2 profile=burst mode=mixed seed=1 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-burst-mixed-o8-s2.json capacity=2 seed=2 ops_per_side=8 profile=burst mode=mixed
+PASS capacity=2 profile=burst mode=mixed seed=2 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-burst-mixed-o8-s3.json capacity=2 seed=3 ops_per_side=8 profile=burst mode=mixed
+PASS capacity=2 profile=burst mode=mixed seed=3 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-burst-mixed-o8-s4.json capacity=2 seed=4 ops_per_side=8 profile=burst mode=mixed
+PASS capacity=2 profile=burst mode=mixed seed=4 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-burst-mixed-o8-s5.json capacity=2 seed=5 ops_per_side=8 profile=burst mode=mixed
+PASS capacity=2 profile=burst mode=mixed seed=5 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-burst-mixed-o8-s6.json capacity=2 seed=6 ops_per_side=8 profile=burst mode=mixed
+PASS capacity=2 profile=burst mode=mixed seed=6 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-burst-mixed-o8-s7.json capacity=2 seed=7 ops_per_side=8 profile=burst mode=mixed
+PASS capacity=2 profile=burst mode=mixed seed=7 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-burst-mixed-o8-s8.json capacity=2 seed=8 ops_per_side=8 profile=burst mode=mixed
+PASS capacity=2 profile=burst mode=mixed seed=8 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-producer-heavy-scalar-o8-s1.json capacity=2 seed=1 ops_per_side=8 profile=producer-heavy mode=scalar
+PASS capacity=2 profile=producer-heavy mode=scalar seed=1 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-producer-heavy-scalar-o8-s2.json capacity=2 seed=2 ops_per_side=8 profile=producer-heavy mode=scalar
+PASS capacity=2 profile=producer-heavy mode=scalar seed=2 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-producer-heavy-scalar-o8-s3.json capacity=2 seed=3 ops_per_side=8 profile=producer-heavy mode=scalar
+PASS capacity=2 profile=producer-heavy mode=scalar seed=3 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-producer-heavy-scalar-o8-s4.json capacity=2 seed=4 ops_per_side=8 profile=producer-heavy mode=scalar
+PASS capacity=2 profile=producer-heavy mode=scalar seed=4 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-producer-heavy-scalar-o8-s5.json capacity=2 seed=5 ops_per_side=8 profile=producer-heavy mode=scalar
+PASS capacity=2 profile=producer-heavy mode=scalar seed=5 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-producer-heavy-scalar-o8-s6.json capacity=2 seed=6 ops_per_side=8 profile=producer-heavy mode=scalar
+PASS capacity=2 profile=producer-heavy mode=scalar seed=6 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-producer-heavy-scalar-o8-s7.json capacity=2 seed=7 ops_per_side=8 profile=producer-heavy mode=scalar
+PASS capacity=2 profile=producer-heavy mode=scalar seed=7 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-producer-heavy-scalar-o8-s8.json capacity=2 seed=8 ops_per_side=8 profile=producer-heavy mode=scalar
+PASS capacity=2 profile=producer-heavy mode=scalar seed=8 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-producer-heavy-mixed-o8-s1.json capacity=2 seed=1 ops_per_side=8 profile=producer-heavy mode=mixed
+PASS capacity=2 profile=producer-heavy mode=mixed seed=1 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-producer-heavy-mixed-o8-s2.json capacity=2 seed=2 ops_per_side=8 profile=producer-heavy mode=mixed
+PASS capacity=2 profile=producer-heavy mode=mixed seed=2 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-producer-heavy-mixed-o8-s3.json capacity=2 seed=3 ops_per_side=8 profile=producer-heavy mode=mixed
+PASS capacity=2 profile=producer-heavy mode=mixed seed=3 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-producer-heavy-mixed-o8-s4.json capacity=2 seed=4 ops_per_side=8 profile=producer-heavy mode=mixed
+PASS capacity=2 profile=producer-heavy mode=mixed seed=4 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-producer-heavy-mixed-o8-s5.json capacity=2 seed=5 ops_per_side=8 profile=producer-heavy mode=mixed
+PASS capacity=2 profile=producer-heavy mode=mixed seed=5 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-producer-heavy-mixed-o8-s6.json capacity=2 seed=6 ops_per_side=8 profile=producer-heavy mode=mixed
+PASS capacity=2 profile=producer-heavy mode=mixed seed=6 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-producer-heavy-mixed-o8-s7.json capacity=2 seed=7 ops_per_side=8 profile=producer-heavy mode=mixed
+PASS capacity=2 profile=producer-heavy mode=mixed seed=7 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-producer-heavy-mixed-o8-s8.json capacity=2 seed=8 ops_per_side=8 profile=producer-heavy mode=mixed
+PASS capacity=2 profile=producer-heavy mode=mixed seed=8 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-consumer-heavy-scalar-o8-s1.json capacity=2 seed=1 ops_per_side=8 profile=consumer-heavy mode=scalar
+PASS capacity=2 profile=consumer-heavy mode=scalar seed=1 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-consumer-heavy-scalar-o8-s2.json capacity=2 seed=2 ops_per_side=8 profile=consumer-heavy mode=scalar
+PASS capacity=2 profile=consumer-heavy mode=scalar seed=2 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-consumer-heavy-scalar-o8-s3.json capacity=2 seed=3 ops_per_side=8 profile=consumer-heavy mode=scalar
+PASS capacity=2 profile=consumer-heavy mode=scalar seed=3 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-consumer-heavy-scalar-o8-s4.json capacity=2 seed=4 ops_per_side=8 profile=consumer-heavy mode=scalar
+PASS capacity=2 profile=consumer-heavy mode=scalar seed=4 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-consumer-heavy-scalar-o8-s5.json capacity=2 seed=5 ops_per_side=8 profile=consumer-heavy mode=scalar
+PASS capacity=2 profile=consumer-heavy mode=scalar seed=5 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-consumer-heavy-scalar-o8-s6.json capacity=2 seed=6 ops_per_side=8 profile=consumer-heavy mode=scalar
+PASS capacity=2 profile=consumer-heavy mode=scalar seed=6 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-consumer-heavy-scalar-o8-s7.json capacity=2 seed=7 ops_per_side=8 profile=consumer-heavy mode=scalar
+PASS capacity=2 profile=consumer-heavy mode=scalar seed=7 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-consumer-heavy-scalar-o8-s8.json capacity=2 seed=8 ops_per_side=8 profile=consumer-heavy mode=scalar
+PASS capacity=2 profile=consumer-heavy mode=scalar seed=8 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-consumer-heavy-mixed-o8-s1.json capacity=2 seed=1 ops_per_side=8 profile=consumer-heavy mode=mixed
+PASS capacity=2 profile=consumer-heavy mode=mixed seed=1 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-consumer-heavy-mixed-o8-s2.json capacity=2 seed=2 ops_per_side=8 profile=consumer-heavy mode=mixed
+PASS capacity=2 profile=consumer-heavy mode=mixed seed=2 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-consumer-heavy-mixed-o8-s3.json capacity=2 seed=3 ops_per_side=8 profile=consumer-heavy mode=mixed
+PASS capacity=2 profile=consumer-heavy mode=mixed seed=3 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-consumer-heavy-mixed-o8-s4.json capacity=2 seed=4 ops_per_side=8 profile=consumer-heavy mode=mixed
+PASS capacity=2 profile=consumer-heavy mode=mixed seed=4 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-consumer-heavy-mixed-o8-s5.json capacity=2 seed=5 ops_per_side=8 profile=consumer-heavy mode=mixed
+PASS capacity=2 profile=consumer-heavy mode=mixed seed=5 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-consumer-heavy-mixed-o8-s6.json capacity=2 seed=6 ops_per_side=8 profile=consumer-heavy mode=mixed
+PASS capacity=2 profile=consumer-heavy mode=mixed seed=6 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-consumer-heavy-mixed-o8-s7.json capacity=2 seed=7 ops_per_side=8 profile=consumer-heavy mode=mixed
+PASS capacity=2 profile=consumer-heavy mode=mixed seed=7 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c2-consumer-heavy-mixed-o8-s8.json capacity=2 seed=8 ops_per_side=8 profile=consumer-heavy mode=mixed
+PASS capacity=2 profile=consumer-heavy mode=mixed seed=8 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-uniform-scalar-o8-s1.json capacity=4 seed=1 ops_per_side=8 profile=uniform mode=scalar
+PASS capacity=4 profile=uniform mode=scalar seed=1 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-uniform-scalar-o8-s2.json capacity=4 seed=2 ops_per_side=8 profile=uniform mode=scalar
+PASS capacity=4 profile=uniform mode=scalar seed=2 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-uniform-scalar-o8-s3.json capacity=4 seed=3 ops_per_side=8 profile=uniform mode=scalar
+PASS capacity=4 profile=uniform mode=scalar seed=3 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-uniform-scalar-o8-s4.json capacity=4 seed=4 ops_per_side=8 profile=uniform mode=scalar
+PASS capacity=4 profile=uniform mode=scalar seed=4 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-uniform-scalar-o8-s5.json capacity=4 seed=5 ops_per_side=8 profile=uniform mode=scalar
+PASS capacity=4 profile=uniform mode=scalar seed=5 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-uniform-scalar-o8-s6.json capacity=4 seed=6 ops_per_side=8 profile=uniform mode=scalar
+PASS capacity=4 profile=uniform mode=scalar seed=6 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-uniform-scalar-o8-s7.json capacity=4 seed=7 ops_per_side=8 profile=uniform mode=scalar
+PASS capacity=4 profile=uniform mode=scalar seed=7 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-uniform-scalar-o8-s8.json capacity=4 seed=8 ops_per_side=8 profile=uniform mode=scalar
+PASS capacity=4 profile=uniform mode=scalar seed=8 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-uniform-mixed-o8-s1.json capacity=4 seed=1 ops_per_side=8 profile=uniform mode=mixed
+PASS capacity=4 profile=uniform mode=mixed seed=1 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-uniform-mixed-o8-s2.json capacity=4 seed=2 ops_per_side=8 profile=uniform mode=mixed
+PASS capacity=4 profile=uniform mode=mixed seed=2 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-uniform-mixed-o8-s3.json capacity=4 seed=3 ops_per_side=8 profile=uniform mode=mixed
+PASS capacity=4 profile=uniform mode=mixed seed=3 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-uniform-mixed-o8-s4.json capacity=4 seed=4 ops_per_side=8 profile=uniform mode=mixed
+PASS capacity=4 profile=uniform mode=mixed seed=4 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-uniform-mixed-o8-s5.json capacity=4 seed=5 ops_per_side=8 profile=uniform mode=mixed
+PASS capacity=4 profile=uniform mode=mixed seed=5 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-uniform-mixed-o8-s6.json capacity=4 seed=6 ops_per_side=8 profile=uniform mode=mixed
+PASS capacity=4 profile=uniform mode=mixed seed=6 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-uniform-mixed-o8-s7.json capacity=4 seed=7 ops_per_side=8 profile=uniform mode=mixed
+PASS capacity=4 profile=uniform mode=mixed seed=7 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-uniform-mixed-o8-s8.json capacity=4 seed=8 ops_per_side=8 profile=uniform mode=mixed
+PASS capacity=4 profile=uniform mode=mixed seed=8 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-burst-scalar-o8-s1.json capacity=4 seed=1 ops_per_side=8 profile=burst mode=scalar
+PASS capacity=4 profile=burst mode=scalar seed=1 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-burst-scalar-o8-s2.json capacity=4 seed=2 ops_per_side=8 profile=burst mode=scalar
+PASS capacity=4 profile=burst mode=scalar seed=2 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-burst-scalar-o8-s3.json capacity=4 seed=3 ops_per_side=8 profile=burst mode=scalar
+PASS capacity=4 profile=burst mode=scalar seed=3 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-burst-scalar-o8-s4.json capacity=4 seed=4 ops_per_side=8 profile=burst mode=scalar
+PASS capacity=4 profile=burst mode=scalar seed=4 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-burst-scalar-o8-s5.json capacity=4 seed=5 ops_per_side=8 profile=burst mode=scalar
+PASS capacity=4 profile=burst mode=scalar seed=5 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-burst-scalar-o8-s6.json capacity=4 seed=6 ops_per_side=8 profile=burst mode=scalar
+PASS capacity=4 profile=burst mode=scalar seed=6 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-burst-scalar-o8-s7.json capacity=4 seed=7 ops_per_side=8 profile=burst mode=scalar
+PASS capacity=4 profile=burst mode=scalar seed=7 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-burst-scalar-o8-s8.json capacity=4 seed=8 ops_per_side=8 profile=burst mode=scalar
+PASS capacity=4 profile=burst mode=scalar seed=8 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-burst-mixed-o8-s1.json capacity=4 seed=1 ops_per_side=8 profile=burst mode=mixed
+PASS capacity=4 profile=burst mode=mixed seed=1 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-burst-mixed-o8-s2.json capacity=4 seed=2 ops_per_side=8 profile=burst mode=mixed
+PASS capacity=4 profile=burst mode=mixed seed=2 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-burst-mixed-o8-s3.json capacity=4 seed=3 ops_per_side=8 profile=burst mode=mixed
+PASS capacity=4 profile=burst mode=mixed seed=3 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-burst-mixed-o8-s4.json capacity=4 seed=4 ops_per_side=8 profile=burst mode=mixed
+PASS capacity=4 profile=burst mode=mixed seed=4 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-burst-mixed-o8-s5.json capacity=4 seed=5 ops_per_side=8 profile=burst mode=mixed
+PASS capacity=4 profile=burst mode=mixed seed=5 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-burst-mixed-o8-s6.json capacity=4 seed=6 ops_per_side=8 profile=burst mode=mixed
+PASS capacity=4 profile=burst mode=mixed seed=6 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-burst-mixed-o8-s7.json capacity=4 seed=7 ops_per_side=8 profile=burst mode=mixed
+PASS capacity=4 profile=burst mode=mixed seed=7 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-burst-mixed-o8-s8.json capacity=4 seed=8 ops_per_side=8 profile=burst mode=mixed
+PASS capacity=4 profile=burst mode=mixed seed=8 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-producer-heavy-scalar-o8-s1.json capacity=4 seed=1 ops_per_side=8 profile=producer-heavy mode=scalar
+PASS capacity=4 profile=producer-heavy mode=scalar seed=1 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-producer-heavy-scalar-o8-s2.json capacity=4 seed=2 ops_per_side=8 profile=producer-heavy mode=scalar
+PASS capacity=4 profile=producer-heavy mode=scalar seed=2 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-producer-heavy-scalar-o8-s3.json capacity=4 seed=3 ops_per_side=8 profile=producer-heavy mode=scalar
+PASS capacity=4 profile=producer-heavy mode=scalar seed=3 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-producer-heavy-scalar-o8-s4.json capacity=4 seed=4 ops_per_side=8 profile=producer-heavy mode=scalar
+PASS capacity=4 profile=producer-heavy mode=scalar seed=4 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-producer-heavy-scalar-o8-s5.json capacity=4 seed=5 ops_per_side=8 profile=producer-heavy mode=scalar
+PASS capacity=4 profile=producer-heavy mode=scalar seed=5 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-producer-heavy-scalar-o8-s6.json capacity=4 seed=6 ops_per_side=8 profile=producer-heavy mode=scalar
+PASS capacity=4 profile=producer-heavy mode=scalar seed=6 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-producer-heavy-scalar-o8-s7.json capacity=4 seed=7 ops_per_side=8 profile=producer-heavy mode=scalar
+PASS capacity=4 profile=producer-heavy mode=scalar seed=7 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-producer-heavy-scalar-o8-s8.json capacity=4 seed=8 ops_per_side=8 profile=producer-heavy mode=scalar
+PASS capacity=4 profile=producer-heavy mode=scalar seed=8 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-producer-heavy-mixed-o8-s1.json capacity=4 seed=1 ops_per_side=8 profile=producer-heavy mode=mixed
+PASS capacity=4 profile=producer-heavy mode=mixed seed=1 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-producer-heavy-mixed-o8-s2.json capacity=4 seed=2 ops_per_side=8 profile=producer-heavy mode=mixed
+PASS capacity=4 profile=producer-heavy mode=mixed seed=2 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-producer-heavy-mixed-o8-s3.json capacity=4 seed=3 ops_per_side=8 profile=producer-heavy mode=mixed
+PASS capacity=4 profile=producer-heavy mode=mixed seed=3 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-producer-heavy-mixed-o8-s4.json capacity=4 seed=4 ops_per_side=8 profile=producer-heavy mode=mixed
+PASS capacity=4 profile=producer-heavy mode=mixed seed=4 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-producer-heavy-mixed-o8-s5.json capacity=4 seed=5 ops_per_side=8 profile=producer-heavy mode=mixed
+PASS capacity=4 profile=producer-heavy mode=mixed seed=5 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-producer-heavy-mixed-o8-s6.json capacity=4 seed=6 ops_per_side=8 profile=producer-heavy mode=mixed
+PASS capacity=4 profile=producer-heavy mode=mixed seed=6 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-producer-heavy-mixed-o8-s7.json capacity=4 seed=7 ops_per_side=8 profile=producer-heavy mode=mixed
+PASS capacity=4 profile=producer-heavy mode=mixed seed=7 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-producer-heavy-mixed-o8-s8.json capacity=4 seed=8 ops_per_side=8 profile=producer-heavy mode=mixed
+PASS capacity=4 profile=producer-heavy mode=mixed seed=8 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-consumer-heavy-scalar-o8-s1.json capacity=4 seed=1 ops_per_side=8 profile=consumer-heavy mode=scalar
+PASS capacity=4 profile=consumer-heavy mode=scalar seed=1 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-consumer-heavy-scalar-o8-s2.json capacity=4 seed=2 ops_per_side=8 profile=consumer-heavy mode=scalar
+PASS capacity=4 profile=consumer-heavy mode=scalar seed=2 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-consumer-heavy-scalar-o8-s3.json capacity=4 seed=3 ops_per_side=8 profile=consumer-heavy mode=scalar
+PASS capacity=4 profile=consumer-heavy mode=scalar seed=3 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-consumer-heavy-scalar-o8-s4.json capacity=4 seed=4 ops_per_side=8 profile=consumer-heavy mode=scalar
+PASS capacity=4 profile=consumer-heavy mode=scalar seed=4 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-consumer-heavy-scalar-o8-s5.json capacity=4 seed=5 ops_per_side=8 profile=consumer-heavy mode=scalar
+PASS capacity=4 profile=consumer-heavy mode=scalar seed=5 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-consumer-heavy-scalar-o8-s6.json capacity=4 seed=6 ops_per_side=8 profile=consumer-heavy mode=scalar
+PASS capacity=4 profile=consumer-heavy mode=scalar seed=6 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-consumer-heavy-scalar-o8-s7.json capacity=4 seed=7 ops_per_side=8 profile=consumer-heavy mode=scalar
+PASS capacity=4 profile=consumer-heavy mode=scalar seed=7 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-consumer-heavy-scalar-o8-s8.json capacity=4 seed=8 ops_per_side=8 profile=consumer-heavy mode=scalar
+PASS capacity=4 profile=consumer-heavy mode=scalar seed=8 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-consumer-heavy-mixed-o8-s1.json capacity=4 seed=1 ops_per_side=8 profile=consumer-heavy mode=mixed
+PASS capacity=4 profile=consumer-heavy mode=mixed seed=1 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-consumer-heavy-mixed-o8-s2.json capacity=4 seed=2 ops_per_side=8 profile=consumer-heavy mode=mixed
+PASS capacity=4 profile=consumer-heavy mode=mixed seed=2 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-consumer-heavy-mixed-o8-s3.json capacity=4 seed=3 ops_per_side=8 profile=consumer-heavy mode=mixed
+PASS capacity=4 profile=consumer-heavy mode=mixed seed=3 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-consumer-heavy-mixed-o8-s4.json capacity=4 seed=4 ops_per_side=8 profile=consumer-heavy mode=mixed
+PASS capacity=4 profile=consumer-heavy mode=mixed seed=4 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-consumer-heavy-mixed-o8-s5.json capacity=4 seed=5 ops_per_side=8 profile=consumer-heavy mode=mixed
+PASS capacity=4 profile=consumer-heavy mode=mixed seed=5 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-consumer-heavy-mixed-o8-s6.json capacity=4 seed=6 ops_per_side=8 profile=consumer-heavy mode=mixed
+PASS capacity=4 profile=consumer-heavy mode=mixed seed=6 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-consumer-heavy-mixed-o8-s7.json capacity=4 seed=7 ops_per_side=8 profile=consumer-heavy mode=mixed
+PASS capacity=4 profile=consumer-heavy mode=mixed seed=7 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c4-consumer-heavy-mixed-o8-s8.json capacity=4 seed=8 ops_per_side=8 profile=consumer-heavy mode=mixed
+PASS capacity=4 profile=consumer-heavy mode=mixed seed=8 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-uniform-scalar-o8-s1.json capacity=8 seed=1 ops_per_side=8 profile=uniform mode=scalar
+PASS capacity=8 profile=uniform mode=scalar seed=1 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-uniform-scalar-o8-s2.json capacity=8 seed=2 ops_per_side=8 profile=uniform mode=scalar
+PASS capacity=8 profile=uniform mode=scalar seed=2 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-uniform-scalar-o8-s3.json capacity=8 seed=3 ops_per_side=8 profile=uniform mode=scalar
+PASS capacity=8 profile=uniform mode=scalar seed=3 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-uniform-scalar-o8-s4.json capacity=8 seed=4 ops_per_side=8 profile=uniform mode=scalar
+PASS capacity=8 profile=uniform mode=scalar seed=4 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-uniform-scalar-o8-s5.json capacity=8 seed=5 ops_per_side=8 profile=uniform mode=scalar
+PASS capacity=8 profile=uniform mode=scalar seed=5 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-uniform-scalar-o8-s6.json capacity=8 seed=6 ops_per_side=8 profile=uniform mode=scalar
+PASS capacity=8 profile=uniform mode=scalar seed=6 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-uniform-scalar-o8-s7.json capacity=8 seed=7 ops_per_side=8 profile=uniform mode=scalar
+PASS capacity=8 profile=uniform mode=scalar seed=7 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-uniform-scalar-o8-s8.json capacity=8 seed=8 ops_per_side=8 profile=uniform mode=scalar
+PASS capacity=8 profile=uniform mode=scalar seed=8 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-uniform-mixed-o8-s1.json capacity=8 seed=1 ops_per_side=8 profile=uniform mode=mixed
+PASS capacity=8 profile=uniform mode=mixed seed=1 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-uniform-mixed-o8-s2.json capacity=8 seed=2 ops_per_side=8 profile=uniform mode=mixed
+PASS capacity=8 profile=uniform mode=mixed seed=2 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-uniform-mixed-o8-s3.json capacity=8 seed=3 ops_per_side=8 profile=uniform mode=mixed
+PASS capacity=8 profile=uniform mode=mixed seed=3 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-uniform-mixed-o8-s4.json capacity=8 seed=4 ops_per_side=8 profile=uniform mode=mixed
+PASS capacity=8 profile=uniform mode=mixed seed=4 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-uniform-mixed-o8-s5.json capacity=8 seed=5 ops_per_side=8 profile=uniform mode=mixed
+PASS capacity=8 profile=uniform mode=mixed seed=5 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-uniform-mixed-o8-s6.json capacity=8 seed=6 ops_per_side=8 profile=uniform mode=mixed
+PASS capacity=8 profile=uniform mode=mixed seed=6 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-uniform-mixed-o8-s7.json capacity=8 seed=7 ops_per_side=8 profile=uniform mode=mixed
+PASS capacity=8 profile=uniform mode=mixed seed=7 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-uniform-mixed-o8-s8.json capacity=8 seed=8 ops_per_side=8 profile=uniform mode=mixed
+PASS capacity=8 profile=uniform mode=mixed seed=8 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-burst-scalar-o8-s1.json capacity=8 seed=1 ops_per_side=8 profile=burst mode=scalar
+PASS capacity=8 profile=burst mode=scalar seed=1 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-burst-scalar-o8-s2.json capacity=8 seed=2 ops_per_side=8 profile=burst mode=scalar
+PASS capacity=8 profile=burst mode=scalar seed=2 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-burst-scalar-o8-s3.json capacity=8 seed=3 ops_per_side=8 profile=burst mode=scalar
+PASS capacity=8 profile=burst mode=scalar seed=3 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-burst-scalar-o8-s4.json capacity=8 seed=4 ops_per_side=8 profile=burst mode=scalar
+PASS capacity=8 profile=burst mode=scalar seed=4 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-burst-scalar-o8-s5.json capacity=8 seed=5 ops_per_side=8 profile=burst mode=scalar
+PASS capacity=8 profile=burst mode=scalar seed=5 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-burst-scalar-o8-s6.json capacity=8 seed=6 ops_per_side=8 profile=burst mode=scalar
+PASS capacity=8 profile=burst mode=scalar seed=6 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-burst-scalar-o8-s7.json capacity=8 seed=7 ops_per_side=8 profile=burst mode=scalar
+PASS capacity=8 profile=burst mode=scalar seed=7 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-burst-scalar-o8-s8.json capacity=8 seed=8 ops_per_side=8 profile=burst mode=scalar
+PASS capacity=8 profile=burst mode=scalar seed=8 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-burst-mixed-o8-s1.json capacity=8 seed=1 ops_per_side=8 profile=burst mode=mixed
+PASS capacity=8 profile=burst mode=mixed seed=1 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-burst-mixed-o8-s2.json capacity=8 seed=2 ops_per_side=8 profile=burst mode=mixed
+PASS capacity=8 profile=burst mode=mixed seed=2 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-burst-mixed-o8-s3.json capacity=8 seed=3 ops_per_side=8 profile=burst mode=mixed
+PASS capacity=8 profile=burst mode=mixed seed=3 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-burst-mixed-o8-s4.json capacity=8 seed=4 ops_per_side=8 profile=burst mode=mixed
+PASS capacity=8 profile=burst mode=mixed seed=4 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-burst-mixed-o8-s5.json capacity=8 seed=5 ops_per_side=8 profile=burst mode=mixed
+PASS capacity=8 profile=burst mode=mixed seed=5 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-burst-mixed-o8-s6.json capacity=8 seed=6 ops_per_side=8 profile=burst mode=mixed
+PASS capacity=8 profile=burst mode=mixed seed=6 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-burst-mixed-o8-s7.json capacity=8 seed=7 ops_per_side=8 profile=burst mode=mixed
+PASS capacity=8 profile=burst mode=mixed seed=7 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-burst-mixed-o8-s8.json capacity=8 seed=8 ops_per_side=8 profile=burst mode=mixed
+PASS capacity=8 profile=burst mode=mixed seed=8 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-producer-heavy-scalar-o8-s1.json capacity=8 seed=1 ops_per_side=8 profile=producer-heavy mode=scalar
+PASS capacity=8 profile=producer-heavy mode=scalar seed=1 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-producer-heavy-scalar-o8-s2.json capacity=8 seed=2 ops_per_side=8 profile=producer-heavy mode=scalar
+PASS capacity=8 profile=producer-heavy mode=scalar seed=2 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-producer-heavy-scalar-o8-s3.json capacity=8 seed=3 ops_per_side=8 profile=producer-heavy mode=scalar
+PASS capacity=8 profile=producer-heavy mode=scalar seed=3 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-producer-heavy-scalar-o8-s4.json capacity=8 seed=4 ops_per_side=8 profile=producer-heavy mode=scalar
+PASS capacity=8 profile=producer-heavy mode=scalar seed=4 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-producer-heavy-scalar-o8-s5.json capacity=8 seed=5 ops_per_side=8 profile=producer-heavy mode=scalar
+PASS capacity=8 profile=producer-heavy mode=scalar seed=5 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-producer-heavy-scalar-o8-s6.json capacity=8 seed=6 ops_per_side=8 profile=producer-heavy mode=scalar
+PASS capacity=8 profile=producer-heavy mode=scalar seed=6 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-producer-heavy-scalar-o8-s7.json capacity=8 seed=7 ops_per_side=8 profile=producer-heavy mode=scalar
+PASS capacity=8 profile=producer-heavy mode=scalar seed=7 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-producer-heavy-scalar-o8-s8.json capacity=8 seed=8 ops_per_side=8 profile=producer-heavy mode=scalar
+PASS capacity=8 profile=producer-heavy mode=scalar seed=8 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-producer-heavy-mixed-o8-s1.json capacity=8 seed=1 ops_per_side=8 profile=producer-heavy mode=mixed
+PASS capacity=8 profile=producer-heavy mode=mixed seed=1 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-producer-heavy-mixed-o8-s2.json capacity=8 seed=2 ops_per_side=8 profile=producer-heavy mode=mixed
+PASS capacity=8 profile=producer-heavy mode=mixed seed=2 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-producer-heavy-mixed-o8-s3.json capacity=8 seed=3 ops_per_side=8 profile=producer-heavy mode=mixed
+PASS capacity=8 profile=producer-heavy mode=mixed seed=3 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-producer-heavy-mixed-o8-s4.json capacity=8 seed=4 ops_per_side=8 profile=producer-heavy mode=mixed
+PASS capacity=8 profile=producer-heavy mode=mixed seed=4 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-producer-heavy-mixed-o8-s5.json capacity=8 seed=5 ops_per_side=8 profile=producer-heavy mode=mixed
+PASS capacity=8 profile=producer-heavy mode=mixed seed=5 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-producer-heavy-mixed-o8-s6.json capacity=8 seed=6 ops_per_side=8 profile=producer-heavy mode=mixed
+PASS capacity=8 profile=producer-heavy mode=mixed seed=6 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-producer-heavy-mixed-o8-s7.json capacity=8 seed=7 ops_per_side=8 profile=producer-heavy mode=mixed
+PASS capacity=8 profile=producer-heavy mode=mixed seed=7 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-producer-heavy-mixed-o8-s8.json capacity=8 seed=8 ops_per_side=8 profile=producer-heavy mode=mixed
+PASS capacity=8 profile=producer-heavy mode=mixed seed=8 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-consumer-heavy-scalar-o8-s1.json capacity=8 seed=1 ops_per_side=8 profile=consumer-heavy mode=scalar
+PASS capacity=8 profile=consumer-heavy mode=scalar seed=1 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-consumer-heavy-scalar-o8-s2.json capacity=8 seed=2 ops_per_side=8 profile=consumer-heavy mode=scalar
+PASS capacity=8 profile=consumer-heavy mode=scalar seed=2 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-consumer-heavy-scalar-o8-s3.json capacity=8 seed=3 ops_per_side=8 profile=consumer-heavy mode=scalar
+PASS capacity=8 profile=consumer-heavy mode=scalar seed=3 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-consumer-heavy-scalar-o8-s4.json capacity=8 seed=4 ops_per_side=8 profile=consumer-heavy mode=scalar
+PASS capacity=8 profile=consumer-heavy mode=scalar seed=4 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-consumer-heavy-scalar-o8-s5.json capacity=8 seed=5 ops_per_side=8 profile=consumer-heavy mode=scalar
+PASS capacity=8 profile=consumer-heavy mode=scalar seed=5 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-consumer-heavy-scalar-o8-s6.json capacity=8 seed=6 ops_per_side=8 profile=consumer-heavy mode=scalar
+PASS capacity=8 profile=consumer-heavy mode=scalar seed=6 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-consumer-heavy-scalar-o8-s7.json capacity=8 seed=7 ops_per_side=8 profile=consumer-heavy mode=scalar
+PASS capacity=8 profile=consumer-heavy mode=scalar seed=7 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-consumer-heavy-scalar-o8-s8.json capacity=8 seed=8 ops_per_side=8 profile=consumer-heavy mode=scalar
+PASS capacity=8 profile=consumer-heavy mode=scalar seed=8 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-consumer-heavy-mixed-o8-s1.json capacity=8 seed=1 ops_per_side=8 profile=consumer-heavy mode=mixed
+PASS capacity=8 profile=consumer-heavy mode=mixed seed=1 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-consumer-heavy-mixed-o8-s2.json capacity=8 seed=2 ops_per_side=8 profile=consumer-heavy mode=mixed
+PASS capacity=8 profile=consumer-heavy mode=mixed seed=2 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-consumer-heavy-mixed-o8-s3.json capacity=8 seed=3 ops_per_side=8 profile=consumer-heavy mode=mixed
+PASS capacity=8 profile=consumer-heavy mode=mixed seed=3 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-consumer-heavy-mixed-o8-s4.json capacity=8 seed=4 ops_per_side=8 profile=consumer-heavy mode=mixed
+PASS capacity=8 profile=consumer-heavy mode=mixed seed=4 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-consumer-heavy-mixed-o8-s5.json capacity=8 seed=5 ops_per_side=8 profile=consumer-heavy mode=mixed
+PASS capacity=8 profile=consumer-heavy mode=mixed seed=5 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-consumer-heavy-mixed-o8-s6.json capacity=8 seed=6 ops_per_side=8 profile=consumer-heavy mode=mixed
+PASS capacity=8 profile=consumer-heavy mode=mixed seed=6 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-consumer-heavy-mixed-o8-s7.json capacity=8 seed=7 ops_per_side=8 profile=consumer-heavy mode=mixed
+PASS capacity=8 profile=consumer-heavy mode=mixed seed=7 ops_per_side=8 operations=16
+wrote 16 operations to /home/runner/work/Wait-Free/Wait-Free/verify/histories/corpus/c8-consumer-heavy-mixed-o8-s8.json capacity=8 seed=8 ops_per_side=8 profile=consumer-heavy mode=mixed
+PASS capacity=8 profile=consumer-heavy mode=mixed seed=8 ops_per_side=8 operations=16

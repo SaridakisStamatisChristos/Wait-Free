@@ -1,0 +1,7 @@
+[
+  {
+    "label": "same_llc",
+    "producer_cpu": 0,
+    "consumer_cpu": 1
+  }
+]

@@ -1,0 +1,81 @@
+{
+  "bootstrap_samples": 10000,
+  "bootstrap_seed": 20261009,
+  "cells": [
+    {
+      "capacity": 64,
+      "ci95_high": 1.0669298349312475,
+      "ci95_low": 0.9535234525729421,
+      "classification": "PASS",
+      "consumer_cpu": 1,
+      "cv": 0.18554376343020737,
+      "iqr_high": 1.042889222902084,
+      "iqr_low": 0.9528451785542043,
+      "median_ratio": 0.9973423890963719,
+      "n": 15,
+      "p05": 0.9299562311590504,
+      "p95": 1.3123512785686247,
+      "payload_bytes": 8,
+      "producer_cpu": 0,
+      "topology": "unspecified"
+    },
+    {
+      "capacity": 64,
+      "ci95_high": 1.0090092903427277,
+      "ci95_low": 0.9521918967029431,
+      "classification": "PASS",
+      "consumer_cpu": 1,
+      "cv": 0.06662693587734692,
+      "iqr_high": 1.0061398404053425,
+      "iqr_low": 0.9634137602007996,
+      "median_ratio": 1.0013348993392766,
+      "n": 15,
+      "p05": 0.8136193228310753,
+      "p95": 1.016474536651549,
+      "payload_bytes": 64,
+      "producer_cpu": 0,
+      "topology": "unspecified"
+    },
+    {
+      "capacity": 1024,
+      "ci95_high": 1.0431979013372576,
+      "ci95_low": 0.9494891548161546,
+      "classification": "PASS",
+      "consumer_cpu": 1,
+      "cv": 0.05007611822303609,
+      "iqr_high": 1.0363145957228443,
+      "iqr_low": 0.958517693273172,
+      "median_ratio": 0.9937455679139329,
+      "n": 15,
+      "p05": 0.9205786945890522,
+      "p95": 1.0645856628588188,
+      "payload_bytes": 8,
+      "producer_cpu": 0,
+      "topology": "unspecified"
+    },
+    {
+      "capacity": 1024,
+      "ci95_high": 1.0027120574177018,
+      "ci95_low": 0.9956198212353439,
+      "classification": "PASS",
+      "consumer_cpu": 1,
+      "cv": 0.005028743237709495,
+      "iqr_high": 1.002696581360083,
+      "iqr_low": 0.9964928473310924,
+      "median_ratio": 0.9993722911373487,
+      "n": 15,
+      "p05": 0.9931066897617074,
+      "p95": 1.0093850126127273,
+      "payload_bytes": 64,
+      "producer_cpu": 0,
+      "topology": "unspecified"
+    }
+  ],
+  "method": "paired_candidate_reference_throughput_ratio",
+  "policy": {
+    "fail_ci95_upper_lt": 0.98,
+    "fail_median_lt": 0.95,
+    "warn_median_lt": 0.98
+  },
+  "ratio": "candidate/reference"
+}

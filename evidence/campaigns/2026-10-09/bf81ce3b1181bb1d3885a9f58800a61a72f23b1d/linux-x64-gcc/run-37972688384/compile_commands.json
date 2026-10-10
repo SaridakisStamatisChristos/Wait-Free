@@ -1,0 +1,86 @@
+[
+{
+  "directory": "/home/runner/work/Wait-Free/Wait-Free/build/final",
+  "command": "/usr/bin/g++ -I/home/runner/work/Wait-Free/Wait-Free/bench -I/home/runner/work/Wait-Free/Wait-Free/include -O3 -DNDEBUG -std=gnu++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wold-style-cast -Wcast-align -Wundef -Werror -o CMakeFiles/bench_throughput.dir/bench/bench_throughput.cpp.o -c /home/runner/work/Wait-Free/Wait-Free/bench/bench_throughput.cpp",
+  "file": "/home/runner/work/Wait-Free/Wait-Free/bench/bench_throughput.cpp",
+  "output": "CMakeFiles/bench_throughput.dir/bench/bench_throughput.cpp.o"
+},
+{
+  "directory": "/home/runner/work/Wait-Free/Wait-Free/build/final",
+  "command": "/usr/bin/g++ -I/home/runner/work/Wait-Free/Wait-Free/bench -I/home/runner/work/Wait-Free/Wait-Free/include -O3 -DNDEBUG -std=gnu++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wold-style-cast -Wcast-align -Wundef -Werror -o CMakeFiles/bench_throughput.dir/bench/environment.cpp.o -c /home/runner/work/Wait-Free/Wait-Free/bench/environment.cpp",
+  "file": "/home/runner/work/Wait-Free/Wait-Free/bench/environment.cpp",
+  "output": "CMakeFiles/bench_throughput.dir/bench/environment.cpp.o"
+},
+{
+  "directory": "/home/runner/work/Wait-Free/Wait-Free/build/final",
+  "command": "/usr/bin/g++ -I/home/runner/work/Wait-Free/Wait-Free/bench -I/home/runner/work/Wait-Free/Wait-Free/include -O3 -DNDEBUG -std=gnu++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wold-style-cast -Wcast-align -Wundef -Werror -o CMakeFiles/bench_latency.dir/bench/bench_latency.cpp.o -c /home/runner/work/Wait-Free/Wait-Free/bench/bench_latency.cpp",
+  "file": "/home/runner/work/Wait-Free/Wait-Free/bench/bench_latency.cpp",
+  "output": "CMakeFiles/bench_latency.dir/bench/bench_latency.cpp.o"
+},
+{
+  "directory": "/home/runner/work/Wait-Free/Wait-Free/build/final",
+  "command": "/usr/bin/g++ -I/home/runner/work/Wait-Free/Wait-Free/bench -I/home/runner/work/Wait-Free/Wait-Free/include -O3 -DNDEBUG -std=gnu++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wold-style-cast -Wcast-align -Wundef -Werror -o CMakeFiles/bench_latency.dir/bench/environment.cpp.o -c /home/runner/work/Wait-Free/Wait-Free/bench/environment.cpp",
+  "file": "/home/runner/work/Wait-Free/Wait-Free/bench/environment.cpp",
+  "output": "CMakeFiles/bench_latency.dir/bench/environment.cpp.o"
+},
+{
+  "directory": "/home/runner/work/Wait-Free/Wait-Free/build/final",
+  "command": "/usr/bin/g++ -I/home/runner/work/Wait-Free/Wait-Free/bench -I/home/runner/work/Wait-Free/Wait-Free/include -O3 -DNDEBUG -std=gnu++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wold-style-cast -Wcast-align -Wundef -Werror -o CMakeFiles/bench_bursts.dir/bench/bench_bursts.cpp.o -c /home/runner/work/Wait-Free/Wait-Free/bench/bench_bursts.cpp",
+  "file": "/home/runner/work/Wait-Free/Wait-Free/bench/bench_bursts.cpp",
+  "output": "CMakeFiles/bench_bursts.dir/bench/bench_bursts.cpp.o"
+},
+{
+  "directory": "/home/runner/work/Wait-Free/Wait-Free/build/final",
+  "command": "/usr/bin/g++ -I/home/runner/work/Wait-Free/Wait-Free/bench -I/home/runner/work/Wait-Free/Wait-Free/include -O3 -DNDEBUG -std=gnu++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wold-style-cast -Wcast-align -Wundef -Werror -o CMakeFiles/bench_bursts.dir/bench/environment.cpp.o -c /home/runner/work/Wait-Free/Wait-Free/bench/environment.cpp",
+  "file": "/home/runner/work/Wait-Free/Wait-Free/bench/environment.cpp",
+  "output": "CMakeFiles/bench_bursts.dir/bench/environment.cpp.o"
+},
+{
+  "directory": "/home/runner/work/Wait-Free/Wait-Free/build/final",
+  "command": "/usr/bin/g++ -I/home/runner/work/Wait-Free/Wait-Free/bench -I/home/runner/work/Wait-Free/Wait-Free/include -O3 -DNDEBUG -std=gnu++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wold-style-cast -Wcast-align -Wundef -Werror -o CMakeFiles/bench_payload.dir/bench/bench_payload.cpp.o -c /home/runner/work/Wait-Free/Wait-Free/bench/bench_payload.cpp",
+  "file": "/home/runner/work/Wait-Free/Wait-Free/bench/bench_payload.cpp",
+  "output": "CMakeFiles/bench_payload.dir/bench/bench_payload.cpp.o"
+},
+{
+  "directory": "/home/runner/work/Wait-Free/Wait-Free/build/final",
+  "command": "/usr/bin/g++ -I/home/runner/work/Wait-Free/Wait-Free/bench -I/home/runner/work/Wait-Free/Wait-Free/include -O3 -DNDEBUG -std=gnu++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wold-style-cast -Wcast-align -Wundef -Werror -o CMakeFiles/bench_payload.dir/bench/environment.cpp.o -c /home/runner/work/Wait-Free/Wait-Free/bench/environment.cpp",
+  "file": "/home/runner/work/Wait-Free/Wait-Free/bench/environment.cpp",
+  "output": "CMakeFiles/bench_payload.dir/bench/environment.cpp.o"
+},
+{
+  "directory": "/home/runner/work/Wait-Free/Wait-Free/build/final",
+  "command": "/usr/bin/g++ -I/home/runner/work/Wait-Free/Wait-Free/bench -I/home/runner/work/Wait-Free/Wait-Free/include -O3 -DNDEBUG -std=gnu++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wold-style-cast -Wcast-align -Wundef -Werror -o CMakeFiles/bench_hotpath_variants.dir/bench/bench_hotpath_variants.cpp.o -c /home/runner/work/Wait-Free/Wait-Free/bench/bench_hotpath_variants.cpp",
+  "file": "/home/runner/work/Wait-Free/Wait-Free/bench/bench_hotpath_variants.cpp",
+  "output": "CMakeFiles/bench_hotpath_variants.dir/bench/bench_hotpath_variants.cpp.o"
+},
+{
+  "directory": "/home/runner/work/Wait-Free/Wait-Free/build/final",
+  "command": "/usr/bin/g++ -I/home/runner/work/Wait-Free/Wait-Free/bench -I/home/runner/work/Wait-Free/Wait-Free/include -O3 -DNDEBUG -std=gnu++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wold-style-cast -Wcast-align -Wundef -Werror -o CMakeFiles/bench_hotpath_variants.dir/bench/environment.cpp.o -c /home/runner/work/Wait-Free/Wait-Free/bench/environment.cpp",
+  "file": "/home/runner/work/Wait-Free/Wait-Free/bench/environment.cpp",
+  "output": "CMakeFiles/bench_hotpath_variants.dir/bench/environment.cpp.o"
+},
+{
+  "directory": "/home/runner/work/Wait-Free/Wait-Free/build/final",
+  "command": "/usr/bin/g++ -I/home/runner/work/Wait-Free/Wait-Free/bench -I/home/runner/work/Wait-Free/Wait-Free/include -O3 -DNDEBUG -std=gnu++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wold-style-cast -Wcast-align -Wundef -Werror -o CMakeFiles/bench_bulk.dir/bench/bench_bulk.cpp.o -c /home/runner/work/Wait-Free/Wait-Free/bench/bench_bulk.cpp",
+  "file": "/home/runner/work/Wait-Free/Wait-Free/bench/bench_bulk.cpp",
+  "output": "CMakeFiles/bench_bulk.dir/bench/bench_bulk.cpp.o"
+},
+{
+  "directory": "/home/runner/work/Wait-Free/Wait-Free/build/final",
+  "command": "/usr/bin/g++ -I/home/runner/work/Wait-Free/Wait-Free/bench -I/home/runner/work/Wait-Free/Wait-Free/include -O3 -DNDEBUG -std=gnu++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wold-style-cast -Wcast-align -Wundef -Werror -o CMakeFiles/bench_bulk.dir/bench/environment.cpp.o -c /home/runner/work/Wait-Free/Wait-Free/bench/environment.cpp",
+  "file": "/home/runner/work/Wait-Free/Wait-Free/bench/environment.cpp",
+  "output": "CMakeFiles/bench_bulk.dir/bench/environment.cpp.o"
+},
+{
+  "directory": "/home/runner/work/Wait-Free/Wait-Free/build/final",
+  "command": "/usr/bin/g++ -I/home/runner/work/Wait-Free/Wait-Free/bench -I/home/runner/work/Wait-Free/Wait-Free/include -isystem /home/runner/work/Wait-Free/Wait-Free/build/final/_deps/rigtorp_spsc-src/include -isystem /home/runner/work/Wait-Free/Wait-Free/build/final/_deps/moodycamel_readerwriterqueue-src -isystem /home/runner/work/Wait-Free/Wait-Free/build/final/_deps/drogalis_spsc-src/include -O3 -DNDEBUG -std=gnu++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wold-style-cast -Wcast-align -Wundef -Werror -o CMakeFiles/bench_compare.dir/bench/bench_compare.cpp.o -c /home/runner/work/Wait-Free/Wait-Free/bench/bench_compare.cpp",
+  "file": "/home/runner/work/Wait-Free/Wait-Free/bench/bench_compare.cpp",
+  "output": "CMakeFiles/bench_compare.dir/bench/bench_compare.cpp.o"
+},
+{
+  "directory": "/home/runner/work/Wait-Free/Wait-Free/build/final",
+  "command": "/usr/bin/g++ -I/home/runner/work/Wait-Free/Wait-Free/bench -I/home/runner/work/Wait-Free/Wait-Free/include -isystem /home/runner/work/Wait-Free/Wait-Free/build/final/_deps/rigtorp_spsc-src/include -isystem /home/runner/work/Wait-Free/Wait-Free/build/final/_deps/moodycamel_readerwriterqueue-src -isystem /home/runner/work/Wait-Free/Wait-Free/build/final/_deps/drogalis_spsc-src/include -O3 -DNDEBUG -std=gnu++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wold-style-cast -Wcast-align -Wundef -Werror -o CMakeFiles/bench_compare.dir/bench/environment.cpp.o -c /home/runner/work/Wait-Free/Wait-Free/bench/environment.cpp",
+  "file": "/home/runner/work/Wait-Free/Wait-Free/bench/environment.cpp",
+  "output": "CMakeFiles/bench_compare.dir/bench/environment.cpp.o"
+}
+]

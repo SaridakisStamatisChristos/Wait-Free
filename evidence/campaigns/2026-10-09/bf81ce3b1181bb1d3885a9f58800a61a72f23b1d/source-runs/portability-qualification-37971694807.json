@@ -1,0 +1,89 @@
+{
+  "artifacts": [
+    {
+      "created_at": "2026-10-09T18:13:48Z",
+      "destination": "windows-x64-msvc/run-37971694807",
+      "digest": "sha256:1e14bc2208aaa4f3ecf1592ee1a0344fd019825f0363bc4c1694380b319a92b0",
+      "downloaded_archive_sha256": "1e14bc2208aaa4f3ecf1592ee1a0344fd019825f0363bc4c1694380b319a92b0",
+      "expired": false,
+      "expires_at": "2027-01-07T18:12:46Z",
+      "id": 11636830040,
+      "name": "portability-windows-x64-msvc",
+      "size_in_bytes": 1352,
+      "updated_at": "2026-10-09T18:13:48Z"
+    },
+    {
+      "created_at": "2026-10-09T18:13:31Z",
+      "destination": "macos-intel-appleclang/run-37971694807",
+      "digest": "sha256:48a91c9304348ac58e66978c5ba1cab7fbce09c7ef830b4bef55baf5ae0d6a74",
+      "downloaded_archive_sha256": "48a91c9304348ac58e66978c5ba1cab7fbce09c7ef830b4bef55baf5ae0d6a74",
+      "expired": false,
+      "expires_at": "2027-01-07T18:12:46Z",
+      "id": 11636715958,
+      "name": "portability-macos-intel-appleclang",
+      "size_in_bytes": 986,
+      "updated_at": "2026-10-09T18:13:31Z"
+    },
+    {
+      "created_at": "2026-10-09T18:14:29Z",
+      "destination": "windows-arm64-msvc/run-37971694807",
+      "digest": "sha256:5001c7ff4e8d1b5bc1d06e3b01bf944b47feb0b69667d093b61f31cc318fa412",
+      "downloaded_archive_sha256": "5001c7ff4e8d1b5bc1d06e3b01bf944b47feb0b69667d093b61f31cc318fa412",
+      "expired": false,
+      "expires_at": "2027-01-07T18:12:46Z",
+      "id": 11636571160,
+      "name": "portability-windows-arm64-msvc",
+      "size_in_bytes": 1363,
+      "updated_at": "2026-10-09T18:14:29Z"
+    },
+    {
+      "created_at": "2026-10-09T18:13:27Z",
+      "destination": "macos-arm64-appleclang/run-37971694807",
+      "digest": "sha256:cb088a2cfe76f36191f8c346805be7cbe637287851c0e19c8d57b8e592791ba9",
+      "downloaded_archive_sha256": "cb088a2cfe76f36191f8c346805be7cbe637287851c0e19c8d57b8e592791ba9",
+      "expired": false,
+      "expires_at": "2027-01-07T18:12:46Z",
+      "id": 11636300554,
+      "name": "portability-macos-arm64-appleclang",
+      "size_in_bytes": 997,
+      "updated_at": "2026-10-09T18:13:27Z"
+    },
+    {
+      "created_at": "2026-10-09T18:13:09Z",
+      "destination": "linux-arm64-gcc/run-37971694807",
+      "digest": "sha256:6e38dcd0bc7bec22583e2e420e70dabb6e3f14545e44a2505344a09469b4d679",
+      "downloaded_archive_sha256": "6e38dcd0bc7bec22583e2e420e70dabb6e3f14545e44a2505344a09469b4d679",
+      "expired": false,
+      "expires_at": "2027-01-07T18:12:46Z",
+      "id": 11635563294,
+      "name": "portability-linux-arm64-gcc",
+      "size_in_bytes": 953,
+      "updated_at": "2026-10-09T18:13:09Z"
+    },
+    {
+      "created_at": "2026-10-09T18:13:34Z",
+      "destination": "linux-arm64-clang/run-37971694807",
+      "digest": "sha256:34f244158bc95667ce63b7553376bd0927ecb717b78dc3956a803ea763d55404",
+      "downloaded_archive_sha256": "34f244158bc95667ce63b7553376bd0927ecb717b78dc3956a803ea763d55404",
+      "expired": false,
+      "expires_at": "2027-01-07T18:12:46Z",
+      "id": 11635029544,
+      "name": "portability-linux-arm64-clang",
+      "size_in_bytes": 950,
+      "updated_at": "2026-10-09T18:13:34Z"
+    }
+  ],
+  "conclusion": "success",
+  "created_at": "2026-10-09T18:12:46Z",
+  "event": "pull_request",
+  "head_branch": "ops/pr18-actions-dispatch-fallback",
+  "head_sha": "bf81ce3b1181bb1d3885a9f58800a61a72f23b1d",
+  "html_url": "https://github.com/SaridakisStamatisChristos/Wait-Free/actions/runs/37971694807",
+  "id": 37971694807,
+  "name": "Portability Qualification",
+  "run_attempt": 1,
+  "run_number": 41,
+  "status": "completed",
+  "updated_at": "2026-10-09T18:14:35Z",
+  "workflow_id": 379656764
+}

@@ -1,0 +1,88 @@
+{
+  "allowed_full_events": [
+    "create",
+    "workflow_dispatch"
+  ],
+  "performance_runs": [
+    {
+      "artifact_names": [
+        "hosted-performance-linux-arm64-clang",
+        "hosted-performance-linux-arm64-gcc",
+        "hosted-performance-linux-x64-clang",
+        "hosted-performance-linux-x64-gcc"
+      ],
+      "event": "create",
+      "head_branch": "final-campaign/run-2",
+      "run_id": 37972045862,
+      "run_index": 2
+    },
+    {
+      "artifact_names": [
+        "hosted-performance-linux-arm64-clang",
+        "hosted-performance-linux-arm64-gcc",
+        "hosted-performance-linux-x64-clang",
+        "hosted-performance-linux-x64-gcc"
+      ],
+      "event": "create",
+      "head_branch": "final-campaign/run-3",
+      "run_id": 37972422306,
+      "run_index": 3
+    },
+    {
+      "artifact_names": [
+        "hosted-performance-linux-arm64-clang",
+        "hosted-performance-linux-arm64-gcc",
+        "hosted-performance-linux-x64-clang",
+        "hosted-performance-linux-x64-gcc"
+      ],
+      "event": "create",
+      "head_branch": "final-campaign/run-4",
+      "run_id": 37972688384,
+      "run_index": 4
+    }
+  ],
+  "performance_workflow": "Final Performance Campaign",
+  "qualification_runs": {
+    "CI": [
+      37971694229
+    ],
+    "Fuzz Smoke": [
+      37971694275
+    ],
+    "Model Check": [
+      37971694386
+    ],
+    "Performance Regression Gate": [
+      37971694309
+    ],
+    "Portability Qualification": [
+      37971694807
+    ],
+    "Sanitizers": [
+      37971694396
+    ]
+  },
+  "repository": "SaridakisStamatisChristos/Wait-Free",
+  "required_qualification_workflows": [
+    "CI",
+    "Fuzz Smoke",
+    "Model Check",
+    "Performance Regression Gate",
+    "Portability Qualification",
+    "Sanitizers"
+  ],
+  "schema_version": 1,
+  "selected_run_ids": [
+    37971694229,
+    37971694275,
+    37971694309,
+    37971694386,
+    37971694396,
+    37971694807,
+    37972045862,
+    37972422306,
+    37972688384
+  ],
+  "source_commit": "bf81ce3b1181bb1d3885a9f58800a61a72f23b1d",
+  "status": "PASS"
+}

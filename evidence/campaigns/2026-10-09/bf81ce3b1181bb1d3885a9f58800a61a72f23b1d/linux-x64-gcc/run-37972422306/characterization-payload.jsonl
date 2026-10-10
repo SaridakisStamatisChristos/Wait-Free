@@ -1,0 +1,4 @@
+{"benchmark":"payload","payload":"u64","payload_bytes":8,"capacity":1024,"producer_cpu":0,"consumer_cpu":1,"topology":"unspecified","transfers_per_second":1.34984e+08}
+{"benchmark":"payload","payload":"16B","payload_bytes":16,"capacity":1024,"producer_cpu":0,"consumer_cpu":1,"topology":"unspecified","transfers_per_second":1.30013e+08}
+{"benchmark":"payload","payload":"64B","payload_bytes":64,"capacity":1024,"producer_cpu":0,"consumer_cpu":1,"topology":"unspecified","transfers_per_second":1.08196e+08}
+{"benchmark":"payload","payload":"256B","payload_bytes":256,"capacity":1024,"producer_cpu":0,"consumer_cpu":1,"topology":"unspecified","transfers_per_second":6.06787e+07}

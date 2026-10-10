@@ -1,0 +1,9 @@
+github_sha=1f2f2062c6a654f0ebb2aca719835ecd874e7402
+github_run_id=37971694807
+runner_name=GitHub Actions 1000025284
+runner_os=Linux
+runner_arch=ARM64
+qualification=linux-arm64-gcc
+cmake version 3.31.6
+g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+Linux runnervmy3dvn 6.17.0-1022-azure #22-Ubuntu SMP Mon Jul 27 17:12:01 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux

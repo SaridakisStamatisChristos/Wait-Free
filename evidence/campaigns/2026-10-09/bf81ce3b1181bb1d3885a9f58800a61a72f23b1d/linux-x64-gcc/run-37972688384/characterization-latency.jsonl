@@ -1,0 +1,1 @@
+{"benchmark":"rtt_latency","samples":100000,"producer_cpu":0,"consumer_cpu":1,"topology":"unspecified","median_ns":106,"p90_ns":121,"p95_ns":125,"p99_ns":136,"p999_ns":158,"min_ns":58,"max_ns":22465,"environment":{"hardware_threads":4,"kernel":"6.17.0-1022-azure","cpu":"model name\t: INTEL(R) XEON(R) PLATINUM 8573C","compiler":"gcc","compiler_version":"13.3.0"}}

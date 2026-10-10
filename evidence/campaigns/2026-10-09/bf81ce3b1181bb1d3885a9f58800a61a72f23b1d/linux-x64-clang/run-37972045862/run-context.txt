@@ -1,0 +1,16 @@
+github_sha=bf81ce3b1181bb1d3885a9f58800a61a72f23b1d
+github_run_id=37972045862
+github_run_attempt=1
+event_name=create
+trigger_ref=final-campaign/run-2
+campaign_run_index=2
+runner_name=GitHub Actions 1000025307
+runner_os=Linux
+runner_arch=X64
+runner_image_os=ubuntu24
+runner_image_version=20261004.327.1
+matrix_arch=linux-x64
+matrix_compiler=clang
+compiler_path=/usr/bin/clang++
+stdlib=unknown
+compiler_version=Ubuntu clang version 18.1.3 (1ubuntu1)

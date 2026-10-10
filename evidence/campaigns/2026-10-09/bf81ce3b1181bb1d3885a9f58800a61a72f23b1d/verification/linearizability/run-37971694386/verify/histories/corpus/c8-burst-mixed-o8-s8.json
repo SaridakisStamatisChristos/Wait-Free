@@ -1,0 +1,25 @@
+{
+  "capacity": 8,
+  "seed": 8,
+  "ops_per_side": 8,
+  "profile": "burst",
+  "mode": "mixed",
+  "operations": [
+    {"id":1,"client":0,"operation":"push","value":1,"values":[],"requested":0,"invoke":1,"complete":2,"success":true,"result":0,"count":0,"results":[]},
+    {"id":2,"client":0,"operation":"push_bulk","value":0,"values":[2,3,4],"requested":3,"invoke":3,"complete":4,"success":true,"result":0,"count":3,"results":[]},
+    {"id":3,"client":1,"operation":"pop_bulk","value":0,"values":[],"requested":2,"invoke":5,"complete":18,"success":true,"result":0,"count":2,"results":[1,2]},
+    {"id":4,"client":0,"operation":"push","value":5,"values":[],"requested":0,"invoke":6,"complete":7,"success":true,"result":0,"count":0,"results":[]},
+    {"id":5,"client":0,"operation":"push_bulk","value":0,"values":[6,7,8],"requested":3,"invoke":8,"complete":9,"success":true,"result":0,"count":3,"results":[]},
+    {"id":6,"client":0,"operation":"push","value":9,"values":[],"requested":0,"invoke":10,"complete":11,"success":false,"result":0,"count":0,"results":[]},
+    {"id":7,"client":0,"operation":"push_bulk","value":0,"values":[10,11,12],"requested":3,"invoke":12,"complete":13,"success":false,"result":0,"count":0,"results":[]},
+    {"id":8,"client":0,"operation":"push","value":13,"values":[],"requested":0,"invoke":14,"complete":15,"success":false,"result":0,"count":0,"results":[]},
+    {"id":9,"client":0,"operation":"push_bulk","value":0,"values":[14,15,16],"requested":3,"invoke":16,"complete":17,"success":true,"result":0,"count":2,"results":[]},
+    {"id":10,"client":1,"operation":"consume","value":0,"values":[],"requested":0,"invoke":19,"complete":20,"success":true,"result":3,"count":0,"results":[]},
+    {"id":11,"client":1,"operation":"pop","value":0,"values":[],"requested":0,"invoke":21,"complete":22,"success":true,"result":4,"count":0,"results":[]},
+    {"id":12,"client":1,"operation":"pop_bulk","value":0,"values":[],"requested":3,"invoke":23,"complete":24,"success":true,"result":0,"count":3,"results":[5,6,7]},
+    {"id":13,"client":1,"operation":"consume","value":0,"values":[],"requested":0,"invoke":25,"complete":26,"success":true,"result":8,"count":0,"results":[]},
+    {"id":14,"client":1,"operation":"pop","value":0,"values":[],"requested":0,"invoke":27,"complete":28,"success":true,"result":14,"count":0,"results":[]},
+    {"id":15,"client":1,"operation":"pop_bulk","value":0,"values":[],"requested":2,"invoke":29,"complete":30,"success":true,"result":0,"count":1,"results":[15]},
+    {"id":16,"client":1,"operation":"consume","value":0,"values":[],"requested":0,"invoke":31,"complete":32,"success":false,"result":0,"count":0,"results":[]}
+  ]
+}
