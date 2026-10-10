@@ -1,0 +1,182 @@
+name: Forensic Policy Qualification
+
+on:
+  pull_request:
+    paths:
+      - 'bench/bench_policy_compare.cpp'
+      - 'bench/experimental_policy_variants.hpp'
+      - 'bench/experimental_spsc_variants.hpp'
+      - 'include/veriqueue/spsc_queue.hpp'
+      - 'tools/run_comparator_campaign.py'
+      - 'tools/analyze_comparator_campaign.py'
+      - 'tools/analyze_policy_campaign.py'
+      - '.github/workflows/forensic-policy-qualification.yml'
+  workflow_dispatch:
+    inputs:
+      transfers:
+        description: Transfers per measured process
+        required: true
+        default: '500000'
+        type: string
+      warmups:
+        description: Warmup rounds per cell
+        required: true
+        default: '3'
+        type: string
+      repetitions:
+        description: Measured rounds per cell
+        required: true
+        default: '20'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: forensic-policy-qualification-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+  POLICY_CANDIDATES: veriqueue,single_owner_cursor,cached_limit,split_control,split_cached_limit,raw_cached_seq,raw_cached_global,raw_cached_tiled,typed_cached_seq,typed_cached_tiled,memcpy_cached_seq,memcpy_cached_tiled
+  POLICY_EXTERNALS: rigtorp,boost_lockfree,moodycamel,drogalis
+  POLICY_IMPLEMENTATIONS: veriqueue,single_owner_cursor,cached_limit,split_control,split_cached_limit,raw_cached_seq,raw_cached_global,raw_cached_tiled,typed_cached_seq,typed_cached_tiled,memcpy_cached_seq,memcpy_cached_tiled,rigtorp,boost_lockfree,moodycamel,drogalis
+
+jobs:
+  compare:
+    name: ${{ matrix.runner }} / ${{ matrix.compiler }} / cap-${{ matrix.capacity }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+        compiler: [gcc, clang]
+        capacity: [2, 64, 256, 1024, 65536]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install benchmark dependencies
+        run: sudo apt-get update && sudo apt-get install -y ninja-build libboost-dev clang
+      - name: Resolve lane metadata
+        id: meta
+        shell: bash
+        run: |
+          if [[ "${{ matrix.runner }}" == "ubuntu-24.04-arm" ]]; then
+            arch=arm64
+            arch_id=2
+          else
+            arch=x64
+            arch_id=1
+          fi
+          if [[ "${{ matrix.compiler }}" == "gcc" ]]; then
+            cc=gcc
+            cxx=g++
+            compiler_id=1
+          else
+            cc=clang
+            cxx=clang++
+            compiler_id=2
+          fi
+          lane="${arch}-${{ matrix.compiler }}"
+          seed=$((2026101200 + arch_id * 100000 + compiler_id * 10000 + ${{ matrix.capacity }}))
+          echo "arch=$arch" >> "$GITHUB_OUTPUT"
+          echo "cc=$cc" >> "$GITHUB_OUTPUT"
+          echo "cxx=$cxx" >> "$GITHUB_OUTPUT"
+          echo "lane=$lane" >> "$GITHUB_OUTPUT"
+          echo "seed=$seed" >> "$GITHUB_OUTPUT"
+      - name: Fetch pinned comparator sources through CMake
+        env:
+          CC: ${{ steps.meta.outputs.cc }}
+          CXX: ${{ steps.meta.outputs.cxx }}
+        run: |
+          cmake -S . -B build/forensic -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DVERIQUEUE_BUILD_TESTS=OFF \
+            -DVERIQUEUE_BUILD_STRESS=OFF \
+            -DVERIQUEUE_BUILD_BENCHMARKS=OFF \
+            -DVERIQUEUE_BUILD_BASELINES=ON
+      - name: Compile forensic comparator
+        env:
+          CXX: ${{ steps.meta.outputs.cxx }}
+        run: |
+          "$CXX" -std=c++20 -O3 -DNDEBUG -pthread \
+            -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wold-style-cast -Wcast-align -Wundef -Werror \
+            -DVERIQUEUE_POLICY_CAPACITY=${{ matrix.capacity }} \
+            -Iinclude -Ibench \
+            -isystem build/forensic/_deps/rigtorp_spsc-src/include \
+            -isystem build/forensic/_deps/moodycamel_readerwriterqueue-src \
+            -isystem build/forensic/_deps/drogalis_spsc-src/include \
+            bench/bench_policy_compare.cpp bench/environment.cpp \
+            -o build/forensic/bench_policy_compare
+      - name: Run full randomized policy-vs-external campaign
+        env:
+          TRANSFERS: ${{ github.event_name == 'workflow_dispatch' && inputs.transfers || '500000' }}
+          WARMUPS: ${{ github.event_name == 'workflow_dispatch' && inputs.warmups || '3' }}
+          REPETITIONS: ${{ github.event_name == 'workflow_dispatch' && inputs.repetitions || '20' }}
+        run: |
+          output="evidence/policy-qualification/raw/${{ steps.meta.outputs.lane }}-cap${{ matrix.capacity }}.jsonl"
+          python tools/run_comparator_campaign.py \
+            --program build/forensic/bench_policy_compare \
+            --capacity "${{ matrix.capacity }}" \
+            --payloads 8,16,64,256 \
+            --implementations "$POLICY_IMPLEMENTATIONS" \
+            --transfers "$TRANSFERS" \
+            --warmups "$WARMUPS" \
+            --repetitions "$REPETITIONS" \
+            --seed "${{ steps.meta.outputs.seed }}" \
+            --lane "${{ steps.meta.outputs.lane }}" \
+            --architecture "${{ steps.meta.outputs.arch }}" \
+            --compiler "${{ matrix.compiler }}" \
+            --source-commit "${{ env.SOURCE_COMMIT }}" \
+            --output "$output"
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: policy-qualification-${{ steps.meta.outputs.lane }}-cap${{ matrix.capacity }}
+          path: evidence/policy-qualification/raw/*.jsonl
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate:
+    name: aggregate-full-policy-results
+    needs: compare
+    if: ${{ always() && needs.compare.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: policy-qualification-*
+          path: evidence/policy-qualification/shards
+          merge-multiple: true
+      - name: Analyze full development matrix
+        run: |
+          python tools/analyze_policy_campaign.py evidence/policy-qualification/shards \
+            --candidates "$POLICY_CANDIDATES" \
+            --externals "$POLICY_EXTERNALS" \
+            --json-output evidence/policy-qualification/summary.json \
+            --markdown-output evidence/policy-qualification/summary.md \
+            --csv-output evidence/policy-qualification/cells.csv \
+            --bootstrap-seed 20261012 \
+            --bootstrap-samples 20000
+          cat evidence/policy-qualification/summary.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: policy-qualification-summary
+          path: |
+            evidence/policy-qualification/summary.json
+            evidence/policy-qualification/summary.md
+            evidence/policy-qualification/cells.csv
+          if-no-files-found: error
+          retention-days: 90
