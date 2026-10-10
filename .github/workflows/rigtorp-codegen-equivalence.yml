@@ -178,7 +178,7 @@ jobs:
         with:
           ref: ${{ env.SOURCE_COMMIT }}
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y ninja-build clang
+        run: sudo apt-get update && sudo apt-get install -y ninja-build libboost-dev clang
       - name: Select compiler
         id: compiler
         shell: bash
