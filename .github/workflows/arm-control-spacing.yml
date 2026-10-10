@@ -1,0 +1,153 @@
+name: ARM Control Spacing
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/arm-control-spacing.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+  CANDIDATES: veriqueue,veriqueue256
+  EXTERNALS: rigtorp,boost_lockfree,moodycamel,drogalis
+  IMPLEMENTATIONS: veriqueue,veriqueue256,rigtorp,boost_lockfree,moodycamel,drogalis
+
+jobs:
+  compare:
+    name: arm64 / ${{ matrix.compiler }} / cap-${{ matrix.capacity }}
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+        capacity: [64, 256, 1024, 65536]
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y ninja-build libboost-dev clang
+      - name: Select compiler
+        id: compiler
+        shell: bash
+        run: |
+          if [[ "${{ matrix.compiler }}" == "gcc" ]]; then
+            echo "cc=gcc" >> "$GITHUB_OUTPUT"
+            echo "cxx=g++" >> "$GITHUB_OUTPUT"
+            echo "id=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "cc=clang" >> "$GITHUB_OUTPUT"
+            echo "cxx=clang++" >> "$GITHUB_OUTPUT"
+            echo "id=2" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Fetch pinned comparators
+        env:
+          CC: ${{ steps.compiler.outputs.cc }}
+          CXX: ${{ steps.compiler.outputs.cxx }}
+        run: |
+          cmake -S . -B build/spacing -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DVERIQUEUE_BUILD_TESTS=OFF \
+            -DVERIQUEUE_BUILD_STRESS=OFF \
+            -DVERIQUEUE_BUILD_BENCHMARKS=OFF \
+            -DVERIQUEUE_BUILD_BASELINES=ON
+      - name: Generate paired 64/256 comparator
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          source = Path('bench/bench_compare.cpp').read_text()
+          needle = '    if (implementation == "rigtorp") {'
+          insert = '''    if (implementation == "veriqueue256") {
+              auto q = std::make_unique<
+                  veriqueue::spsc_queue<Payload, Capacity, 256>>();
+              return run_pair<sizeof(Payload)>(
+                  [&](const Payload& value) { return q->try_push(value); },
+                  [&](Payload& out) { return q->try_pop(out); },
+                  transfers, cpus.producer, cpus.consumer);
+          }
+          '''
+          if needle not in source:
+              raise SystemExit('insertion point not found')
+          source = source.replace(needle, insert + needle, 1)
+          Path('build/spacing/bench_compare_spacing.cpp').write_text(source)
+          PY
+      - name: Compile comparator
+        env:
+          CXX: ${{ steps.compiler.outputs.cxx }}
+        run: |
+          "$CXX" -std=c++20 -O3 -DNDEBUG -pthread \
+            -Wall -Wextra -Wpedantic -Wconversion -Wshadow \
+            -Wold-style-cast -Wcast-align -Wundef -Werror \
+            -Iinclude -Ibench \
+            -isystem build/spacing/_deps/rigtorp_spsc-src/include \
+            -isystem build/spacing/_deps/moodycamel_readerwriterqueue-src \
+            -isystem build/spacing/_deps/drogalis_spsc-src/include \
+            build/spacing/bench_compare_spacing.cpp bench/environment.cpp \
+            -o build/spacing/bench_compare_spacing
+      - name: Run randomized paired campaign
+        run: |
+          seed=$((2026104000 + ${{ steps.compiler.outputs.id }} * 10000 + ${{ matrix.capacity }}))
+          output="evidence/arm-spacing/raw/arm64-${{ matrix.compiler }}-cap${{ matrix.capacity }}.jsonl"
+          python tools/run_comparator_campaign.py \
+            --program build/spacing/bench_compare_spacing \
+            --capacity "${{ matrix.capacity }}" \
+            --payloads 8,16,64,256 \
+            --implementations "$IMPLEMENTATIONS" \
+            --transfers 1000000 \
+            --warmups 5 \
+            --repetitions 50 \
+            --seed "$seed" \
+            --lane "arm64-${{ matrix.compiler }}" \
+            --architecture arm64 \
+            --compiler "${{ matrix.compiler }}" \
+            --source-commit "$SOURCE_COMMIT" \
+            --output "$output"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arm-spacing-${{ matrix.compiler }}-cap${{ matrix.capacity }}
+          path: evidence/arm-spacing/raw/*.jsonl
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate:
+    name: aggregate-arm-spacing
+    needs: compare
+    if: ${{ always() && needs.compare.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: arm-spacing-*
+          path: evidence/arm-spacing/shards
+          merge-multiple: true
+      - name: Analyze
+        run: |
+          python tools/analyze_policy_campaign.py evidence/arm-spacing/shards \
+            --candidates "$CANDIDATES" \
+            --externals "$EXTERNALS" \
+            --json-output evidence/arm-spacing/summary.json \
+            --markdown-output evidence/arm-spacing/summary.md \
+            --csv-output evidence/arm-spacing/cells.csv \
+            --bootstrap-seed 20261040 \
+            --bootstrap-samples 20000
+          cat evidence/arm-spacing/summary.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arm-spacing-summary
+          path: evidence/arm-spacing
+          if-no-files-found: error
+          retention-days: 90
