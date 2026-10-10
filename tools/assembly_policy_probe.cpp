@@ -1,4 +1,5 @@
 #include "experimental_policy_variants.hpp"
+#include "experimental_spsc_variants.hpp"
 #include "veriqueue/spsc_queue.hpp"
 
 #include <boost/lockfree/spsc_queue.hpp>
@@ -26,12 +27,18 @@ struct payload final {
 #define DEFINE_SIZE_WRAPPERS(Suffix, Bytes) \
     using payload_##Suffix = payload<Bytes>; \
     using vq_##Suffix = veriqueue::spsc_queue<payload_##Suffix, 1024>; \
+    using split_##Suffix = vqbench::experimental::split_control_queue<payload_##Suffix, 1024, false>; \
+    using split_cached_##Suffix = vqbench::experimental::split_control_queue<payload_##Suffix, 1024, true>; \
     using raw_seq_##Suffix = vqbench::experimental::policy::raw_cached_seq<payload_##Suffix, 1024>; \
     using raw_tiled_##Suffix = vqbench::experimental::policy::raw_cached_tiled<payload_##Suffix, 1024>; \
     using typed_seq_##Suffix = vqbench::experimental::policy::typed_cached_seq<payload_##Suffix, 1024>; \
     using memcpy_seq_##Suffix = vqbench::experimental::policy::memcpy_cached_seq<payload_##Suffix, 1024>; \
     extern "C" VQ_NOINLINE bool vq_push_##Suffix(vq_##Suffix& q, const payload_##Suffix& v) { return q.try_push(v); } \
     extern "C" VQ_NOINLINE bool vq_pop_##Suffix(vq_##Suffix& q, payload_##Suffix& v) { return q.try_pop(v); } \
+    extern "C" VQ_NOINLINE bool split_push_##Suffix(split_##Suffix& q, const payload_##Suffix& v) { return q.try_push(v); } \
+    extern "C" VQ_NOINLINE bool split_pop_##Suffix(split_##Suffix& q, payload_##Suffix& v) { return q.try_pop(v); } \
+    extern "C" VQ_NOINLINE bool split_cached_push_##Suffix(split_cached_##Suffix& q, const payload_##Suffix& v) { return q.try_push(v); } \
+    extern "C" VQ_NOINLINE bool split_cached_pop_##Suffix(split_cached_##Suffix& q, payload_##Suffix& v) { return q.try_pop(v); } \
     extern "C" VQ_NOINLINE bool raw_seq_push_##Suffix(raw_seq_##Suffix& q, const payload_##Suffix& v) { return q.try_push(v); } \
     extern "C" VQ_NOINLINE bool raw_seq_pop_##Suffix(raw_seq_##Suffix& q, payload_##Suffix& v) { return q.try_pop(v); } \
     extern "C" VQ_NOINLINE bool raw_tiled_push_##Suffix(raw_tiled_##Suffix& q, const payload_##Suffix& v) { return q.try_push(v); } \
