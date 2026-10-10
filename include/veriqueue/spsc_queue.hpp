@@ -264,9 +264,17 @@ public:
         const std::size_t count =
             (std::min)(values.size(), static_cast<std::size_t>(available));
 
-        for (std::size_t i = 0; i < count; ++i) {
-            std::construct_at(slot_for(tail).storage_ptr(), values[i]);
-            ++tail;
+        if constexpr (use_gcc_arm64_8b_bulk_hybrid) {
+            for (std::size_t i = 0; i < count; ++i) {
+                std::construct_at(
+                    slots_[static_cast<std::size_t>(tail & mask_index)].storage_ptr(), values[i]);
+                ++tail;
+            }
+        } else {
+            for (std::size_t i = 0; i < count; ++i) {
+                std::construct_at(slot_for(tail).storage_ptr(), values[i]);
+                ++tail;
+            }
         }
 
 #if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
@@ -342,11 +350,21 @@ public:
 
         const std::size_t count =
             (std::min)(output.size(), static_cast<std::size_t>(available));
-        for (std::size_t i = 0; i < count; ++i) {
-            T* const source = slot_for(head).live_ptr();
-            output[i] = std::move(*source);
-            std::destroy_at(source);
-            ++head;
+        if constexpr (use_gcc_arm64_8b_bulk_hybrid) {
+            for (std::size_t i = 0; i < count; ++i) {
+                T* const source =
+                    slots_[static_cast<std::size_t>(head & mask_index)].live_ptr();
+                output[i] = std::move(*source);
+                std::destroy_at(source);
+                ++head;
+            }
+        } else {
+            for (std::size_t i = 0; i < count; ++i) {
+                T* const source = slot_for(head).live_ptr();
+                output[i] = std::move(*source);
+                std::destroy_at(source);
+                ++head;
+            }
         }
 
 #if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
