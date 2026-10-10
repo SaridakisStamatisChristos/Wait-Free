@@ -3,14 +3,15 @@
 #include "veriqueue/detail/slot.hpp"
 
 #include <array>
-#include <bit>
 #include <atomic>
+#include <bit>
 #include <concepts>
 #include <cstddef>
 #include <cstring>
 #include <limits>
 #include <memory>
 #include <type_traits>
+#include <utility>
 
 namespace vqbench::experimental::policy {
 
