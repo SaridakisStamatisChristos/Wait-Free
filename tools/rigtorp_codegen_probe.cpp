@@ -46,6 +46,7 @@ struct probe_payload final {
 #define VQ_CASE(CAP, BYTES) \
     VQ_PROBE(production, CAP, BYTES, veriqueue::spsc_queue) \
     VQ_PROBE(dynamic_raw, CAP, BYTES, vqbench::experimental::rigtorp_codegen::dynamic_raw_queue) \
+    VQ_PROBE(dynamic_ctrl64, CAP, BYTES, vqbench::experimental::rigtorp_codegen::dynamic_ctrl64_queue) \
     VQ_PROBE(dynamic_combined, CAP, BYTES, vqbench::experimental::rigtorp_codegen::dynamic_combined_queue) \
     VQ_PROBE(dynamic_grouped, CAP, BYTES, vqbench::experimental::rigtorp_codegen::dynamic_grouped_queue) \
     VQ_PROBE(dynamic_split, CAP, BYTES, vqbench::experimental::rigtorp_codegen::dynamic_split_queue) \
@@ -72,3 +73,4 @@ VQ_CASE(65536, 64)
 #undef VQ_NOINLINE
 
 int main() { return 0; }
+

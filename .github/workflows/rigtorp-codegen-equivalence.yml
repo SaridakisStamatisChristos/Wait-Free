@@ -1,4 +1,4 @@
-name: Dynamic Raw Factorial Confirmation
+name: Dynamic Raw Control Spacing
 
 on:
   pull_request:
@@ -18,9 +18,9 @@ concurrency:
 
 env:
   SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
-  CANDIDATES: veriqueue,dynamic_raw,dynamic_split,dynamic_grouped,raw_combined
+  CANDIDATES: veriqueue,dynamic_raw,raw_combined,raw_ctrl64
   EXTERNALS: rigtorp,boost_lockfree,moodycamel,drogalis
-  IMPLEMENTATIONS: veriqueue,dynamic_raw,dynamic_split,dynamic_grouped,raw_combined,rigtorp,boost_lockfree,moodycamel,drogalis
+  IMPLEMENTATIONS: veriqueue,dynamic_raw,raw_combined,raw_ctrl64,rigtorp,boost_lockfree,moodycamel,drogalis
 
 jobs:
   tooling:
@@ -142,6 +142,14 @@ jobs:
                   [&](Payload& out) { return q->try_pop(out); },
                   transfers, cpus.producer, cpus.consumer);
           }
+          if (implementation == "raw_ctrl64") {
+              using queue = vqbench::experimental::rigtorp_codegen::dynamic_ctrl64_queue<Payload, Capacity>;
+              auto q = std::make_unique<queue>();
+              return run_pair<sizeof(Payload)>(
+                  [&](const Payload& value) { return q->try_push(value); },
+                  [&](Payload& out) { return q->try_pop(out); },
+                  transfers, cpus.producer, cpus.consumer);
+          }
           if (implementation == "raw_combined") {
               using queue = vqbench::experimental::rigtorp_codegen::dynamic_combined_queue<Payload, Capacity>;
               auto q = std::make_unique<queue>();
@@ -207,13 +215,13 @@ jobs:
           /tmp/consumer-contract
       - uses: actions/upload-artifact@v4
         with:
-          name: raw-factorial-inline-assembly-${{ matrix.compiler }}-cap${{ matrix.capacity }}
+          name: raw-control-inline-assembly-${{ matrix.compiler }}-cap${{ matrix.capacity }}
           path: build/rigtorp-codegen/*.s
           if-no-files-found: error
           retention-days: 90
       - name: Run randomized paired campaign
         run: |
-          seed=$((2026104500 + ${{ steps.compiler.outputs.id }} * 10000 + ${{ matrix.capacity }}))
+          seed=$((2026104600 + ${{ steps.compiler.outputs.id }} * 10000 + ${{ matrix.capacity }}))
           output="evidence/rigtorp-codegen/raw/arm64-${{ matrix.compiler }}-cap${{ matrix.capacity }}.jsonl"
           python tools/run_comparator_campaign.py \
             --program build/rigtorp-codegen/bench_compare_codegen \
@@ -283,7 +291,7 @@ jobs:
             -isystem build/assembly/_deps/rigtorp_spsc-src/include \
             tools/rigtorp_codegen_probe.cpp \
             -o evidence/rigtorp-codegen/assembly/${{ matrix.compiler }}.s
-          grep -E '^(production|dynamic_raw|dynamic_split|dynamic_grouped|dynamic_combined|static_raw|static_slot|upstream)_(push|pop)_c[0-9]+_p[0-9]+:' \
+          grep -E '^(production|dynamic_raw|dynamic_split|dynamic_grouped|dynamic_combined|dynamic_ctrl64|static_raw|static_slot|upstream)_(push|pop)_c[0-9]+_p[0-9]+:' \
             evidence/rigtorp-codegen/assembly/${{ matrix.compiler }}.s \
             > evidence/rigtorp-codegen/assembly/${{ matrix.compiler }}-labels.txt || true
       - uses: actions/upload-artifact@v4
@@ -319,7 +327,7 @@ jobs:
             --json-output evidence/rigtorp-codegen/summary.json \
             --markdown-output evidence/rigtorp-codegen/summary.md \
             --csv-output evidence/rigtorp-codegen/cells.csv \
-            --bootstrap-seed 20261045 \
+            --bootstrap-seed 20261046 \
             --bootstrap-samples 20000
           cat evidence/rigtorp-codegen/summary.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
@@ -328,3 +336,4 @@ jobs:
           path: evidence/rigtorp-codegen
           if-no-files-found: error
           retention-days: 90
+

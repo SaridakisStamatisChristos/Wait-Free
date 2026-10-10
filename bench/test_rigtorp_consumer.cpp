@@ -13,10 +13,10 @@ void check(bool condition) {
     if (!condition) throw std::runtime_error("dynamic consumer contract failure");
 }
 
-template <bool Split, bool Grouped, std::size_t Capacity>
+template <bool Split, bool Grouped, std::size_t Capacity, std::size_t ControlSpan = 256>
 void model() {
     using queue = vqbench::experimental::rigtorp_codegen::dynamic_raw_queue<
-        std::uint64_t, Capacity, std::allocator<std::uint64_t>, Split, Grouped>;
+        std::uint64_t, Capacity, std::allocator<std::uint64_t>, Split, Grouped, ControlSpan>;
     queue q;
     std::deque<std::uint64_t> expected;
     std::mt19937_64 rng(20261043 + Capacity);
@@ -62,10 +62,10 @@ struct tracked {
     ~tracked() noexcept { --alive; }
 };
 
-template <bool Split, bool Grouped>
+template <bool Split, bool Grouped, std::size_t ControlSpan = 256>
 void lifetime() {
     using queue = vqbench::experimental::rigtorp_codegen::dynamic_raw_queue<
-        tracked, 2, std::allocator<tracked>, Split, Grouped>;
+        tracked, 2, std::allocator<tracked>, Split, Grouped, ControlSpan>;
     check(tracked::alive == 0);
     {
         tracked in(42), out;
@@ -93,10 +93,10 @@ struct throwing {
     throwing& operator=(throwing&&) noexcept = default;
 };
 
-template <bool Split, bool Grouped>
+template <bool Split, bool Grouped, std::size_t ControlSpan = 256>
 void exception() {
     using queue = vqbench::experimental::rigtorp_codegen::dynamic_raw_queue<
-        throwing, 2, std::allocator<throwing>, Split, Grouped>;
+        throwing, 2, std::allocator<throwing>, Split, Grouped, ControlSpan>;
     queue q;
     throwing in, out;
     throwing::fail = true;
@@ -108,10 +108,10 @@ void exception() {
     check(q.try_push(in) && q.try_pop(out) && out.value == 42);
 }
 
-template <bool Split, bool Grouped>
+template <bool Split, bool Grouped, std::size_t ControlSpan = 256>
 void concurrent() {
     using queue = vqbench::experimental::rigtorp_codegen::dynamic_raw_queue<
-        std::uint64_t, 64, std::allocator<std::uint64_t>, Split, Grouped>;
+        std::uint64_t, 64, std::allocator<std::uint64_t>, Split, Grouped, ControlSpan>;
     queue q;
     std::atomic<bool> failed{false};
     std::thread producer([&] {
@@ -131,16 +131,16 @@ void concurrent() {
     check(!failed.load(std::memory_order_relaxed));
 }
 
-template <bool Split, bool Grouped>
+template <bool Split, bool Grouped, std::size_t ControlSpan = 256>
 void suite() {
-    model<Split, Grouped, 1>();
-    model<Split, Grouped, 2>();
-    model<Split, Grouped, 4>();
-    model<Split, Grouped, 64>();
-    model<Split, Grouped, 1024>();
-    lifetime<Split, Grouped>();
-    exception<Split, Grouped>();
-    concurrent<Split, Grouped>();
+    model<Split, Grouped, 1, ControlSpan>();
+    model<Split, Grouped, 2, ControlSpan>();
+    model<Split, Grouped, 4, ControlSpan>();
+    model<Split, Grouped, 64, ControlSpan>();
+    model<Split, Grouped, 1024, ControlSpan>();
+    lifetime<Split, Grouped, ControlSpan>();
+    exception<Split, Grouped, ControlSpan>();
+    concurrent<Split, Grouped, ControlSpan>();
 }
 } // namespace
 
@@ -157,4 +157,9 @@ int main() {
     suite<true, false>();
     suite<false, true>();
     suite<true, true>();
+    static_assert(sizeof(dynamic_ctrl64_queue<std::uint64_t, 64>) ==
+                  sizeof(dynamic_combined_queue<std::uint64_t, 64>));
+    static_assert(alignof(dynamic_ctrl64_queue<std::uint64_t, 64>) ==
+                  alignof(dynamic_combined_queue<std::uint64_t, 64>));
+    suite<true, true, 64>();
 }

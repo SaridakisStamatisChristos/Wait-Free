@@ -2,6 +2,7 @@
 
 #include "veriqueue/detail/slot.hpp"
 
+#include <array>
 #include <atomic>
 #include <cstddef>
 #include <memory>
@@ -17,10 +18,19 @@ template <
     std::size_t Capacity,
     class Allocator = std::allocator<T>,
     bool SplitConsumer = false,
-    bool GroupOwnerCache = false>
+    bool GroupOwnerCache = false,
+    std::size_t ControlSpan = arm_destructive_span>
 class dynamic_raw_queue final {
     static_assert(Capacity >= 1);
     static_assert(std::is_nothrow_destructible_v<T>);
+    static_assert(ControlSpan == arm_destructive_span ||
+                  (ControlSpan == 64 && GroupOwnerCache));
+
+    struct no_reserved_bytes {};
+    // Keep the standard-allocator object's size/alignment and allocation class
+    // unchanged while moving only the reader control. These bytes are not slots.
+    using reserved_bytes = std::conditional_t<
+        ControlSpan == 64, std::array<std::byte, 256>, no_reserved_bytes>;
 
     static constexpr std::size_t padding =
         ((arm_destructive_span - 1) / sizeof(T)) + 1;
@@ -116,9 +126,13 @@ private:
     [[no_unique_address]] Allocator allocator_{};
     alignas(arm_destructive_span) std::atomic<std::size_t> write_{0};
     alignas(owner_cache_alignment) std::size_t read_cache_{0};
-    alignas(arm_destructive_span) std::atomic<std::size_t> read_{0};
+    alignas(ControlSpan) std::atomic<std::size_t> read_{0};
     alignas(owner_cache_alignment) std::size_t write_cache_{0};
+    [[no_unique_address]] reserved_bytes reserved_;
 };
+
+template <class T, std::size_t Capacity>
+using dynamic_ctrl64_queue = dynamic_raw_queue<T, Capacity, std::allocator<T>, true, true, 64>;
 
 template <class T, std::size_t Capacity>
 using dynamic_combined_queue = dynamic_raw_queue<T, Capacity, std::allocator<T>, true, true>;
@@ -286,3 +300,4 @@ private:
 };
 
 } // namespace vqbench::experimental::rigtorp_codegen
+
