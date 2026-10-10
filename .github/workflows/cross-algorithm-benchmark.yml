@@ -5,6 +5,9 @@ on:
   pull_request:
     paths:
       - 'include/veriqueue/spsc_queue.hpp'
+      - 'bench/pr30_queue_control.hpp'
+      - 'tools/analyze_pr50_campaign.py'
+      - 'tools/progress_cache_probe.cpp'
       - 'bench/bench_compare.cpp'
       - 'bench/environment.cpp'
       - 'bench/environment.hpp'
@@ -38,7 +41,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Compile comparator tooling
-        run: python -m py_compile tools/run_comparator_campaign.py tools/analyze_comparator_campaign.py tools/test_comparator_campaign.py
+        run: python -m py_compile tools/run_comparator_campaign.py tools/analyze_comparator_campaign.py tools/test_comparator_campaign.py tools/analyze_pr50_campaign.py
       - name: Run comparator tooling self-test
         run: python tools/test_comparator_campaign.py
 
@@ -83,7 +86,7 @@ jobs:
             compiler_id=2
           fi
           lane="${arch}-${{ matrix.compiler }}"
-          seed=$((2026101000 + arch_id * 100000 + compiler_id * 10000 + ${{ matrix.capacity }}))
+          seed=$((2026105000 + arch_id * 100000 + compiler_id * 10000 + ${{ matrix.capacity }}))
           echo "arch=$arch" >> "$GITHUB_OUTPUT"
           echo "cc=$cc" >> "$GITHUB_OUTPUT"
           echo "cxx=$cxx" >> "$GITHUB_OUTPUT"
@@ -102,14 +105,35 @@ jobs:
             -DVERIQUEUE_BUILD_BASELINES=ON
       - name: Build common-denominator comparator
         run: cmake --build build/compare --target bench_compare -j2
-      - name: Run randomized 5-way comparison
+      - name: Emit complete inlined loops and scalar policy probes
+        if: matrix.capacity == 1024
+        env:
+          CXX: ${{ steps.meta.outputs.cxx }}
+        run: |
+          mkdir -p evidence/cache-store-assembly
+          "$CXX" -std=c++20 -O3 -DNDEBUG -pthread -S \
+            -Iinclude -Ibench \
+            -isystem build/compare/_deps/rigtorp_spsc-src/include \
+            -isystem build/compare/_deps/moodycamel_readerwriterqueue-src \
+            -isystem build/compare/_deps/drogalis_spsc-src/include \
+            bench/bench_compare.cpp -o evidence/cache-store-assembly/inlined.s
+          "$CXX" -std=c++20 -O3 -DNDEBUG -S -Iinclude -Ibench \
+            tools/progress_cache_probe.cpp -o evidence/cache-store-assembly/scalar.s
+      - uses: actions/upload-artifact@v4
+        if: matrix.capacity == 1024
+        with:
+          name: production-cache-store-assembly-${{ steps.meta.outputs.lane }}
+          path: evidence/cache-store-assembly/*.s
+          if-no-files-found: error
+          retention-days: 90
+      - name: Run randomized 6-way comparison with frozen PR30 control
         run: |
           output="evidence/cross-algorithm/raw/${{ steps.meta.outputs.lane }}-cap${{ matrix.capacity }}.jsonl"
           python tools/run_comparator_campaign.py \
             --program build/compare/bench_compare \
             --capacity "${{ matrix.capacity }}" \
             --payloads 8,16,64,256 \
-            --implementations veriqueue,rigtorp,boost_lockfree,moodycamel,drogalis \
+            --implementations veriqueue,pr30_control,rigtorp,boost_lockfree,moodycamel,drogalis \
             --transfers 1000000 \
             --warmups 5 \
             --repetitions 50 \
@@ -148,13 +172,8 @@ jobs:
           merge-multiple: true
       - name: Analyze paired comparison evidence
         run: |
-          python tools/analyze_comparator_campaign.py evidence/cross-algorithm/shards \
-            --json-output evidence/cross-algorithm/summary.json \
-            --markdown-output evidence/cross-algorithm/summary.md \
-            --headline-output evidence/cross-algorithm/headline.md \
-            --csv-output evidence/cross-algorithm/cells.csv \
-            --bootstrap-seed 20261010 \
-            --bootstrap-samples 10000
+          python tools/analyze_pr50_campaign.py evidence/cross-algorithm/shards \
+            evidence/cross-algorithm
           cat evidence/cross-algorithm/headline.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
@@ -164,5 +183,7 @@ jobs:
             evidence/cross-algorithm/summary.md
             evidence/cross-algorithm/headline.md
             evidence/cross-algorithm/cells.csv
+            evidence/cross-algorithm/pr30-paired-diagnostic.json
+            evidence/cross-algorithm/shards/*.jsonl
           if-no-files-found: error
           retention-days: 90

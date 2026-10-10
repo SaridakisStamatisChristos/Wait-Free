@@ -1,3 +1,5 @@
+// Frozen PR30 source 60ab1cedb6b79777549888d10fe4a51484f3b159.
+// Only the namespace is changed; storage, state and operations are preserved.
 #pragma once
 
 #include "veriqueue/detail/config.hpp"
@@ -17,7 +19,9 @@
 #include <type_traits>
 #include <utility>
 
-namespace veriqueue {
+namespace vqbench::pr30_control {
+
+namespace detail = ::veriqueue::detail;
 
 #if defined(_MSC_VER)
 #pragma warning(push)
@@ -71,21 +75,6 @@ namespace veriqueue {
 #define VERIQUEUE_DETAIL_GCC_ARM64_BULK_OPT __attribute__((optimize("unroll-loops")))
 #else
 #define VERIQUEUE_DETAIL_GCC_ARM64_BULK_OPT
-#endif
-
-// Verification switches let all host gates exercise this scalar slow path.
-// Default selection is broad GCC/AArch64 only; PR30 remains the other path.
-#if defined(VERIQUEUE_FORCE_PROGRESS_CACHE_STORE) && defined(VERIQUEUE_FORCE_LEGACY_CACHE_STORE)
-#error "Only one VeriQueue scalar cache-store order may be forced"
-#endif
-#if defined(VERIQUEUE_FORCE_PROGRESS_CACHE_STORE)
-#define VERIQUEUE_DETAIL_PROGRESS_CACHE_STORE 1
-#elif defined(VERIQUEUE_FORCE_LEGACY_CACHE_STORE)
-#define VERIQUEUE_DETAIL_PROGRESS_CACHE_STORE 0
-#elif defined(__aarch64__) && defined(__GNUC__) && !defined(__clang__)
-#define VERIQUEUE_DETAIL_PROGRESS_CACHE_STORE 1
-#else
-#define VERIQUEUE_DETAIL_PROGRESS_CACHE_STORE 0
 #endif
 
 template <
@@ -204,17 +193,11 @@ public:
 #endif
 
         if (distance(tail, producer_.cached_head) == capacity_index) {
-#if VERIQUEUE_DETAIL_PROGRESS_CACHE_STORE
-            const Index observed = published_head_atomic().load(std::memory_order_acquire);
-            if (distance(tail, observed) == capacity_index) return false;
-            producer_.cached_head = observed;
-#else
             producer_.cached_head =
                 published_head_atomic().load(std::memory_order_acquire);
             if (distance(tail, producer_.cached_head) == capacity_index) {
                 return false;
             }
-#endif
         }
 
         std::construct_at(slot_for(tail).storage_ptr(), std::forward<Args>(args)...);
@@ -286,17 +269,11 @@ public:
 #endif
 
         if (head == consumer_.cached_tail) {
-#if VERIQUEUE_DETAIL_PROGRESS_CACHE_STORE
-            const Index observed = published_tail_atomic().load(std::memory_order_acquire);
-            if (head == observed) return false;
-            consumer_.cached_tail = observed;
-#else
             consumer_.cached_tail =
                 published_tail_atomic().load(std::memory_order_acquire);
             if (head == consumer_.cached_tail) {
                 return false;
             }
-#endif
         }
 
         T* const source = slot_for(head).live_ptr();
@@ -357,17 +334,11 @@ public:
 #endif
 
         if (head == consumer_.cached_tail) {
-#if VERIQUEUE_DETAIL_PROGRESS_CACHE_STORE
-            const Index observed = published_tail_atomic().load(std::memory_order_acquire);
-            if (head == observed) return false;
-            consumer_.cached_tail = observed;
-#else
             consumer_.cached_tail =
                 published_tail_atomic().load(std::memory_order_acquire);
             if (head == consumer_.cached_tail) {
                 return false;
             }
-#endif
         }
 
         T* const source = slot_for(head).live_ptr();
@@ -519,7 +490,6 @@ private:
     alignas(storage_alignment) std::array<detail::slot<T>, Capacity> slots_;
 };
 
-#undef VERIQUEUE_DETAIL_PROGRESS_CACHE_STORE
 #undef VERIQUEUE_DETAIL_GCC_ARM64_BULK_OPT
 #undef VERIQUEUE_DETAIL_ARM64_STORAGE_STRIPE
 #undef VERIQUEUE_DETAIL_X64_SPLIT_CONTROL
@@ -529,4 +499,4 @@ private:
 #pragma warning(pop)
 #endif
 
-} // namespace veriqueue
+} // namespace vqbench::pr30_control

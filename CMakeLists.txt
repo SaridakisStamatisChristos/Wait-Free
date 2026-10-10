@@ -14,6 +14,9 @@ option(VERIQUEUE_DISABLE_PADDING "Deliberately disable cache-line padding" OFF)
 option(VERIQUEUE_TEST_FORCE_SINGLE_OWNER_CURSOR
        "Force the ARM64 single-owner cursor strategy for verification builds" OFF)
 
+option(VERIQUEUE_TEST_FORCE_PROGRESS_CACHE_STORE
+       "Force progress-only scalar cache stores for verification builds" OFF)
+
 add_library(veriqueue INTERFACE)
 add_library(veriqueue::veriqueue ALIAS veriqueue)
 target_include_directories(veriqueue INTERFACE
@@ -25,6 +28,10 @@ if(VERIQUEUE_DISABLE_PADDING)
 endif()
 if(VERIQUEUE_TEST_FORCE_SINGLE_OWNER_CURSOR)
   target_compile_definitions(veriqueue INTERFACE VERIQUEUE_FORCE_SINGLE_OWNER_CURSOR=1)
+endif()
+
+if(VERIQUEUE_TEST_FORCE_PROGRESS_CACHE_STORE)
+  target_compile_definitions(veriqueue INTERFACE VERIQUEUE_FORCE_PROGRESS_CACHE_STORE=1)
 endif()
 
 function(veriqueue_apply_warnings target)
@@ -55,6 +62,7 @@ endfunction()
 
 if(VERIQUEUE_BUILD_TESTS)
   veriqueue_add_test(test_basic tests/unit/test_basic.cpp)
+  veriqueue_add_test(test_cache_store_contract tests/unit/test_cache_store_contract.cpp)
   veriqueue_add_test(test_bulk tests/unit/test_bulk.cpp)
   veriqueue_add_test(test_capacity tests/unit/test_capacity.cpp)
   veriqueue_add_test(test_wraparound tests/unit/test_wraparound.cpp)
@@ -136,7 +144,7 @@ if(VERIQUEUE_BUILD_LINEARIZABILITY)
   target_include_directories(history_generator_single_owner PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/verify/linearizability)
   target_compile_definitions(history_generator_single_owner PRIVATE
-    VERIQUEUE_FORCE_SINGLE_OWNER_CURSOR=1)
+    VERIQUEUE_FORCE_SINGLE_OWNER_CURSOR=1 VERIQUEUE_FORCE_PROGRESS_CACHE_STORE=1)
   veriqueue_apply_warnings(history_generator_single_owner)
 endif()
 

@@ -4,14 +4,23 @@
 
 namespace {
 
-template <std::size_t Capacity>
+template <std::size_t Capacity, bool CacheOnProgress = false>
 class queue final {
 public:
     bool push(int value) {
         unsigned tail = tail_.load(std::memory_order_relaxed, $);
         if (tail - producer_cached_head_($) == Capacity) {
-            producer_cached_head_($) = head_.load(std::memory_order_acquire, $);
-            if (tail - producer_cached_head_($) == Capacity) return false;
+            const unsigned observed = head_.load(std::memory_order_acquire, $);
+            if constexpr (CacheOnProgress) {
+                if (tail - observed == Capacity) {
+                    RL_ASSERT(observed == producer_cached_head_($));
+                    return false;
+                }
+                producer_cached_head_($) = observed;
+            } else {
+                producer_cached_head_($) = observed;
+                if (tail - producer_cached_head_($) == Capacity) return false;
+            }
         }
         slots_[tail & (Capacity - 1)]($) = value;
         ++tail;
@@ -43,8 +52,17 @@ public:
     bool pop(int& value) {
         unsigned head = head_.load(std::memory_order_relaxed, $);
         if (head == consumer_cached_tail_($)) {
-            consumer_cached_tail_($) = tail_.load(std::memory_order_acquire, $);
-            if (head == consumer_cached_tail_($)) return false;
+            const unsigned observed = tail_.load(std::memory_order_acquire, $);
+            if constexpr (CacheOnProgress) {
+                if (head == observed) {
+                    RL_ASSERT(observed == consumer_cached_tail_($));
+                    return false;
+                }
+                consumer_cached_tail_($) = observed;
+            } else {
+                consumer_cached_tail_($) = observed;
+                if (head == consumer_cached_tail_($)) return false;
+            }
         }
         value = slots_[head & (Capacity - 1)]($);
         ++head;
@@ -87,10 +105,10 @@ private:
     VAR_T(int) slots_[Capacity]{};
 };
 
-template <std::size_t Capacity>
-struct scalar_test : rl::test_suite<scalar_test<Capacity>, 2> {
+template <std::size_t Capacity, bool CacheOnProgress = false>
+struct scalar_test : rl::test_suite<scalar_test<Capacity, CacheOnProgress>, 2> {
     static constexpr int operation_count = 5;
-    queue<Capacity> q;
+    queue<Capacity, CacheOnProgress> q;
     bool pushed[operation_count]{};
     int popped_values[operation_count]{};
     int push_count{0};
@@ -147,10 +165,10 @@ struct scalar_test : rl::test_suite<scalar_test<Capacity>, 2> {
     }
 };
 
-template <std::size_t Capacity>
-struct bulk_test : rl::test_suite<bulk_test<Capacity>, 2> {
+template <std::size_t Capacity, bool CacheOnProgress = false>
+struct bulk_test : rl::test_suite<bulk_test<Capacity, CacheOnProgress>, 2> {
     static constexpr int value_count = 6;
-    queue<Capacity> q;
+    queue<Capacity, CacheOnProgress> q;
     bool pushed[value_count]{};
     int consumed_values[value_count]{};
     int push_count{0};
@@ -220,5 +238,13 @@ int main() {
     const bool bulk_one = rl::simulate<bulk_test<1>>();
     const bool bulk_two = rl::simulate<bulk_test<2>>();
     const bool bulk_four = rl::simulate<bulk_test<4>>();
-    return (scalar_one && scalar_two && scalar_four && bulk_one && bulk_two && bulk_four) ? 0 : 1;
+    const bool progress_scalar_one = rl::simulate<scalar_test<1, true>>();
+    const bool progress_scalar_two = rl::simulate<scalar_test<2, true>>();
+    const bool progress_scalar_four = rl::simulate<scalar_test<4, true>>();
+    const bool progress_bulk_one = rl::simulate<bulk_test<1, true>>();
+    const bool progress_bulk_two = rl::simulate<bulk_test<2, true>>();
+    const bool progress_bulk_four = rl::simulate<bulk_test<4, true>>();
+    return (scalar_one && scalar_two && scalar_four && bulk_one && bulk_two && bulk_four &&
+            progress_scalar_one && progress_scalar_two && progress_scalar_four &&
+            progress_bulk_one && progress_bulk_two && progress_bulk_four) ? 0 : 1;
 }

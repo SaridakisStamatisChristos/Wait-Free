@@ -29,7 +29,7 @@ jobs:
           set -euo pipefail
           extra=()
           if [[ "${{ matrix.owner_mode }}" == "single-owner" ]]; then
-            extra+=( -DVERIQUEUE_TEST_FORCE_SINGLE_OWNER_CURSOR=ON )
+            extra+=( -DVERIQUEUE_TEST_FORCE_SINGLE_OWNER_CURSOR=ON -DVERIQUEUE_TEST_FORCE_PROGRESS_CACHE_STORE=ON )
           fi
           cmake -S . -B build/fuzz -G Ninja \
             -DVERIQUEUE_BUILD_TESTS=OFF \

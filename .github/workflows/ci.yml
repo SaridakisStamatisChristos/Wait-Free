@@ -73,7 +73,7 @@ jobs:
           -DCMAKE_CXX_STANDARD=${{ matrix.standard }}
           -DCMAKE_CXX_STANDARD_REQUIRED=ON
           -DCMAKE_CXX_EXTENSIONS=OFF
-          -DVERIQUEUE_TEST_FORCE_SINGLE_OWNER_CURSOR=ON
+          -DVERIQUEUE_TEST_FORCE_SINGLE_OWNER_CURSOR=ON -DVERIQUEUE_TEST_FORCE_PROGRESS_CACHE_STORE=ON
       - name: Build
         run: cmake --build build -j2
       - name: Test
@@ -165,3 +165,4 @@ jobs:
         with:
           name: ci-qualification-evidence
           path: evidence/qualification/ci.json
+

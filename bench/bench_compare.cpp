@@ -1,6 +1,7 @@
 #include "affinity.hpp"
 #include "environment.hpp"
 #include "veriqueue/spsc_queue.hpp"
+#include "pr30_queue_control.hpp"
 
 #include <boost/lockfree/spsc_queue.hpp>
 #include <boost/version.hpp>
@@ -198,6 +199,16 @@ run_result run_implementation(std::string_view implementation, std::uint64_t tra
             [&](Payload& out) { return q->try_pop(out); },
             transfers, cpus.producer, cpus.consumer);
     }
+    if (implementation == "pr30_control") {
+        using control = vqbench::pr30_control::spsc_queue<Payload, Capacity>;
+        static_assert(sizeof(control) == sizeof(veriqueue::spsc_queue<Payload, Capacity>));
+        static_assert(alignof(control) == alignof(veriqueue::spsc_queue<Payload, Capacity>));
+        auto q = std::make_unique<control>();
+        return run_pair<sizeof(Payload)>(
+            [&](const Payload& value) { return q->try_push(value); },
+            [&](Payload& out) { return q->try_pop(out); },
+            transfers, cpus.producer, cpus.consumer);
+    }
     if (implementation == "rigtorp") {
         auto q = std::make_unique<rigtorp::SPSCQueue<Payload>>(Capacity);
         return run_pair<sizeof(Payload)>(
@@ -274,7 +285,7 @@ int dispatch(std::string_view implementation, std::size_t capacity,
 int main(int argc, char** argv) {
     if (argc != 5) {
         std::cerr << "usage: bench_compare <implementation> <capacity> <payload-bytes> <transfers>\n"
-                  << "implementations: veriqueue rigtorp boost_lockfree moodycamel drogalis\n";
+                  << "implementations: veriqueue pr30_control rigtorp boost_lockfree moodycamel drogalis\n";
         return 2;
     }
 
