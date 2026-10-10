@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 env:
-  CANDIDATE: 8be69e55318b5e37bbdf684bfdbeb72534c6d414
+  CANDIDATE: 3e545885e7c1e2c129187208e7d9696f1ac680ff
   CURRENT: 4c194617d5bded91ecb58063607c3fab47fc1db9
   PRE_OPT: d1382588262b2275ecde9bf1a6948e67fcd056f3
 
@@ -96,23 +96,23 @@ jobs:
               --candidate "$GITHUB_WORKSPACE/build/candidate/bench_hotpath_variants" \
               --reference "$GITHUB_WORKSPACE/build/${ref}/bench_hotpath_variants" \
               --capacities 256,1024 --payloads 8 --transfers 1000000 \
-              --warmups 4 --repetitions 60 --seed "$((20262200 + offset))" \
+              --warmups 4 --repetitions 60 --seed "$((20262400 + offset))" \
               --output "$OUT/scalar-raw.jsonl"
             python candidate/tools/analyze_regression_campaign.py "$OUT/scalar-raw.jsonl" \
               --json-output "$OUT/scalar-summary.json" --markdown-output "$OUT/scalar-summary.md" \
-              --bootstrap-seed "$((20262201 + offset))" || true
+              --bootstrap-seed "$((20262401 + offset))" || true
             cat "$OUT/scalar-summary.md"
             for batch in 4 16 64; do
               python candidate/tools/run_regression_campaign.py \
                 --candidate "$GITHUB_WORKSPACE/build/candidate/bench_bulk_${batch}" \
                 --reference "$GITHUB_WORKSPACE/build/${ref}/bench_bulk_${batch}" \
                 --capacities 256,1024 --payloads 8 --transfers 1000000 \
-                --warmups 4 --repetitions 60 --seed "$((20262210 + batch + offset))" \
+                --warmups 4 --repetitions 60 --seed "$((20262410 + batch + offset))" \
                 --output "$OUT/bulk${batch}-raw.jsonl"
               python candidate/tools/analyze_regression_campaign.py "$OUT/bulk${batch}-raw.jsonl" \
                 --json-output "$OUT/bulk${batch}-summary.json" \
                 --markdown-output "$OUT/bulk${batch}-summary.md" \
-                --bootstrap-seed "$((20262210 + batch + offset))" || true
+                --bootstrap-seed "$((20262410 + batch + offset))" || true
               cat "$OUT/bulk${batch}-summary.md"
             done
           done
@@ -124,24 +124,24 @@ jobs:
             --candidate "$GITHUB_WORKSPACE/build/candidate/bench_hotpath_variants" \
             --reference "$GITHUB_WORKSPACE/build/current/bench_hotpath_variants" \
             --capacities 256,1024 --payloads 16,64,256 --transfers 400000 \
-            --warmups 3 --repetitions 30 --seed 20262300 \
+            --warmups 3 --repetitions 30 --seed 20262500 \
             --output "$OUT/scalar-raw.jsonl"
           python candidate/tools/analyze_regression_campaign.py "$OUT/scalar-raw.jsonl" \
             --json-output "$OUT/scalar-summary.json" --markdown-output "$OUT/scalar-summary.md" \
-            --bootstrap-seed 20262301 || true
+            --bootstrap-seed 20262501 || true
           cat "$OUT/scalar-summary.md"
           python candidate/tools/run_regression_campaign.py \
             --candidate "$GITHUB_WORKSPACE/build/candidate/bench_bulk_64" \
             --reference "$GITHUB_WORKSPACE/build/current/bench_bulk_64" \
             --capacities 256,1024 --payloads 16,64,256 --transfers 400000 \
-            --warmups 3 --repetitions 30 --seed 20262364 \
+            --warmups 3 --repetitions 30 --seed 20262564 \
             --output "$OUT/bulk64-raw.jsonl"
           python candidate/tools/analyze_regression_campaign.py "$OUT/bulk64-raw.jsonl" \
             --json-output "$OUT/bulk64-summary.json" --markdown-output "$OUT/bulk64-summary.md" \
-            --bootstrap-seed 20262364 || true
+            --bootstrap-seed 20262564 || true
           cat "$OUT/bulk64-summary.md"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: pr27-exact-${{ matrix.compiler }}
+          name: pr27-method-exact-${{ matrix.compiler }}
           path: candidate/evidence/pr27-exact/${{ matrix.compiler }}/
