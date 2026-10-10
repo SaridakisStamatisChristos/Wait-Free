@@ -39,6 +39,26 @@ remain fixed. No counters are disabled, delayed, sampled or replaced with local 
 The complete timed worker/join text is asserted equal to the original comparator.
 Production spsc_queue.hpp, slot.hpp and bench_compare.cpp stay byte-identical.
 
+All shared-mode prefixes now have equal length: packed/ and splitx/ (seven bytes).
+The generated main uses a process-lifetime std::string_view over argv; label parsing
+performs no mode-dependent std::string allocation. Thus small-string thresholds and
+different requested allocation sizes cannot perturb queue construction. Record
+queue object residue modulo4096, sizeof and alignof outside timing; require identical
+queue shapes across all three modes. Queue-owner residue distributions are reported,
+not assumed. Original counter declarations remain calibration, not a claim of an
+identical original executable or argument stack/ELF environment.
+
+Invalidated predecessor: source31d98cfee88c32c2c1f3f37a260d207dfb7a9c98,
+run38086115470, completed20score shards/66,000records. The packed/veriqueue and
+packed/moodycamel labels exceeded std::string's small-string limit while their
+shorter split/ counterparts did not. That confounded primary queue allocation
+placement, so no performance verdict or promotion claim uses that campaign. This
+concrete harness defect was found before accepting a statistical verdict.
+Preserve its raw/code artifacts separately; do not filter three apparently unaffected
+queues into valid evidence. Corrected protocol uses equal-length prefixes, argv views,
+queue-owner/type observations and fresh prespecified seeds2026101061/2026101062. Statistical
+helpers, counts, work, capacity, comparisons and thresholds are unchanged.
+
 Each queue has one shared runtime-selected callsite for packed/split. Before samples,
 the full compiler output must have400 worker functions:200 original and200 shared
 for20capacity/payload cases ×5queue callsites ×2owners. Linked nm symbols resolve
@@ -59,10 +79,10 @@ counter/control line relationships; no source-only cache claim.
 Two architectures x64/arm64 × GCC/Clang × capacities2/64/256/1024/65536 ×
 payload8/16/64/256, 1M transfers,5warmups,50randomized paired rounds.
 Declared pre-shuffle label order: original five (veriqueue,rigtorp,boost_lockfree,
-moodycamel,drogalis), then packed/ of each, then split/ of each. No selector.
-Seed2026101041 + architecture_id*100000 + compiler_id*10000 + capacity; x64id0,
-arm64id1,GCCid1,Clangid2. Bootstrap20,000 seed2026101042 with fixed queue/cell/lane
-salts. Primary per queue split/packed; calibration per queue packed/original.
+moodycamel,drogalis), then packed/ of each, then splitx/ of each. No selector.
+Seed2026101061 + architecture_id*100000 + compiler_id*10000 + capacity; x64id0,
+arm64id1,GCCid1,Clangid2. Bootstrap20,000 seed2026101062 with fixed queue/cell/lane
+salts. Primary per queue splitx/packed; calibration per queue packed/original.
 Use the existing median paired-ratio and geometric-mean bootstrap helpers without
 changes. Separately compute production/fastest-external for each harness using the
 unchanged external selection rules; never mix external modes. All observations are

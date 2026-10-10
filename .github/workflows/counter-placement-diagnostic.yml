@@ -21,7 +21,7 @@ concurrency:
 
 env:
   SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
-  IMPLEMENTATIONS: veriqueue,rigtorp,boost_lockfree,moodycamel,drogalis,packed/veriqueue,packed/rigtorp,packed/boost_lockfree,packed/moodycamel,packed/drogalis,split/veriqueue,split/rigtorp,split/boost_lockfree,split/moodycamel,split/drogalis
+  IMPLEMENTATIONS: veriqueue,rigtorp,boost_lockfree,moodycamel,drogalis,packed/veriqueue,packed/rigtorp,packed/boost_lockfree,packed/moodycamel,packed/drogalis,splitx/veriqueue,splitx/rigtorp,splitx/boost_lockfree,splitx/moodycamel,splitx/drogalis
 
 jobs:
   tooling:
@@ -136,7 +136,7 @@ jobs:
           retention-days: 90
       - name: Run frozen randomized fifteen-way campaign
         run: |
-          seed=$((2026101041 + ${{ matrix.arch_id }} * 100000 + ${{ matrix.compiler_id }} * 10000 + ${{ matrix.capacity }}))
+          seed=$((2026101061 + ${{ matrix.arch_id }} * 100000 + ${{ matrix.compiler_id }} * 10000 + ${{ matrix.capacity }}))
           python tools/run_comparator_campaign.py --program build/counters/comparator \
             --capacity '${{ matrix.capacity }}' --payloads 8,16,64,256 \
             --implementations "$IMPLEMENTATIONS" --transfers 1000000 \

@@ -22,7 +22,7 @@ def fixture():
             for ri in range(55):
                 round_seed=rng.getrandbits(64);order=list(LABELS);random.Random(round_seed).shuffle(order)
                 for oi,label in enumerate(order):
-                    mode=1 if label.startswith('packed/') else 2 if label.startswith('split/') else 0
+                    mode=1 if label.startswith('packed/') else 2 if label.startswith('splitx/') else 0
                     distance=256 if mode==2 else 8
                     records.append(dict(PINS,comparison_lane=f'{arch}-{compiler}',comparison_architecture=arch,
                         comparison_compiler=compiler,capacity=capacity,payload_bytes=p,topology='fixture',
@@ -34,6 +34,7 @@ def fixture():
                         campaign_seed=seed,transfers_per_second=1.0,repetition=ri if ri<5 else ri-5,
                         round_seed=round_seed,order_index=oi,campaign_index=(pi*55+ri)*15+oi,
                         observer_mode=mode,observer_geometry=[0,distance,768,769,772,distance,1,768,1]))
+                    records[-1].update(queue_owner_mod4096=0,queue_size=512,queue_alignment=64)
     return metadata,records,source
 
 
@@ -66,6 +67,9 @@ class Tests(unittest.TestCase):
         self.assertEqual(out.count('run_result run_pair_shared('),1)
         self.assertEqual(out.count('run_result run_pair_original('),1)
         self.assertEqual(out.count('observer_mode);'),5)
+        self.assertIn('const std::string_view implementation = argv[1];',out)
+        for queue in ('veriqueue','rigtorp','boost_lockfree','moodycamel','drogalis'):
+            self.assertEqual(len('packed/'+queue),len('splitx/'+queue))
 
 
 if __name__=='__main__':unittest.main()

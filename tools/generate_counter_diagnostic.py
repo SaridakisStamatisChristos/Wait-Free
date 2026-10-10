@@ -8,6 +8,15 @@ def generate(base):
     source = base.replace('struct run_result final {', '''struct run_result final {
     unsigned observer_mode{0};
     std::array<std::uint64_t, 9> observer_geometry{};''', 1)
+    assert base.count('    std::uint64_t checksum{0};') == 1
+    source = source.replace('    std::uint64_t checksum{0};', '''    std::uint64_t checksum{0};
+    std::uint64_t queue_owner_mod4096{0};
+    std::size_t queue_size{0};
+    std::size_t queue_alignment{0};''', 1)
+    # Parse the process-lifetime argv view without mode-dependent heap allocation.
+    assert source.count('const std::string implementation = argv[1];') == 1
+    source = source.replace('const std::string implementation = argv[1];',
+                            'const std::string_view implementation = argv[1];', 1)
     begin = source.index('template <std::size_t Bytes, class Push, class Pop>')
     end = source.index('\nvoid emit(', begin)
     original = source[begin:end]
@@ -80,17 +89,26 @@ run_result run_pair_dispatch(Push&& push, Pop&& pop, std::uint64_t transfers,
     source = source.replace(signature, signature + '''
     unsigned observer_mode = 0;
     if (implementation.starts_with("packed/")) { implementation.remove_prefix(7); observer_mode = 1; }
-    else if (implementation.starts_with("split/")) { implementation.remove_prefix(6); observer_mode = 2; }
+    else if (implementation.starts_with("splitx/")) { implementation.remove_prefix(7); observer_mode = 2; }
 ''', 1)
     assert source.count('run_pair<sizeof(Payload)>') == 5
     source = source.replace('run_pair<sizeof(Payload)>', 'run_pair_dispatch<sizeof(Payload)>')
+    source = source.replace('return run_pair_dispatch<sizeof(Payload)>',
+                            'auto result = run_pair_dispatch<sizeof(Payload)>')
     assert source.count('transfers, cpus.producer, cpus.consumer);') == 5
     source = source.replace('transfers, cpus.producer, cpus.consumer);',
-                            'transfers, cpus.producer, cpus.consumer, observer_mode);')
+                            '''transfers, cpus.producer, cpus.consumer, observer_mode);
+        result.queue_owner_mod4096 = reinterpret_cast<std::uintptr_t>(q.get()) % 4096;
+        result.queue_size = sizeof(*q);
+        result.queue_alignment = alignof(std::remove_reference_t<decltype(*q)>);
+        return result;''')
     emit = r'''              << "\",\"environment\":" << vqbench::environment_json() << "}\n";'''
     assert emit in source
     source = source.replace(emit, r'''              << "\"";
     std::cout << ",\"observer_mode\":" << result.observer_mode
+              << ",\"queue_owner_mod4096\":" << result.queue_owner_mod4096
+              << ",\"queue_size\":" << result.queue_size
+              << ",\"queue_alignment\":" << result.queue_alignment
               << ",\"observer_geometry\":[";
     for (std::size_t i = 0; i < result.observer_geometry.size(); ++i) {
         if (i != 0) std::cout << ',';

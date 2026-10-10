@@ -13,23 +13,23 @@ from analyze_comparator_campaign import (bootstrap_geomean_ci,bootstrap_median_c
 from analyze_policy_campaign import analyze as policy_analyze
 
 QUEUES = ('veriqueue','rigtorp','boost_lockfree','moodycamel','drogalis')
-LABELS = QUEUES + tuple('packed/'+q for q in QUEUES) + tuple('split/'+q for q in QUEUES)
+LABELS = QUEUES + tuple('packed/'+q for q in QUEUES) + tuple('splitx/'+q for q in QUEUES)
 PINS = dict(rigtorp_commit='59a6a938513ea5004817383711ed35d32385d3ee',
             moodycamel_commit='6867b56452352acf077fccd5f6cc7e3a8cfde0fb',
             drogalis_commit='c959bd4f7204dd73c4e75a2b00c3459c3a5e9a96',boost_version=108300)
 CAPACITIES=(2,64,256,1024,65536)
 SHARDS={(a,c,n) for a in ('x64','arm64') for c in ('gcc','clang') for n in CAPACITIES}
-SEED=2026101042
+SEED=2026101062
 
 
 def campaign_seed(arch,compiler,capacity):
-    return 2026101041+(100000 if arch=='arm64' else 0)+(10000 if compiler=='gcc' else 20000)+capacity
+    return 2026101061+(100000 if arch=='arm64' else 0)+(10000 if compiler=='gcc' else 20000)+capacity
 
 
 def context(label):
     if label in QUEUES: return 0,label
     prefix,queue=label.split('/',1)
-    if prefix not in ('packed','split') or queue not in QUEUES: raise ValueError('Wrong label')
+    if prefix not in ('packed','splitx') or queue not in QUEUES: raise ValueError('Wrong label')
     return (1 if prefix=='packed' else 2),queue
 
 
@@ -43,6 +43,10 @@ def geometry(record):
     if g[5]<8 or g[7]==0: raise ValueError('Overlapping counters/control')
     if mode and (g[0]%256 or g[5]!=(8 if mode==1 else 256) or g[6]!=1): raise ValueError('Observer layout intervention failed')
     if mode and g[8]==1 and g[7]<512: raise ValueError('Failed flag overlaps progress storage')
+    owner,size,alignment=(record.get(k) for k in ('queue_owner_mod4096','queue_size','queue_alignment'))
+    if (any(type(v) is not int for v in (owner,size,alignment)) or not 0<=owner<4096 or
+        alignment<8 or alignment>4096 or alignment&(alignment-1) or size<=0 or owner%alignment or size%alignment):
+        raise ValueError('Invalid queue-owner/type geometry')
     return mode
 
 
@@ -85,6 +89,9 @@ def validate(metadata,records,source):
                 matches=[(k,rs) for (k,w,n),rs in groups.items() if (k[1],k[2],k[3])==shard and k[4]==payload and w==warmup and n==rep]
                 if len(matches)!=1:raise ValueError('Fragmented round context')
                 key,rs=matches[0];seed=rng.getrandbits(64);order=list(LABELS);random.Random(seed).shuffle(order)
+                for queue in QUEUES:
+                    shapes={(r['queue_size'],r['queue_alignment']) for r in rs if context(r['implementation'])[1]==queue}
+                    if len(shapes)!=1:raise ValueError('Queue shape differs between harness modes')
                 indexed=sorted(rs,key=lambda r:r['campaign_index'])
                 if len(rs)!=15 or [r['implementation'] for r in indexed]!=order:raise ValueError('Incomplete/duplicate/order-invalid round')
                 for oi,r in enumerate(indexed):
@@ -117,10 +124,10 @@ def main():
     args=parser.parse_args();metadata,records=load_records(sorted(args.input.glob('*.jsonl')))
     pairs=validate(metadata,records,args.source_commit);primary=[];calibration=[]
     for i,q in enumerate(QUEUES):
-        primary.append(comparison(pairs,q,'split/'+q,'packed/'+q,SEED^(i*0x85EBCA77)))
+        primary.append(comparison(pairs,q,'splitx/'+q,'packed/'+q,SEED^(i*0x85EBCA77)))
         calibration.append(comparison(pairs,q,'packed/'+q,q,SEED^0x517CC1B7^(i*0x85EBCA77)))
     policies={}
-    for mode,prefix in enumerate(('','packed/','split/')):
+    for mode,prefix in enumerate(('','packed/','splitx/')):
         selected=[dict(r,implementation=context(r['implementation'])[1]) for r in records if context(r['implementation'])[0]==mode]
         policies[('original','packed','split')[mode]]=policy_analyze(selected,('veriqueue',),QUEUES[1:],SEED^mode,20000)
     hist=[]
