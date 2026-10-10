@@ -149,7 +149,6 @@ jobs:
             -DVERIQUEUE_POLICY_CAPACITY=${{ matrix.capacity }} \
             -Iinclude -Ibench \
             -isystem build/forensic/_deps/rigtorp_spsc-src/include \
-            -isystem /usr/include \
             -isystem build/forensic/_deps/moodycamel_readerwriterqueue-src \
             -isystem build/forensic/_deps/drogalis_spsc-src/include \
             bench/bench_policy_compare.cpp bench/environment.cpp \
@@ -176,7 +175,7 @@ jobs:
             --source-commit "${{ env.SOURCE_COMMIT }}" \
             --output "$output"
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: success()
         with:
           name: policy-forensic-${{ steps.meta.outputs.lane }}-cap${{ matrix.capacity }}
           path: evidence/policy-forensic/raw/*.jsonl
@@ -271,7 +270,6 @@ jobs:
           "$CXX" -std=c++20 -O3 -DNDEBUG -S \
             -Iinclude -Ibench \
             -isystem build/assembly/_deps/rigtorp_spsc-src/include \
-            -isystem /usr/include \
             -isystem build/assembly/_deps/moodycamel_readerwriterqueue-src \
             -isystem build/assembly/_deps/drogalis_spsc-src/include \
             tools/assembly_policy_probe.cpp \
