@@ -46,6 +46,7 @@ struct probe_payload final {
 #define VQ_CASE(CAP, BYTES) \
     VQ_PROBE(production, CAP, BYTES, veriqueue::spsc_queue) \
     VQ_PROBE(dynamic_raw, CAP, BYTES, vqbench::experimental::rigtorp_codegen::dynamic_raw_queue) \
+    VQ_PROBE(dynamic_grouped, CAP, BYTES, vqbench::experimental::rigtorp_codegen::dynamic_grouped_queue) \
     VQ_PROBE(dynamic_split, CAP, BYTES, vqbench::experimental::rigtorp_codegen::dynamic_split_queue) \
     VQ_PROBE(static_raw, CAP, BYTES, vqbench::experimental::rigtorp_codegen::static_raw_queue) \
     VQ_PROBE(static_slot, CAP, BYTES, vqbench::experimental::rigtorp_codegen::static_slot_queue) \

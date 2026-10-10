@@ -12,13 +12,20 @@ namespace vqbench::experimental::rigtorp_codegen {
 
 inline constexpr std::size_t arm_destructive_span = 256;
 
-template <class T, std::size_t Capacity, class Allocator = std::allocator<T>, bool SplitConsumer = false>
+template <
+    class T,
+    std::size_t Capacity,
+    class Allocator = std::allocator<T>,
+    bool SplitConsumer = false,
+    bool GroupOwnerCache = false>
 class dynamic_raw_queue final {
     static_assert(Capacity >= 1);
     static_assert(std::is_nothrow_destructible_v<T>);
 
     static constexpr std::size_t padding =
         ((arm_destructive_span - 1) / sizeof(T)) + 1;
+    static constexpr std::size_t owner_cache_alignment =
+        GroupOwnerCache ? alignof(std::size_t) : arm_destructive_span;
 
 public:
     dynamic_raw_queue() : capacity_(Capacity + 1), slots_(nullptr) {
@@ -108,10 +115,13 @@ private:
     T* slots_;
     [[no_unique_address]] Allocator allocator_{};
     alignas(arm_destructive_span) std::atomic<std::size_t> write_{0};
-    alignas(arm_destructive_span) std::size_t read_cache_{0};
+    alignas(owner_cache_alignment) std::size_t read_cache_{0};
     alignas(arm_destructive_span) std::atomic<std::size_t> read_{0};
-    alignas(arm_destructive_span) std::size_t write_cache_{0};
+    alignas(owner_cache_alignment) std::size_t write_cache_{0};
 };
+
+template <class T, std::size_t Capacity>
+using dynamic_grouped_queue = dynamic_raw_queue<T, Capacity, std::allocator<T>, false, true>;
 
 template <class T, std::size_t Capacity>
 using dynamic_split_queue = dynamic_raw_queue<T, Capacity, std::allocator<T>, true>;
