@@ -74,6 +74,15 @@ int main() {
     static_assert(!queue8::testing_storage_striped());
     static_assert(!tiny_queue16::testing_storage_striped());
 
+#if !defined(VERIQUEUE_DISABLE_PADDING) && \
+    (defined(__x86_64__) || defined(_M_X64))
+    static_assert(queue8::testing_split_control());
+    static_assert(queue16::testing_split_control());
+#else
+    static_assert(!queue8::testing_split_control());
+    static_assert(!queue16::testing_split_control());
+#endif
+
     vqtest::run("storage mapping selection and permutation", [] {
         std::array<bool, 64> seen{};
         for (std::size_t logical = 0; logical < 64; ++logical) {
