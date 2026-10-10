@@ -110,15 +110,27 @@ jobs:
           needle = '    if (implementation == "rigtorp") {'
           insert = r'''    if (implementation == "dynamic_raw") {
               using queue = vqbench::experimental::rigtorp_codegen::dynamic_raw_queue<Payload, Capacity>;
-              return run_queue<queue, Payload>(transfers, cpus);
+              auto q = std::make_unique<queue>();
+              return run_pair<sizeof(Payload)>(
+                  [&](const Payload& value) { return q->try_push(value); },
+                  [&](Payload& out) { return q->try_pop(out); },
+                  transfers, cpus.producer, cpus.consumer);
           }
           if (implementation == "static_raw") {
               using queue = vqbench::experimental::rigtorp_codegen::static_raw_queue<Payload, Capacity>;
-              return run_queue<queue, Payload>(transfers, cpus);
+              auto q = std::make_unique<queue>();
+              return run_pair<sizeof(Payload)>(
+                  [&](const Payload& value) { return q->try_push(value); },
+                  [&](Payload& out) { return q->try_pop(out); },
+                  transfers, cpus.producer, cpus.consumer);
           }
           if (implementation == "static_slot") {
               using queue = vqbench::experimental::rigtorp_codegen::static_slot_queue<Payload, Capacity>;
-              return run_queue<queue, Payload>(transfers, cpus);
+              auto q = std::make_unique<queue>();
+              return run_pair<sizeof(Payload)>(
+                  [&](const Payload& value) { return q->try_push(value); },
+                  [&](Payload& out) { return q->try_pop(out); },
+                  transfers, cpus.producer, cpus.consumer);
           }
           '''
           if needle not in source:
