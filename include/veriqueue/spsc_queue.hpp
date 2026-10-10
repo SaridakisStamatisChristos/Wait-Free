@@ -54,9 +54,9 @@ namespace veriqueue {
 #endif
 
 #if defined(__aarch64__) && defined(__GNUC__) && !defined(__clang__)
-#define VERIQUEUE_DETAIL_GCC_ARM64_BULK_UNROLL 1
+#define VERIQUEUE_DETAIL_GCC_ARM64_BULK_OPT __attribute__((optimize("unroll-loops")))
 #else
-#define VERIQUEUE_DETAIL_GCC_ARM64_BULK_UNROLL 0
+#define VERIQUEUE_DETAIL_GCC_ARM64_BULK_OPT
 #endif
 
 template <
@@ -190,6 +190,7 @@ public:
         return try_emplace(std::move(value));
     }
 
+    VERIQUEUE_DETAIL_GCC_ARM64_BULK_OPT
     [[nodiscard]] std::size_t try_push_bulk(std::span<const T> values) noexcept
         requires std::is_nothrow_copy_constructible_v<T>
     {
@@ -215,16 +216,9 @@ public:
         const std::size_t count =
             (std::min)(values.size(), static_cast<std::size_t>(available));
 
-#if VERIQUEUE_DETAIL_GCC_ARM64_BULK_UNROLL
-        if constexpr (sizeof(detail::slot<T>) == 8) {
-            construct_gcc_arm64_8b_bulk(tail, values, count);
-        } else
-#endif
-        {
-            for (std::size_t i = 0; i < count; ++i) {
-                std::construct_at(slot_for(tail).storage_ptr(), values[i]);
-                ++tail;
-            }
+        for (std::size_t i = 0; i < count; ++i) {
+            std::construct_at(slot_for(tail).storage_ptr(), values[i]);
+            ++tail;
         }
 
 #if !VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
@@ -262,6 +256,7 @@ public:
         return true;
     }
 
+    VERIQUEUE_DETAIL_GCC_ARM64_BULK_OPT
     [[nodiscard]] std::size_t try_pop_bulk(std::span<T> output) noexcept
         requires std::is_nothrow_move_assignable_v<T>
     {
@@ -284,19 +279,11 @@ public:
 
         const std::size_t count =
             (std::min)(output.size(), static_cast<std::size_t>(available));
-
-#if VERIQUEUE_DETAIL_GCC_ARM64_BULK_UNROLL
-        if constexpr (sizeof(detail::slot<T>) == 8) {
-            consume_gcc_arm64_8b_bulk(head, output, count);
-        } else
-#endif
-        {
-            for (std::size_t i = 0; i < count; ++i) {
-                T* const source = slot_for(head).live_ptr();
-                output[i] = std::move(*source);
-                std::destroy_at(source);
-                ++head;
-            }
+        for (std::size_t i = 0; i < count; ++i) {
+            T* const source = slot_for(head).live_ptr();
+            output[i] = std::move(*source);
+            std::destroy_at(source);
+            ++head;
         }
 
 #if !VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
@@ -403,28 +390,6 @@ private:
         return static_cast<Index>(newer - older);
     }
 
-#if VERIQUEUE_DETAIL_GCC_ARM64_BULK_UNROLL
-    __attribute__((always_inline, optimize("unroll-loops")))
-    void construct_gcc_arm64_8b_bulk(Index& tail, std::span<const T> values,
-                                     std::size_t count) noexcept {
-        for (std::size_t i = 0; i < count; ++i) {
-            std::construct_at(slot_for(tail).storage_ptr(), values[i]);
-            ++tail;
-        }
-    }
-
-    __attribute__((always_inline, optimize("unroll-loops")))
-    void consume_gcc_arm64_8b_bulk(Index& head, std::span<T> output,
-                                   std::size_t count) noexcept {
-        for (std::size_t i = 0; i < count; ++i) {
-            T* const source = slot_for(head).live_ptr();
-            output[i] = std::move(*source);
-            std::destroy_at(source);
-            ++head;
-        }
-    }
-#endif
-
     [[nodiscard]] static constexpr std::size_t physical_slot_index(Index logical_index) noexcept {
         const std::size_t bounded = static_cast<std::size_t>(logical_index & mask_index);
         if constexpr (use_arm64_16b_storage_stripe) {
@@ -452,7 +417,7 @@ private:
     alignas(storage_alignment) std::array<detail::slot<T>, Capacity> slots_;
 };
 
-#undef VERIQUEUE_DETAIL_GCC_ARM64_BULK_UNROLL
+#undef VERIQUEUE_DETAIL_GCC_ARM64_BULK_OPT
 #undef VERIQUEUE_DETAIL_ARM64_STORAGE_STRIPE
 #undef VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
 
