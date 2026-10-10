@@ -18,9 +18,9 @@ concurrency:
 
 env:
   SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
-  CANDIDATES: veriqueue,dynamic_raw,dynamic_split,dynamic_grouped,dynamic_combined
+  CANDIDATES: veriqueue,dynamic_raw,dynamic_split,dynamic_grouped,raw_combined
   EXTERNALS: rigtorp,boost_lockfree,moodycamel,drogalis
-  IMPLEMENTATIONS: veriqueue,dynamic_raw,dynamic_split,dynamic_grouped,dynamic_combined,rigtorp,boost_lockfree,moodycamel,drogalis
+  IMPLEMENTATIONS: veriqueue,dynamic_raw,dynamic_split,dynamic_grouped,raw_combined,rigtorp,boost_lockfree,moodycamel,drogalis
 
 jobs:
   tooling:
@@ -142,7 +142,7 @@ jobs:
                   [&](Payload& out) { return q->try_pop(out); },
                   transfers, cpus.producer, cpus.consumer);
           }
-          if (implementation == "dynamic_combined") {
+          if (implementation == "raw_combined") {
               using queue = vqbench::experimental::rigtorp_codegen::dynamic_combined_queue<Payload, Capacity>;
               auto q = std::make_unique<queue>();
               return run_pair<sizeof(Payload)>(
