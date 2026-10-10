@@ -12,7 +12,7 @@ namespace vqbench::experimental::rigtorp_codegen {
 
 inline constexpr std::size_t arm_destructive_span = 256;
 
-template <class T, std::size_t Capacity, class Allocator = std::allocator<T>>
+template <class T, std::size_t Capacity, class Allocator = std::allocator<T>, bool SplitConsumer = false>
 class dynamic_raw_queue final {
     static_assert(Capacity >= 1);
     static_assert(std::is_nothrow_destructible_v<T>);
@@ -57,19 +57,44 @@ public:
     [[nodiscard]] bool try_pop(T& output) noexcept
         requires std::is_nothrow_move_assignable_v<T>
     {
-        const auto read = read_.load(std::memory_order_relaxed);
-        if (read == write_cache_) {
-            write_cache_ = write_.load(std::memory_order_acquire);
-            if (read == write_cache_) return false;
+        if constexpr (SplitConsumer) {
+            T* const source = front();
+            if (source == nullptr) return false;
+            output = std::move(*source);
+            pop_front();
+            return true;
+        } else {
+            const auto read = read_.load(std::memory_order_relaxed);
+            if (read == write_cache_) {
+                write_cache_ = write_.load(std::memory_order_acquire);
+                if (read == write_cache_) return false;
+            }
+            T* const source = slot_ptr(read);
+            output = std::move(*source);
+            std::destroy_at(source);
+            read_.store(next(read), std::memory_order_release);
+            return true;
         }
-        T* const source = slot_ptr(read);
-        output = std::move(*source);
-        std::destroy_at(source);
-        read_.store(next(read), std::memory_order_release);
-        return true;
     }
 
 private:
+    // Experimental consumer API shape only. The layout, producer, allocation,
+    // physical capacity and acquire/release protocol match dynamic_raw.
+    [[nodiscard]] T* front() noexcept {
+        const auto read = read_.load(std::memory_order_relaxed);
+        if (read == write_cache_) {
+            write_cache_ = write_.load(std::memory_order_acquire);
+            if (read == write_cache_) return nullptr;
+        }
+        return slot_ptr(read);
+    }
+
+    void pop_front() noexcept {
+        const auto read = read_.load(std::memory_order_relaxed);
+        std::destroy_at(slot_ptr(read));
+        read_.store(next(read), std::memory_order_release);
+    }
+
     [[nodiscard]] std::size_t next(std::size_t value) const noexcept {
         ++value;
         return value == capacity_ ? 0 : value;
@@ -87,6 +112,9 @@ private:
     alignas(arm_destructive_span) std::atomic<std::size_t> read_{0};
     alignas(arm_destructive_span) std::size_t write_cache_{0};
 };
+
+template <class T, std::size_t Capacity>
+using dynamic_split_queue = dynamic_raw_queue<T, Capacity, std::allocator<T>, true>;
 
 template <class T, std::size_t Capacity, class Allocator = std::allocator<T>>
 class static_raw_queue final {

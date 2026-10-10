@@ -7,10 +7,9 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace {
-
-struct payload16 final {
-    std::array<std::uint64_t, 2> words{};
+template <std::size_t Bytes>
+struct probe_payload final {
+    std::array<std::uint64_t, Bytes / 8> words{};
 };
 
 #if defined(_MSC_VER)
@@ -19,81 +18,55 @@ struct payload16 final {
 #define VQ_NOINLINE __attribute__((noinline))
 #endif
 
-using production = veriqueue::spsc_queue<payload16, 1024>;
-using dynamic_raw =
-    vqbench::experimental::rigtorp_codegen::dynamic_raw_queue<payload16, 1024>;
-using static_raw =
-    vqbench::experimental::rigtorp_codegen::static_raw_queue<payload16, 1024>;
-using static_slot =
-    vqbench::experimental::rigtorp_codegen::static_slot_queue<payload16, 1024>;
-using upstream = rigtorp::SPSCQueue<payload16>;
+#define VQ_PROBE(NAME, CAP, BYTES, TYPE) \
+    using NAME##_c##CAP##_p##BYTES = TYPE<probe_payload<BYTES>, CAP>; \
+    extern "C" VQ_NOINLINE bool NAME##_push_c##CAP##_p##BYTES( \
+        NAME##_c##CAP##_p##BYTES& q, const probe_payload<BYTES>& value) { \
+        return q.try_push(value); \
+    } \
+    extern "C" VQ_NOINLINE bool NAME##_pop_c##CAP##_p##BYTES( \
+        NAME##_c##CAP##_p##BYTES& q, probe_payload<BYTES>& value) { \
+        return q.try_pop(value); \
+    }
 
-extern "C" VQ_NOINLINE bool production_push(
-    production& q,
-    const payload16& value) {
-    return q.try_push(value);
-}
+#define VQ_UPSTREAM(CAP, BYTES) \
+    extern "C" VQ_NOINLINE bool upstream_push_c##CAP##_p##BYTES( \
+        rigtorp::SPSCQueue<probe_payload<BYTES>>& q, const probe_payload<BYTES>& value) { \
+        return q.try_push(value); \
+    } \
+    extern "C" VQ_NOINLINE bool upstream_pop_c##CAP##_p##BYTES( \
+        rigtorp::SPSCQueue<probe_payload<BYTES>>& q, probe_payload<BYTES>& value) { \
+        auto* source = q.front(); \
+        if (source == nullptr) return false; \
+        value = *source; \
+        q.pop(); \
+        return true; \
+    }
 
-extern "C" VQ_NOINLINE bool production_pop(
-    production& q,
-    payload16& value) {
-    return q.try_pop(value);
-}
+#define VQ_CASE(CAP, BYTES) \
+    VQ_PROBE(production, CAP, BYTES, veriqueue::spsc_queue) \
+    VQ_PROBE(dynamic_raw, CAP, BYTES, vqbench::experimental::rigtorp_codegen::dynamic_raw_queue) \
+    VQ_PROBE(dynamic_split, CAP, BYTES, vqbench::experimental::rigtorp_codegen::dynamic_split_queue) \
+    VQ_PROBE(static_raw, CAP, BYTES, vqbench::experimental::rigtorp_codegen::static_raw_queue) \
+    VQ_PROBE(static_slot, CAP, BYTES, vqbench::experimental::rigtorp_codegen::static_slot_queue) \
+    VQ_UPSTREAM(CAP, BYTES)
 
-extern "C" VQ_NOINLINE bool dynamic_raw_push(
-    dynamic_raw& q,
-    const payload16& value) {
-    return q.try_push(value);
-}
+VQ_CASE(64, 8)
+VQ_CASE(64, 16)
+VQ_CASE(64, 64)
+VQ_CASE(256, 8)
+VQ_CASE(256, 16)
+VQ_CASE(256, 64)
+VQ_CASE(1024, 8)
+VQ_CASE(1024, 16)
+VQ_CASE(1024, 64)
+VQ_CASE(65536, 8)
+VQ_CASE(65536, 16)
+VQ_CASE(65536, 64)
 
-extern "C" VQ_NOINLINE bool dynamic_raw_pop(
-    dynamic_raw& q,
-    payload16& value) {
-    return q.try_pop(value);
-}
-
-extern "C" VQ_NOINLINE bool static_raw_push(
-    static_raw& q,
-    const payload16& value) {
-    return q.try_push(value);
-}
-
-extern "C" VQ_NOINLINE bool static_raw_pop(
-    static_raw& q,
-    payload16& value) {
-    return q.try_pop(value);
-}
-
-extern "C" VQ_NOINLINE bool static_slot_push(
-    static_slot& q,
-    const payload16& value) {
-    return q.try_push(value);
-}
-
-extern "C" VQ_NOINLINE bool static_slot_pop(
-    static_slot& q,
-    payload16& value) {
-    return q.try_pop(value);
-}
-
-extern "C" VQ_NOINLINE bool upstream_push(
-    upstream& q,
-    const payload16& value) {
-    return q.try_push(value);
-}
-
-extern "C" VQ_NOINLINE bool upstream_pop(
-    upstream& q,
-    payload16& value) {
-    auto* source = q.front();
-    if (source == nullptr) return false;
-    value = *source;
-    q.pop();
-    return true;
-}
-
+#undef VQ_CASE
+#undef VQ_UPSTREAM
+#undef VQ_PROBE
 #undef VQ_NOINLINE
-
-} // namespace
 
 int main() { return 0; }
