@@ -47,6 +47,20 @@ namespace veriqueue {
 #define VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR 0
 #endif
 
+// PR29's full external campaign showed that separating owner-private state from
+// the peer-visible publication cursor is a broad x86-64 win on both GCC and
+// Clang, with no statistically significant production regression in any tested
+// x64 cell. The same layout materially regressed AArch64, so selection is
+// architectural and compile-time only. VERIQUEUE_DISABLE_PADDING keeps its
+// historical compact-layout contract and therefore disables this cache-line
+// separation as well.
+#if !defined(VERIQUEUE_DISABLE_PADDING) && \
+    (defined(__x86_64__) || defined(_M_X64))
+#define VERIQUEUE_DETAIL_X64_SPLIT_CONTROL 1
+#else
+#define VERIQUEUE_DETAIL_X64_SPLIT_CONTROL 0
+#endif
+
 #if defined(__aarch64__) || defined(_M_ARM64)
 #define VERIQUEUE_DETAIL_ARM64_STORAGE_STRIPE 1
 #else
@@ -101,6 +115,9 @@ class spsc_queue final {
         sizeof(detail::slot<T>) == 16 &&
         Capacity >= 8;
 
+    static constexpr bool use_x64_split_control =
+        VERIQUEUE_DETAIL_X64_SPLIT_CONTROL != 0;
+
     struct alignas(control_alignment) producer_state final {
 #if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
         std::atomic<Index> published_tail{0};
@@ -108,7 +125,9 @@ class spsc_queue final {
 #else
         Index local_tail{0};
         Index cached_head{0};
+#if !VERIQUEUE_DETAIL_X64_SPLIT_CONTROL
         std::atomic<Index> published_tail{0};
+#endif
 #endif
     };
 
@@ -119,9 +138,17 @@ class spsc_queue final {
 #else
         Index local_head{0};
         Index cached_tail{0};
+#if !VERIQUEUE_DETAIL_X64_SPLIT_CONTROL
         std::atomic<Index> published_head{0};
 #endif
+#endif
     };
+
+#if VERIQUEUE_DETAIL_X64_SPLIT_CONTROL
+    struct alignas(control_alignment) published_cursor final {
+        std::atomic<Index> value{0};
+    };
+#endif
 
 public:
     using value_type = T;
@@ -140,8 +167,8 @@ public:
         // externally quiescent, relaxed loads are sufficient because destruction is not a
         // synchronization edge.
 #if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
-        Index head = consumer_.published_head.load(std::memory_order_relaxed);
-        const Index tail = producer_.published_tail.load(std::memory_order_relaxed);
+        Index head = published_head_atomic().load(std::memory_order_relaxed);
+        const Index tail = published_tail_atomic().load(std::memory_order_relaxed);
 #else
         Index head = consumer_.local_head;
         const Index tail = producer_.local_tail;
@@ -156,14 +183,14 @@ public:
         requires std::constructible_from<T, Args...>
     [[nodiscard]] bool try_emplace(Args&&... args) {
 #if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
-        Index tail = producer_.published_tail.load(std::memory_order_relaxed);
+        Index tail = published_tail_atomic().load(std::memory_order_relaxed);
 #else
         Index tail = producer_.local_tail;
 #endif
 
         if (distance(tail, producer_.cached_head) == capacity_index) {
             producer_.cached_head =
-                consumer_.published_head.load(std::memory_order_acquire);
+                published_head_atomic().load(std::memory_order_acquire);
             if (distance(tail, producer_.cached_head) == capacity_index) {
                 return false;
             }
@@ -174,7 +201,7 @@ public:
 #if !VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
         producer_.local_tail = tail;
 #endif
-        producer_.published_tail.store(tail, std::memory_order_release);
+        published_tail_atomic().store(tail, std::memory_order_release);
         return true;
     }
 
@@ -197,7 +224,7 @@ public:
         if (values.empty()) return 0;
 
 #if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
-        Index tail = producer_.published_tail.load(std::memory_order_relaxed);
+        Index tail = published_tail_atomic().load(std::memory_order_relaxed);
 #else
         Index tail = producer_.local_tail;
 #endif
@@ -207,7 +234,7 @@ public:
 
         if (static_cast<std::size_t>(available) < target) {
             producer_.cached_head =
-                consumer_.published_head.load(std::memory_order_acquire);
+                published_head_atomic().load(std::memory_order_acquire);
             used = distance(tail, producer_.cached_head);
             available = static_cast<Index>(capacity_index - used);
             if (available == 0) return 0;
@@ -224,7 +251,7 @@ public:
 #if !VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
         producer_.local_tail = tail;
 #endif
-        producer_.published_tail.store(tail, std::memory_order_release);
+        published_tail_atomic().store(tail, std::memory_order_release);
         return count;
     }
 
@@ -232,14 +259,14 @@ public:
         requires std::is_nothrow_move_assignable_v<T>
     {
 #if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
-        Index head = consumer_.published_head.load(std::memory_order_relaxed);
+        Index head = published_head_atomic().load(std::memory_order_relaxed);
 #else
         Index head = consumer_.local_head;
 #endif
 
         if (head == consumer_.cached_tail) {
             consumer_.cached_tail =
-                producer_.published_tail.load(std::memory_order_acquire);
+                published_tail_atomic().load(std::memory_order_acquire);
             if (head == consumer_.cached_tail) {
                 return false;
             }
@@ -252,7 +279,7 @@ public:
 #if !VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
         consumer_.local_head = head;
 #endif
-        consumer_.published_head.store(head, std::memory_order_release);
+        published_head_atomic().store(head, std::memory_order_release);
         return true;
     }
 
@@ -263,7 +290,7 @@ public:
         if (output.empty()) return 0;
 
 #if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
-        Index head = consumer_.published_head.load(std::memory_order_relaxed);
+        Index head = published_head_atomic().load(std::memory_order_relaxed);
 #else
         Index head = consumer_.local_head;
 #endif
@@ -272,7 +299,7 @@ public:
 
         if (static_cast<std::size_t>(available) < target) {
             consumer_.cached_tail =
-                producer_.published_tail.load(std::memory_order_acquire);
+                published_tail_atomic().load(std::memory_order_acquire);
             available = distance(consumer_.cached_tail, head);
             if (available == 0) return 0;
         }
@@ -289,7 +316,7 @@ public:
 #if !VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
         consumer_.local_head = head;
 #endif
-        consumer_.published_head.store(head, std::memory_order_release);
+        published_head_atomic().store(head, std::memory_order_release);
         return count;
     }
 
@@ -297,14 +324,14 @@ public:
         requires std::is_nothrow_invocable_v<F, T&>
     [[nodiscard]] bool try_consume(F&& consumer) noexcept {
 #if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
-        Index head = consumer_.published_head.load(std::memory_order_relaxed);
+        Index head = published_head_atomic().load(std::memory_order_relaxed);
 #else
         Index head = consumer_.local_head;
 #endif
 
         if (head == consumer_.cached_tail) {
             consumer_.cached_tail =
-                producer_.published_tail.load(std::memory_order_acquire);
+                published_tail_atomic().load(std::memory_order_acquire);
             if (head == consumer_.cached_tail) {
                 return false;
             }
@@ -317,15 +344,15 @@ public:
 #if !VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
         consumer_.local_head = head;
 #endif
-        consumer_.published_head.store(head, std::memory_order_release);
+        published_head_atomic().store(head, std::memory_order_release);
         return true;
     }
 
     [[nodiscard]] bool empty() const noexcept {
         // Advisory concurrent observation: the independently loaded cursors need not
         // belong to one linearizable queue state.
-        const Index head = consumer_.published_head.load(std::memory_order_acquire);
-        const Index tail = producer_.published_tail.load(std::memory_order_acquire);
+        const Index head = published_head_atomic().load(std::memory_order_acquire);
+        const Index tail = published_tail_atomic().load(std::memory_order_acquire);
         return head == tail;
     }
 
@@ -338,8 +365,8 @@ public:
         // from different logical instants, and unsigned modular subtraction can then
         // produce a value outside the physical queue range. Preserve the deliberately
         // advisory semantics while guaranteeing the useful physical bound [0, Capacity].
-        const Index head = consumer_.published_head.load(std::memory_order_acquire);
-        const Index tail = producer_.published_tail.load(std::memory_order_acquire);
+        const Index head = published_head_atomic().load(std::memory_order_acquire);
+        const Index tail = published_tail_atomic().load(std::memory_order_acquire);
         const Index observed = distance(tail, head);
         return observed > capacity_index ? Capacity : static_cast<std::size_t>(observed);
     }
@@ -356,8 +383,8 @@ public:
 
     [[nodiscard]] test_snapshot testing_snapshot() const noexcept {
 #if VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
-        const Index tail = producer_.published_tail.load(std::memory_order_relaxed);
-        const Index head = consumer_.published_head.load(std::memory_order_relaxed);
+        const Index tail = published_tail_atomic().load(std::memory_order_relaxed);
+        const Index head = published_head_atomic().load(std::memory_order_relaxed);
         return {
             tail,
             producer_.cached_head,
@@ -371,13 +398,17 @@ public:
             producer_.cached_head,
             consumer_.local_head,
             consumer_.cached_tail,
-            producer_.published_tail.load(std::memory_order_relaxed),
-            consumer_.published_head.load(std::memory_order_relaxed)};
+            published_tail_atomic().load(std::memory_order_relaxed),
+            published_head_atomic().load(std::memory_order_relaxed)};
 #endif
     }
 
     [[nodiscard]] static constexpr bool testing_storage_striped() noexcept {
         return use_arm64_16b_storage_stripe;
+    }
+
+    [[nodiscard]] static constexpr bool testing_split_control() noexcept {
+        return use_x64_split_control;
     }
 
     [[nodiscard]] static constexpr std::size_t testing_slot_index(Index logical_index) noexcept {
@@ -386,6 +417,38 @@ public:
 #endif
 
 private:
+    [[nodiscard]] std::atomic<Index>& published_tail_atomic() noexcept {
+#if VERIQUEUE_DETAIL_X64_SPLIT_CONTROL
+        return published_tail_.value;
+#else
+        return producer_.published_tail;
+#endif
+    }
+
+    [[nodiscard]] const std::atomic<Index>& published_tail_atomic() const noexcept {
+#if VERIQUEUE_DETAIL_X64_SPLIT_CONTROL
+        return published_tail_.value;
+#else
+        return producer_.published_tail;
+#endif
+    }
+
+    [[nodiscard]] std::atomic<Index>& published_head_atomic() noexcept {
+#if VERIQUEUE_DETAIL_X64_SPLIT_CONTROL
+        return published_head_.value;
+#else
+        return consumer_.published_head;
+#endif
+    }
+
+    [[nodiscard]] const std::atomic<Index>& published_head_atomic() const noexcept {
+#if VERIQUEUE_DETAIL_X64_SPLIT_CONTROL
+        return published_head_.value;
+#else
+        return consumer_.published_head;
+#endif
+    }
+
     [[nodiscard]] static constexpr Index distance(Index newer, Index older) noexcept {
         return static_cast<Index>(newer - older);
     }
@@ -413,12 +476,19 @@ private:
     }
 
     producer_state producer_{};
+#if VERIQUEUE_DETAIL_X64_SPLIT_CONTROL
+    published_cursor published_tail_{};
+#endif
     consumer_state consumer_{};
+#if VERIQUEUE_DETAIL_X64_SPLIT_CONTROL
+    published_cursor published_head_{};
+#endif
     alignas(storage_alignment) std::array<detail::slot<T>, Capacity> slots_;
 };
 
 #undef VERIQUEUE_DETAIL_GCC_ARM64_BULK_OPT
 #undef VERIQUEUE_DETAIL_ARM64_STORAGE_STRIPE
+#undef VERIQUEUE_DETAIL_X64_SPLIT_CONTROL
 #undef VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
 
 #if defined(_MSC_VER)
