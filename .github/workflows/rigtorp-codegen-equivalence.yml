@@ -1,0 +1,339 @@
+name: Dynamic Raw Full ARM Coverage
+
+on:
+  pull_request:
+    paths:
+      - 'bench/rigtorp_codegen_variants.hpp'
+      - 'tools/rigtorp_codegen_probe.cpp'
+      - 'bench/test_rigtorp_consumer.cpp'
+      - '.github/workflows/rigtorp-codegen-equivalence.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rigtorp-codegen-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+  CANDIDATES: veriqueue,dynamic_raw,raw_combined,raw_ctrl64
+  EXTERNALS: rigtorp,boost_lockfree,moodycamel,drogalis
+  IMPLEMENTATIONS: veriqueue,dynamic_raw,raw_combined,raw_ctrl64,rigtorp,boost_lockfree,moodycamel,drogalis
+
+jobs:
+  tooling:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate tooling
+        run: |
+          python -m py_compile tools/run_comparator_campaign.py tools/analyze_policy_campaign.py
+          python tools/test_policy_campaign.py
+      - name: Verify exact capacity, model, lifetime, exceptions and concurrent FIFO
+        run: |
+          g++ -std=c++20 -O2 -DNDEBUG -pthread -Wall -Wextra -Werror \
+            -Iinclude -Ibench bench/test_rigtorp_consumer.cpp -o /tmp/consumer-contract
+          /tmp/consumer-contract
+          g++ -std=c++20 -O1 -g -pthread -fsanitize=address,undefined \
+            -fno-omit-frame-pointer -Iinclude -Ibench \
+            bench/test_rigtorp_consumer.cpp -o /tmp/consumer-sanitizers
+          /tmp/consumer-sanitizers
+      - name: Compile candidate smoke
+        run: |
+          g++ -std=c++20 -O3 -DNDEBUG -pthread \
+            -Wall -Wextra -Wpedantic -Wconversion -Wshadow \
+            -Wold-style-cast -Wcast-align -Wundef -Werror \
+            -Iinclude -Ibench -x c++ -o /tmp/rigtorp-codegen-smoke - <<'CPP'
+          #include "rigtorp_codegen_variants.hpp"
+          #include <cstdint>
+          struct p16 { std::uint64_t a; std::uint64_t b; };
+          int main() {
+              vqbench::experimental::rigtorp_codegen::dynamic_raw_queue<p16, 64> a;
+              vqbench::experimental::rigtorp_codegen::static_raw_queue<p16, 64> b;
+              vqbench::experimental::rigtorp_codegen::static_slot_queue<p16, 64> c;
+              p16 in{1, 2}, out{};
+              if (!a.try_push(in) || !a.try_pop(out)) return 1;
+              if (!b.try_push(in) || !b.try_pop(out)) return 2;
+              if (!c.try_push(in) || !c.try_pop(out)) return 3;
+              return out.a == 1 && out.b == 2 ? 0 : 4;
+          }
+          CPP
+          /tmp/rigtorp-codegen-smoke
+
+  compare:
+    name: arm64 / ${{ matrix.compiler }} / cap-${{ matrix.capacity }}
+    needs: tooling
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+        capacity: [2, 64, 256, 1024, 65536]
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y ninja-build libboost-dev clang
+      - name: Select compiler
+        id: compiler
+        shell: bash
+        run: |
+          if [[ "${{ matrix.compiler }}" == "gcc" ]]; then
+            echo "cc=gcc" >> "$GITHUB_OUTPUT"
+            echo "cxx=g++" >> "$GITHUB_OUTPUT"
+            echo "id=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "cc=clang" >> "$GITHUB_OUTPUT"
+            echo "cxx=clang++" >> "$GITHUB_OUTPUT"
+            echo "id=2" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Fetch pinned comparators
+        env:
+          CC: ${{ steps.compiler.outputs.cc }}
+          CXX: ${{ steps.compiler.outputs.cxx }}
+        run: |
+          cmake -S . -B build/rigtorp-codegen -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DVERIQUEUE_BUILD_TESTS=OFF \
+            -DVERIQUEUE_BUILD_STRESS=OFF \
+            -DVERIQUEUE_BUILD_BENCHMARKS=OFF \
+            -DVERIQUEUE_BUILD_BASELINES=ON
+      - name: Generate comparator
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          source = Path('bench/bench_compare.cpp').read_text()
+          source = '#include "rigtorp_codegen_variants.hpp"\n' + source
+          needle = '    if (implementation == "rigtorp") {'
+          insert = r'''    if (implementation == "dynamic_raw") {
+              using queue = vqbench::experimental::rigtorp_codegen::dynamic_raw_queue<Payload, Capacity>;
+              auto q = std::make_unique<queue>();
+              return run_pair<sizeof(Payload)>(
+                  [&](const Payload& value) { return q->try_push(value); },
+                  [&](Payload& out) { return q->try_pop(out); },
+                  transfers, cpus.producer, cpus.consumer);
+          }
+          if (implementation == "dynamic_grouped") {
+              using queue = vqbench::experimental::rigtorp_codegen::dynamic_grouped_queue<Payload, Capacity>;
+              auto q = std::make_unique<queue>();
+              return run_pair<sizeof(Payload)>(
+                  [&](const Payload& value) { return q->try_push(value); },
+                  [&](Payload& out) { return q->try_pop(out); },
+                  transfers, cpus.producer, cpus.consumer);
+          }
+          if (implementation == "dynamic_split") {
+              using queue = vqbench::experimental::rigtorp_codegen::dynamic_split_queue<Payload, Capacity>;
+              auto q = std::make_unique<queue>();
+              return run_pair<sizeof(Payload)>(
+                  [&](const Payload& value) { return q->try_push(value); },
+                  [&](Payload& out) { return q->try_pop(out); },
+                  transfers, cpus.producer, cpus.consumer);
+          }
+          if (implementation == "raw_ctrl64") {
+              using queue = vqbench::experimental::rigtorp_codegen::dynamic_ctrl64_queue<Payload, Capacity>;
+              auto q = std::make_unique<queue>();
+              return run_pair<sizeof(Payload)>(
+                  [&](const Payload& value) { return q->try_push(value); },
+                  [&](Payload& out) { return q->try_pop(out); },
+                  transfers, cpus.producer, cpus.consumer);
+          }
+          if (implementation == "raw_combined") {
+              using queue = vqbench::experimental::rigtorp_codegen::dynamic_combined_queue<Payload, Capacity>;
+              auto q = std::make_unique<queue>();
+              return run_pair<sizeof(Payload)>(
+                  [&](const Payload& value) { return q->try_push(value); },
+                  [&](Payload& out) { return q->try_pop(out); },
+                  transfers, cpus.producer, cpus.consumer);
+          }
+          if (implementation == "static_raw") {
+              using queue = vqbench::experimental::rigtorp_codegen::static_raw_queue<Payload, Capacity>;
+              auto q = std::make_unique<queue>();
+              return run_pair<sizeof(Payload)>(
+                  [&](const Payload& value) { return q->try_push(value); },
+                  [&](Payload& out) { return q->try_pop(out); },
+                  transfers, cpus.producer, cpus.consumer);
+          }
+          if (implementation == "static_slot") {
+              using queue = vqbench::experimental::rigtorp_codegen::static_slot_queue<Payload, Capacity>;
+              auto q = std::make_unique<queue>();
+              return run_pair<sizeof(Payload)>(
+                  [&](const Payload& value) { return q->try_push(value); },
+                  [&](Payload& out) { return q->try_pop(out); },
+                  transfers, cpus.producer, cpus.consumer);
+          }
+          '''
+          if needle not in source:
+              raise SystemExit('insertion point not found')
+          source = source.replace(needle, insert + needle, 1)
+          Path('build/rigtorp-codegen/bench_compare_codegen.cpp').write_text(source)
+          PY
+      - name: Compile comparator
+        env:
+          CXX: ${{ steps.compiler.outputs.cxx }}
+        run: |
+          "$CXX" -std=c++20 -O3 -DNDEBUG -pthread \
+            -Wall -Wextra -Wpedantic -Wconversion -Wshadow \
+            -Wold-style-cast -Wcast-align -Wundef -Werror \
+            -Iinclude -Ibench \
+            -isystem build/rigtorp-codegen/_deps/rigtorp_spsc-src/include \
+            -isystem build/rigtorp-codegen/_deps/moodycamel_readerwriterqueue-src \
+            -isystem build/rigtorp-codegen/_deps/drogalis_spsc-src/include \
+            build/rigtorp-codegen/bench_compare_codegen.cpp bench/environment.cpp \
+            -o build/rigtorp-codegen/bench_compare_codegen
+      - name: Emit inlined comparator assembly without preprocessing replay
+        env:
+          CXX: ${{ steps.compiler.outputs.cxx }}
+        run: |
+          "$CXX" -std=c++20 -O3 -DNDEBUG -pthread -S \
+            -Wall -Wextra -Wpedantic -Wconversion -Wshadow \
+            -Wold-style-cast -Wcast-align -Wundef -Werror \
+            -Iinclude -Ibench \
+            -isystem build/rigtorp-codegen/_deps/rigtorp_spsc-src/include \
+            -isystem build/rigtorp-codegen/_deps/moodycamel_readerwriterqueue-src \
+            -isystem build/rigtorp-codegen/_deps/drogalis_spsc-src/include \
+            build/rigtorp-codegen/bench_compare_codegen.cpp \
+            -o build/rigtorp-codegen/bench_compare_codegen.s
+      - name: Verify candidate on measured architecture and compiler
+        env:
+          CXX: ${{ steps.compiler.outputs.cxx }}
+        run: |
+          "$CXX" -std=c++20 -O2 -DNDEBUG -pthread -Wall -Wextra -Werror \
+            -Iinclude -Ibench bench/test_rigtorp_consumer.cpp -o /tmp/consumer-contract
+          /tmp/consumer-contract
+      - uses: actions/upload-artifact@v4
+        with:
+          name: raw-arm-coverage-inline-assembly-${{ matrix.compiler }}-cap${{ matrix.capacity }}
+          path: build/rigtorp-codegen/*.s
+          if-no-files-found: error
+          retention-days: 90
+      - name: Run randomized paired campaign
+        run: |
+          seed=$((2026104700 + ${{ steps.compiler.outputs.id }} * 10000 + ${{ matrix.capacity }}))
+          output="evidence/rigtorp-codegen/raw/arm64-${{ matrix.compiler }}-cap${{ matrix.capacity }}.jsonl"
+          python tools/run_comparator_campaign.py \
+            --program build/rigtorp-codegen/bench_compare_codegen \
+            --capacity "${{ matrix.capacity }}" \
+            --payloads 8,16,64,256 \
+            --implementations "$IMPLEMENTATIONS" \
+            --transfers 1000000 \
+            --warmups 5 \
+            --repetitions 50 \
+            --seed "$seed" \
+            --lane "arm64-${{ matrix.compiler }}" \
+            --architecture arm64 \
+            --compiler "${{ matrix.compiler }}" \
+            --source-commit "$SOURCE_COMMIT" \
+            --output "$output"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rigtorp-codegen-${{ matrix.compiler }}-cap${{ matrix.capacity }}
+          path: evidence/rigtorp-codegen/raw/*.jsonl
+          if-no-files-found: error
+          retention-days: 90
+
+  assembly:
+    name: arm64 / ${{ matrix.compiler }} / assembly
+    needs: tooling
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y ninja-build libboost-dev clang
+      - name: Select compiler
+        id: compiler
+        shell: bash
+        run: |
+          if [[ "${{ matrix.compiler }}" == "gcc" ]]; then
+            echo "cc=gcc" >> "$GITHUB_OUTPUT"
+            echo "cxx=g++" >> "$GITHUB_OUTPUT"
+          else
+            echo "cc=clang" >> "$GITHUB_OUTPUT"
+            echo "cxx=clang++" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Fetch Rigtorp
+        env:
+          CC: ${{ steps.compiler.outputs.cc }}
+          CXX: ${{ steps.compiler.outputs.cxx }}
+        run: |
+          cmake -S . -B build/assembly -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DVERIQUEUE_BUILD_TESTS=OFF \
+            -DVERIQUEUE_BUILD_STRESS=OFF \
+            -DVERIQUEUE_BUILD_BENCHMARKS=OFF \
+            -DVERIQUEUE_BUILD_BASELINES=ON
+      - name: Emit assembly
+        env:
+          CXX: ${{ steps.compiler.outputs.cxx }}
+        run: |
+          mkdir -p evidence/rigtorp-codegen/assembly
+          "$CXX" -std=c++20 -O3 -DNDEBUG -S \
+            -Iinclude -Ibench \
+            -isystem build/assembly/_deps/rigtorp_spsc-src/include \
+            tools/rigtorp_codegen_probe.cpp \
+            -o evidence/rigtorp-codegen/assembly/${{ matrix.compiler }}.s
+          grep -E '^(production|dynamic_raw|dynamic_split|dynamic_grouped|dynamic_combined|dynamic_ctrl64|static_raw|static_slot|upstream)_(push|pop)_c[0-9]+_p[0-9]+:' \
+            evidence/rigtorp-codegen/assembly/${{ matrix.compiler }}.s \
+            > evidence/rigtorp-codegen/assembly/${{ matrix.compiler }}-labels.txt || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rigtorp-codegen-assembly-${{ matrix.compiler }}
+          path: evidence/rigtorp-codegen/assembly
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate:
+    name: aggregate-rigtorp-codegen
+    needs: compare
+    if: ${{ always() && needs.compare.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: rigtorp-codegen-?*-cap*
+          path: evidence/rigtorp-codegen/shards
+          merge-multiple: true
+      - name: Analyze
+        run: |
+          python tools/analyze_policy_campaign.py evidence/rigtorp-codegen/shards \
+            --candidates "$CANDIDATES" \
+            --externals "$EXTERNALS" \
+            --json-output evidence/rigtorp-codegen/summary.json \
+            --markdown-output evidence/rigtorp-codegen/summary.md \
+            --csv-output evidence/rigtorp-codegen/cells.csv \
+            --bootstrap-seed 20261047 \
+            --bootstrap-samples 20000
+          cat evidence/rigtorp-codegen/summary.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rigtorp-codegen-summary
+          path: evidence/rigtorp-codegen
+          if-no-files-found: error
+          retention-days: 90
+
