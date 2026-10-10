@@ -11,11 +11,15 @@
 
 namespace vqbench::experimental::clean_four_line {
 
-inline constexpr std::size_t cache_line = 64;
-
-template <class T, std::size_t Capacity, class Index = std::size_t>
+template <
+    class T,
+    std::size_t Capacity,
+    std::size_t Separation,
+    class Index = std::size_t>
 class inline_queue final {
     static_assert(Capacity >= 1);
+    static_assert(Separation >= alignof(std::atomic<Index>));
+    static_assert((Separation & (Separation - 1)) == 0);
     static_assert(std::is_unsigned_v<Index>);
     static_assert(Capacity < (std::numeric_limits<Index>::max)());
     static_assert(std::atomic<Index>::is_always_lock_free);
@@ -77,16 +81,22 @@ private:
         return slots_[static_cast<std::size_t>(index)];
     }
 
-    alignas(cache_line) std::atomic<Index> write_{0};
-    alignas(cache_line) Index read_cache_{0};
-    alignas(cache_line) std::atomic<Index> read_{0};
-    alignas(cache_line) Index write_cache_{0};
-    alignas(cache_line) std::array<slot_type, Capacity + 1> slots_{};
+    alignas(Separation) std::atomic<Index> write_{0};
+    alignas(Separation) Index read_cache_{0};
+    alignas(Separation) std::atomic<Index> read_{0};
+    alignas(Separation) Index write_cache_{0};
+    alignas(Separation) std::array<slot_type, Capacity + 1> slots_{};
 };
 
-template <class T, std::size_t Capacity, class Index = std::size_t>
+template <
+    class T,
+    std::size_t Capacity,
+    std::size_t Separation,
+    class Index = std::size_t>
 class heap_queue final {
     static_assert(Capacity >= 1);
+    static_assert(Separation >= alignof(std::atomic<Index>));
+    static_assert((Separation & (Separation - 1)) == 0);
     static_assert(std::is_unsigned_v<Index>);
     static_assert(Capacity < (std::numeric_limits<Index>::max)());
     static_assert(std::atomic<Index>::is_always_lock_free);
@@ -95,7 +105,7 @@ class heap_queue final {
     using slot_type = veriqueue::detail::slot<T>;
     static constexpr Index physical_capacity = static_cast<Index>(Capacity + 1);
     static constexpr std::size_t padding =
-        ((cache_line - 1) / sizeof(slot_type)) + 1;
+        ((Separation - 1) / sizeof(slot_type)) + 1;
     static constexpr std::size_t allocation_count =
         Capacity + 1 + 2 * padding;
 
@@ -153,10 +163,10 @@ private:
     }
 
     std::unique_ptr<slot_type[]> slots_;
-    alignas(cache_line) std::atomic<Index> write_{0};
-    alignas(cache_line) Index read_cache_{0};
-    alignas(cache_line) std::atomic<Index> read_{0};
-    alignas(cache_line) Index write_cache_{0};
+    alignas(Separation) std::atomic<Index> write_{0};
+    alignas(Separation) Index read_cache_{0};
+    alignas(Separation) std::atomic<Index> read_{0};
+    alignas(Separation) Index write_cache_{0};
 };
 
 } // namespace vqbench::experimental::clean_four_line
