@@ -1,4 +1,4 @@
-name: Managed Slot Storage Location
+name: Managed Heap Buffer Alignment
 
 on:
   pull_request:
@@ -6,9 +6,10 @@ on:
       - 'bench/rigtorp_codegen_variants.hpp'
       - 'tools/rigtorp_codegen_probe.cpp'
       - 'bench/test_rigtorp_consumer.cpp'
-      - 'tools/analyze_storage_location.py'
-      - 'tools/test_storage_location_analysis.py'
+      - 'tools/analyze_buffer_alignment.py'
+      - 'tools/test_buffer_alignment_analysis.py'
       - 'tools/storage_location_layout.cpp'
+      - 'tools/generate_buffer_alignment.py'
       - '.github/workflows/rigtorp-codegen-equivalence.yml'
   workflow_dispatch:
 
@@ -21,9 +22,9 @@ concurrency:
 
 env:
   SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
-  CANDIDATES: veriqueue,raw_progress,raw_dynslot,inline_dynslot
+  CANDIDATES: veriqueue,raw_dynslot,aligned_dynslot,inline_dynslot
   EXTERNALS: rigtorp,boost_lockfree,moodycamel,drogalis
-  IMPLEMENTATIONS: veriqueue,raw_progress,raw_dynslot,inline_dynslot,rigtorp,boost_lockfree,moodycamel,drogalis
+  IMPLEMENTATIONS: veriqueue,raw_dynslot,aligned_dynslot,inline_dynslot,rigtorp,boost_lockfree,moodycamel,drogalis
 
 jobs:
   tooling:
@@ -38,9 +39,9 @@ jobs:
           python-version: '3.12'
       - name: Validate tooling
         run: |
-          python -m py_compile tools/run_comparator_campaign.py tools/analyze_policy_campaign.py tools/analyze_storage_location.py
+          python -m py_compile tools/run_comparator_campaign.py tools/analyze_policy_campaign.py tools/analyze_buffer_alignment.py tools/generate_buffer_alignment.py
           python tools/test_policy_campaign.py
-          python tools/test_storage_location_analysis.py
+          python tools/test_buffer_alignment_analysis.py
       - name: Verify exact capacity, model, lifetime, exceptions and concurrent FIFO
         run: |
           g++ -std=c++20 -O2 -DNDEBUG -pthread -Wall -Wextra -Werror \
@@ -119,41 +120,7 @@ jobs:
             -DVERIQUEUE_BUILD_BASELINES=ON
       - name: Generate comparator
         run: |
-          python - <<'PY'
-          from pathlib import Path
-          source = Path('bench/bench_compare.cpp').read_text()
-          source = '#include "rigtorp_codegen_variants.hpp"\n' + source
-          needle = '    if (implementation == "rigtorp") {'
-          insert = r'''          if (implementation == "raw_progress") {
-              using queue = vqbench::experimental::rigtorp_codegen::dynamic_progress_queue<Payload, Capacity>;
-              auto q = std::make_unique<queue>();
-              return run_pair<sizeof(Payload)>(
-                  [&](const Payload& value) { return q->try_push(value); },
-                  [&](Payload& out) { return q->try_pop(out); },
-                  transfers, cpus.producer, cpus.consumer);
-          }
-          if (implementation == "raw_dynslot") {
-              using queue = vqbench::experimental::rigtorp_codegen::dynamic_managed_queue<Payload, Capacity>;
-              auto q = std::make_unique<queue>();
-              return run_pair<sizeof(Payload)>(
-                  [&](const Payload& value) { return q->try_push(value); },
-                  [&](Payload& out) { return q->try_pop(out); },
-                  transfers, cpus.producer, cpus.consumer);
-          }
-          if (implementation == "inline_dynslot") {
-              using queue = vqbench::experimental::rigtorp_codegen::inline_managed_queue<Payload, Capacity>;
-              auto q = std::make_unique<queue>();
-              return run_pair<sizeof(Payload)>(
-                  [&](const Payload& value) { return q->try_push(value); },
-                  [&](Payload& out) { return q->try_pop(out); },
-                  transfers, cpus.producer, cpus.consumer);
-          }
-          '''
-          if needle not in source:
-              raise SystemExit('insertion point not found')
-          source = source.replace(needle, insert + needle, 1)
-          Path('build/rigtorp-codegen/bench_compare_codegen.cpp').write_text(source)
-          PY
+          python tools/generate_buffer_alignment.py build/rigtorp-codegen/bench_compare_codegen.cpp
       - name: Compile comparator
         env:
           CXX: ${{ steps.compiler.outputs.cxx }}
@@ -189,13 +156,13 @@ jobs:
           /tmp/consumer-contract
       - uses: actions/upload-artifact@v4
         with:
-          name: storage-location-inlined-assembly-${{ matrix.compiler }}-cap${{ matrix.capacity }}
+          name: buffer-alignment-inlined-assembly-${{ matrix.compiler }}-cap${{ matrix.capacity }}
           path: build/rigtorp-codegen/*.s
           if-no-files-found: error
           retention-days: 90
       - name: Run randomized paired campaign
         run: |
-          seed=$((2026101017 + ${{ steps.compiler.outputs.id }} * 10000 + ${{ matrix.capacity }}))
+          seed=$((2026101019 + ${{ steps.compiler.outputs.id }} * 10000 + ${{ matrix.capacity }}))
           output="evidence/rigtorp-codegen/raw/arm64-${{ matrix.compiler }}-cap${{ matrix.capacity }}.jsonl"
           python tools/run_comparator_campaign.py \
             --program build/rigtorp-codegen/bench_compare_codegen \
@@ -280,7 +247,7 @@ jobs:
             -isystem build/assembly/_deps/rigtorp_spsc-src/include \
             tools/rigtorp_codegen_probe.cpp \
             -o evidence/rigtorp-codegen/assembly/${{ matrix.compiler }}.s
-          grep -E '^(production|dynamic_raw|dynamic_split|dynamic_grouped|dynamic_combined|dynamic_ctrl64|dynamic_direct|dynamic_progress|dynamic_managed|inline_managed|static_raw|static_slot|upstream)_(push|pop|init)_c[0-9]+_p[0-9]+:' \
+          grep -E '^(production|dynamic_raw|dynamic_split|dynamic_grouped|dynamic_combined|dynamic_ctrl64|dynamic_direct|dynamic_progress|dynamic_managed|dynamic_aligned|inline_managed|static_raw|static_slot|upstream)_(push|pop|init)_c[0-9]+_p[0-9]+:' \
             evidence/rigtorp-codegen/assembly/${{ matrix.compiler }}.s \
             > evidence/rigtorp-codegen/assembly/${{ matrix.compiler }}-labels.txt || true
       - uses: actions/upload-artifact@v4
@@ -316,15 +283,15 @@ jobs:
             --json-output evidence/rigtorp-codegen/summary.json \
             --markdown-output evidence/rigtorp-codegen/summary.md \
             --csv-output evidence/rigtorp-codegen/cells.csv \
-            --bootstrap-seed 2026101018 \
+            --bootstrap-seed 2026101020 \
             --bootstrap-samples 20000
-          python tools/analyze_storage_location.py evidence/rigtorp-codegen/shards \
-            evidence/rigtorp-codegen/inline-vs-heap-managed.json --source-commit "$SOURCE_COMMIT"
+          python tools/analyze_buffer_alignment.py evidence/rigtorp-codegen/shards \
+            evidence/rigtorp-codegen/aligned-vs-ordinary-heap.json --source-commit "$SOURCE_COMMIT"
           python - <<'PY'
           from pathlib import Path
           p = Path('evidence/rigtorp-codegen/summary.md')
           s = p.read_text().replace('This is promotion evidence, not a universal SOTA claim.',
-                                   'This is scoped storage-location evidence; production promotion is out of scope.')
+                                   'This is scoped buffer-alignment evidence; production promotion is out of scope.')
           p.write_text(s)
           PY
           cat evidence/rigtorp-codegen/summary.md >> "$GITHUB_STEP_SUMMARY"

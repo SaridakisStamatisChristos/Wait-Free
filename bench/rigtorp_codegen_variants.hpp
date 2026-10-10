@@ -5,6 +5,9 @@
 #include <array>
 #include <atomic>
 #include <cstddef>
+#include <cstdint>
+#include <limits>
+#include <new>
 #include <memory>
 #include <type_traits>
 #include <utility>
@@ -12,6 +15,31 @@
 namespace vqbench::experimental::rigtorp_codegen {
 
 inline constexpr std::size_t arm_destructive_span = 256;
+
+// Lab-only stateless allocator: allocation alignment is the sole policy change.
+// Rebinding to slot<T> preserves payload alignment and the existing element count.
+template <class T>
+struct aligned_buffer_allocator {
+    using value_type = T;
+    using is_always_equal = std::true_type;
+    static constexpr std::size_t alignment = alignof(T) > 256 ? alignof(T) : 256;
+
+    aligned_buffer_allocator() noexcept = default;
+    template <class U>
+    aligned_buffer_allocator(const aligned_buffer_allocator<U>&) noexcept {}
+
+    [[nodiscard]] T* allocate(std::size_t count) {
+        if (count > std::numeric_limits<std::size_t>::max() / sizeof(T)) {
+            throw std::bad_array_new_length();
+        }
+        return static_cast<T*>(::operator new(count * sizeof(T), std::align_val_t{alignment}));
+    }
+    void deallocate(T* pointer, std::size_t) noexcept {
+        ::operator delete(pointer, std::align_val_t{alignment});
+    }
+    template <class U>
+    bool operator==(const aligned_buffer_allocator<U>&) const noexcept { return true; }
+};
 
 template <
     class T,
@@ -154,6 +182,13 @@ public:
         }
     }
 
+    // Observe allocation and first usable slot only outside benchmark timing.
+    [[nodiscard]] std::array<std::size_t, 6> buffer_offsets() const noexcept {
+        const auto base = reinterpret_cast<std::uintptr_t>(slots_);
+        const auto first = reinterpret_cast<std::uintptr_t>(slots_ + padding);
+        return {base % 64, base % 128, base % 256, first % 64, first % 128, first % 256};
+    }
+
     [[nodiscard]] static constexpr std::array<std::size_t, 7> layout_offsets() noexcept {
         return {offsetof(dynamic_raw_queue, capacity_), offsetof(dynamic_raw_queue, slots_),
                 offsetof(dynamic_raw_queue, write_), offsetof(dynamic_raw_queue, read_cache_),
@@ -227,6 +262,10 @@ private:
 template <class T, std::size_t Capacity>
 using inline_managed_queue =
     dynamic_raw_queue<T, Capacity, std::allocator<T>, true, true, 256, true, true, true, true>;
+
+template <class T, std::size_t Capacity>
+using dynamic_aligned_queue =
+    dynamic_raw_queue<T, Capacity, aligned_buffer_allocator<T>, true, true, 256, true, true, true>;
 
 template <class T, std::size_t Capacity>
 using dynamic_managed_queue = dynamic_raw_queue<T, Capacity, std::allocator<T>, true, true, 256, true, true, true>;
