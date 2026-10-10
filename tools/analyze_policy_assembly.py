@@ -34,7 +34,10 @@ def expected_symbols() -> list[str]:
 def parse_assembly(text: str) -> tuple[dict[str, list[str]], dict[str, str]]:
     symbols: dict[str, list[str]] = {}
     aliases: dict[str, str] = {}
-    label_re = re.compile(r"^([A-Za-z_][A-Za-z0-9_$.]*):$")
+    # GCC normally emits `symbol:` while Clang commonly emits
+    # `symbol: # @symbol`. Accept harmless trailing assembler comments without
+    # weakening the symbol-name grammar.
+    label_re = re.compile(r"^([A-Za-z_][A-Za-z0-9_$.]*):(?:\s*(?:#|//).*)?$")
     alias_re = re.compile(
         r"^\s*\.set\s+([A-Za-z_][A-Za-z0-9_$.]*),\s*([A-Za-z_][A-Za-z0-9_$.]*)"
     )
@@ -70,9 +73,10 @@ def summarize_body(lines: list[str]) -> dict[str, Any]:
             or stripped.startswith(".")
             or stripped.endswith(":")
             or stripped.startswith("#")
+            or stripped.startswith("//")
         ):
             continue
-        code = stripped.split("#", 1)[0].strip()
+        code = stripped.split("#", 1)[0].split("//", 1)[0].strip()
         if code:
             instructions.append(code)
 
