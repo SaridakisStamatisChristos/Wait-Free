@@ -13,10 +13,12 @@ void check(bool condition) {
     if (!condition) throw std::runtime_error("dynamic consumer contract failure");
 }
 
-template <bool Split, bool Grouped, std::size_t Capacity, std::size_t ControlSpan = 256, bool CachePeer = true>
+template <bool Split, bool Grouped, std::size_t Capacity,
+          std::size_t ControlSpan = 256, bool CachePeer = true, bool CacheOnProgress = false>
 void model() {
     using queue = vqbench::experimental::rigtorp_codegen::dynamic_raw_queue<
-        std::uint64_t, Capacity, std::allocator<std::uint64_t>, Split, Grouped, ControlSpan, CachePeer>;
+        std::uint64_t, Capacity, std::allocator<std::uint64_t>,
+        Split, Grouped, ControlSpan, CachePeer, CacheOnProgress>;
     queue q;
     std::deque<std::uint64_t> expected;
     std::mt19937_64 rng(20261043 + Capacity);
@@ -62,10 +64,11 @@ struct tracked {
     ~tracked() noexcept { --alive; }
 };
 
-template <bool Split, bool Grouped, std::size_t ControlSpan = 256, bool CachePeer = true>
+template <bool Split, bool Grouped, std::size_t ControlSpan = 256,
+          bool CachePeer = true, bool CacheOnProgress = false>
 void lifetime() {
     using queue = vqbench::experimental::rigtorp_codegen::dynamic_raw_queue<
-        tracked, 2, std::allocator<tracked>, Split, Grouped, ControlSpan, CachePeer>;
+        tracked, 2, std::allocator<tracked>, Split, Grouped, ControlSpan, CachePeer, CacheOnProgress>;
     check(tracked::alive == 0);
     {
         tracked in(42), out;
@@ -93,10 +96,11 @@ struct throwing {
     throwing& operator=(throwing&&) noexcept = default;
 };
 
-template <bool Split, bool Grouped, std::size_t ControlSpan = 256, bool CachePeer = true>
+template <bool Split, bool Grouped, std::size_t ControlSpan = 256,
+          bool CachePeer = true, bool CacheOnProgress = false>
 void exception() {
     using queue = vqbench::experimental::rigtorp_codegen::dynamic_raw_queue<
-        throwing, 2, std::allocator<throwing>, Split, Grouped, ControlSpan, CachePeer>;
+        throwing, 2, std::allocator<throwing>, Split, Grouped, ControlSpan, CachePeer, CacheOnProgress>;
     queue q;
     throwing in, out;
     throwing::fail = true;
@@ -108,10 +112,11 @@ void exception() {
     check(q.try_push(in) && q.try_pop(out) && out.value == 42);
 }
 
-template <bool Split, bool Grouped, std::size_t ControlSpan = 256, bool CachePeer = true>
+template <bool Split, bool Grouped, std::size_t ControlSpan = 256,
+          bool CachePeer = true, bool CacheOnProgress = false>
 void concurrent() {
     using queue = vqbench::experimental::rigtorp_codegen::dynamic_raw_queue<
-        std::uint64_t, 64, std::allocator<std::uint64_t>, Split, Grouped, ControlSpan, CachePeer>;
+        std::uint64_t, 64, std::allocator<std::uint64_t>, Split, Grouped, ControlSpan, CachePeer, CacheOnProgress>;
     queue q;
     std::atomic<bool> failed{false};
     std::thread producer([&] {
@@ -131,17 +136,18 @@ void concurrent() {
     check(!failed.load(std::memory_order_relaxed));
 }
 
-template <bool Split, bool Grouped, std::size_t ControlSpan = 256, bool CachePeer = true>
+template <bool Split, bool Grouped, std::size_t ControlSpan = 256,
+          bool CachePeer = true, bool CacheOnProgress = false>
 void suite() {
-    model<Split, Grouped, 1, ControlSpan, CachePeer>();
-    model<Split, Grouped, 2, ControlSpan, CachePeer>();
-    model<Split, Grouped, 4, ControlSpan, CachePeer>();
-    model<Split, Grouped, 64, ControlSpan, CachePeer>();
-    model<Split, Grouped, 1024, ControlSpan, CachePeer>();
-    model<Split, Grouped, 65536, ControlSpan, CachePeer>();
-    lifetime<Split, Grouped, ControlSpan, CachePeer>();
-    exception<Split, Grouped, ControlSpan, CachePeer>();
-    concurrent<Split, Grouped, ControlSpan, CachePeer>();
+    model<Split, Grouped, 1, ControlSpan, CachePeer, CacheOnProgress>();
+    model<Split, Grouped, 2, ControlSpan, CachePeer, CacheOnProgress>();
+    model<Split, Grouped, 4, ControlSpan, CachePeer, CacheOnProgress>();
+    model<Split, Grouped, 64, ControlSpan, CachePeer, CacheOnProgress>();
+    model<Split, Grouped, 1024, ControlSpan, CachePeer, CacheOnProgress>();
+    model<Split, Grouped, 65536, ControlSpan, CachePeer, CacheOnProgress>();
+    lifetime<Split, Grouped, ControlSpan, CachePeer, CacheOnProgress>();
+    exception<Split, Grouped, ControlSpan, CachePeer, CacheOnProgress>();
+    concurrent<Split, Grouped, ControlSpan, CachePeer, CacheOnProgress>();
 }
 } // namespace
 
@@ -169,4 +175,10 @@ int main() {
                   alignof(dynamic_combined_queue<std::uint64_t, 64>));
     suite<true, true, 256, false>();
     suite<false, true, 256, false>();
+    static_assert(sizeof(dynamic_progress_queue<std::uint64_t, 64>) ==
+                  sizeof(dynamic_combined_queue<std::uint64_t, 64>));
+    static_assert(alignof(dynamic_progress_queue<std::uint64_t, 64>) ==
+                  alignof(dynamic_combined_queue<std::uint64_t, 64>));
+    suite<true, true, 256, true, true>();
+    suite<false, true, 256, true, true>();
 }

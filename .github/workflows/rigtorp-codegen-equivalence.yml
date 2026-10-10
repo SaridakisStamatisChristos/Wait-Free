@@ -1,4 +1,4 @@
-name: Dynamic Raw Direct Peer Refresh
+name: Dynamic Raw Failed Cache Store
 
 on:
   pull_request:
@@ -18,9 +18,9 @@ concurrency:
 
 env:
   SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
-  CANDIDATES: veriqueue,dynamic_raw,raw_combined,raw_direct
+  CANDIDATES: veriqueue,dynamic_raw,raw_combined,raw_progress
   EXTERNALS: rigtorp,boost_lockfree,moodycamel,drogalis
-  IMPLEMENTATIONS: veriqueue,dynamic_raw,raw_combined,raw_direct,rigtorp,boost_lockfree,moodycamel,drogalis
+  IMPLEMENTATIONS: veriqueue,dynamic_raw,raw_combined,raw_progress,rigtorp,boost_lockfree,moodycamel,drogalis
 
 jobs:
   tooling:
@@ -74,7 +74,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        compiler: [gcc]
+        compiler: [gcc, clang]
         capacity: [2, 64, 256, 1024, 65536]
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 120
@@ -136,6 +136,14 @@ jobs:
           }
           if (implementation == "dynamic_split") {
               using queue = vqbench::experimental::rigtorp_codegen::dynamic_split_queue<Payload, Capacity>;
+              auto q = std::make_unique<queue>();
+              return run_pair<sizeof(Payload)>(
+                  [&](const Payload& value) { return q->try_push(value); },
+                  [&](Payload& out) { return q->try_pop(out); },
+                  transfers, cpus.producer, cpus.consumer);
+          }
+          if (implementation == "raw_progress") {
+              using queue = vqbench::experimental::rigtorp_codegen::dynamic_progress_queue<Payload, Capacity>;
               auto q = std::make_unique<queue>();
               return run_pair<sizeof(Payload)>(
                   [&](const Payload& value) { return q->try_push(value); },
@@ -223,13 +231,13 @@ jobs:
           /tmp/consumer-contract
       - uses: actions/upload-artifact@v4
         with:
-          name: raw-peer-refresh-inline-assembly-${{ matrix.compiler }}-cap${{ matrix.capacity }}
+          name: raw-progress-cache-inline-assembly-${{ matrix.compiler }}-cap${{ matrix.capacity }}
           path: build/rigtorp-codegen/*.s
           if-no-files-found: error
           retention-days: 90
       - name: Run randomized paired campaign
         run: |
-          seed=$((2026104800 + ${{ steps.compiler.outputs.id }} * 10000 + ${{ matrix.capacity }}))
+          seed=$((2026104900 + ${{ steps.compiler.outputs.id }} * 10000 + ${{ matrix.capacity }}))
           output="evidence/rigtorp-codegen/raw/arm64-${{ matrix.compiler }}-cap${{ matrix.capacity }}.jsonl"
           python tools/run_comparator_campaign.py \
             --program build/rigtorp-codegen/bench_compare_codegen \
@@ -306,7 +314,7 @@ jobs:
             -isystem build/assembly/_deps/rigtorp_spsc-src/include \
             tools/rigtorp_codegen_probe.cpp \
             -o evidence/rigtorp-codegen/assembly/${{ matrix.compiler }}.s
-          grep -E '^(production|dynamic_raw|dynamic_split|dynamic_grouped|dynamic_combined|dynamic_ctrl64|dynamic_direct|static_raw|static_slot|upstream)_(push|pop)_c[0-9]+_p[0-9]+:' \
+          grep -E '^(production|dynamic_raw|dynamic_split|dynamic_grouped|dynamic_combined|dynamic_ctrl64|dynamic_direct|dynamic_progress|static_raw|static_slot|upstream)_(push|pop)_c[0-9]+_p[0-9]+:' \
             evidence/rigtorp-codegen/assembly/${{ matrix.compiler }}.s \
             > evidence/rigtorp-codegen/assembly/${{ matrix.compiler }}-labels.txt || true
       - uses: actions/upload-artifact@v4
@@ -342,7 +350,7 @@ jobs:
             --json-output evidence/rigtorp-codegen/summary.json \
             --markdown-output evidence/rigtorp-codegen/summary.md \
             --csv-output evidence/rigtorp-codegen/cells.csv \
-            --bootstrap-seed 20261048 \
+            --bootstrap-seed 20261049 \
             --bootstrap-samples 20000
           cat evidence/rigtorp-codegen/summary.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4

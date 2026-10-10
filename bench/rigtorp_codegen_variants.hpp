@@ -20,10 +20,12 @@ template <
     bool SplitConsumer = false,
     bool GroupOwnerCache = false,
     std::size_t ControlSpan = arm_destructive_span,
-    bool CachePeer = true>
+    bool CachePeer = true,
+    bool CacheOnProgress = false>
 class dynamic_raw_queue final {
     static_assert(Capacity >= 1);
     static_assert(std::is_nothrow_destructible_v<T>);
+    static_assert(!CacheOnProgress || CachePeer);
     static_assert(ControlSpan == arm_destructive_span ||
                   (ControlSpan == 64 && GroupOwnerCache));
 
@@ -65,8 +67,14 @@ public:
         const auto next_write = next(write);
         if constexpr (CachePeer) {
             if (next_write == read_cache_) {
-                read_cache_ = read_.load(std::memory_order_acquire);
-                if (next_write == read_cache_) return false;
+                const auto observed = read_.load(std::memory_order_acquire);
+                if constexpr (CacheOnProgress) {
+                    if (next_write == observed) return false;
+                    read_cache_ = observed;
+                } else {
+                    read_cache_ = observed;
+                    if (next_write == read_cache_) return false;
+                }
             }
         } else {
             if (next_write == read_.load(std::memory_order_acquire)) return false;
@@ -89,8 +97,14 @@ public:
             const auto read = read_.load(std::memory_order_relaxed);
             if constexpr (CachePeer) {
                 if (read == write_cache_) {
-                    write_cache_ = write_.load(std::memory_order_acquire);
-                    if (read == write_cache_) return false;
+                    const auto observed = write_.load(std::memory_order_acquire);
+                    if constexpr (CacheOnProgress) {
+                        if (read == observed) return false;
+                        write_cache_ = observed;
+                    } else {
+                        write_cache_ = observed;
+                        if (read == write_cache_) return false;
+                    }
                 }
             } else {
                 if (read == write_.load(std::memory_order_acquire)) return false;
@@ -104,14 +118,20 @@ public:
     }
 
 private:
-    // Experimental consumer API shape only. The layout, producer, allocation,
-    // physical capacity and acquire/release protocol match dynamic_raw.
+    // The split consumer copies before reloading its owner cursor. Peer refresh
+    // uses the same compile-time policy as the fused consumer above.
     [[nodiscard]] T* front() noexcept {
         const auto read = read_.load(std::memory_order_relaxed);
         if constexpr (CachePeer) {
             if (read == write_cache_) {
-                write_cache_ = write_.load(std::memory_order_acquire);
-                if (read == write_cache_) return nullptr;
+                const auto observed = write_.load(std::memory_order_acquire);
+                if constexpr (CacheOnProgress) {
+                    if (read == observed) return nullptr;
+                    write_cache_ = observed;
+                } else {
+                    write_cache_ = observed;
+                    if (read == write_cache_) return nullptr;
+                }
             }
         } else {
             if (read == write_.load(std::memory_order_acquire)) return nullptr;
@@ -143,6 +163,9 @@ private:
     alignas(owner_cache_alignment) std::size_t write_cache_{0};
     [[no_unique_address]] reserved_bytes reserved_;
 };
+
+template <class T, std::size_t Capacity>
+using dynamic_progress_queue = dynamic_raw_queue<T, Capacity, std::allocator<T>, true, true, 256, true, true>;
 
 template <class T, std::size_t Capacity>
 using dynamic_direct_queue = dynamic_raw_queue<T, Capacity, std::allocator<T>, true, true, 256, false>;
