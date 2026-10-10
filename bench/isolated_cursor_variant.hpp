@@ -25,8 +25,6 @@ template <class Slot, std::size_t Capacity, bool UseProductionStripe, class Inde
         const std::size_t ordinal = bounded >> 3;
         return lane * lane_span + ordinal;
     }
-#else
-    static_cast<void>(UseProductionStripe);
 #endif
     return bounded;
 }
@@ -127,10 +125,9 @@ private:
     }
 
     [[nodiscard]] veriqueue::detail::slot<T>& slot_for(Index logical_index) noexcept {
-        constexpr auto slot_count = Capacity;
         const std::size_t index = selected_slot_index<
             veriqueue::detail::slot<T>,
-            slot_count,
+            Capacity,
             UseProductionStripe>(logical_index);
         return slots_[index];
     }
@@ -142,20 +139,23 @@ private:
     alignas(cache_line) std::array<veriqueue::detail::slot<T>, Capacity> slots_{};
 };
 
+// PR34 candidate: combine isolated published cursors with sequential ARM64 16-B
+// storage. For x64 and non-16-B types this is identical to the PR33 isolated
+// cursor candidate, making the delta specific and compile-time visible.
 template <class T, std::size_t Capacity>
 using isolated_distance =
-    isolated_published_cursor_queue<T, Capacity, false, true>;
-
-template <class T, std::size_t Capacity>
-using isolated_cached_limit =
-    isolated_published_cursor_queue<T, Capacity, true, true>;
-
-template <class T, std::size_t Capacity>
-using isolated_seq_distance =
     isolated_published_cursor_queue<T, Capacity, false, false>;
 
 template <class T, std::size_t Capacity>
-using isolated_seq_cached_limit =
+using isolated_cached_limit =
     isolated_published_cursor_queue<T, Capacity, true, false>;
+
+template <class T, std::size_t Capacity>
+using isolated_striped_distance =
+    isolated_published_cursor_queue<T, Capacity, false, true>;
+
+template <class T, std::size_t Capacity>
+using isolated_striped_cached_limit =
+    isolated_published_cursor_queue<T, Capacity, true, true>;
 
 } // namespace vqbench::experimental::isolated_cursor
