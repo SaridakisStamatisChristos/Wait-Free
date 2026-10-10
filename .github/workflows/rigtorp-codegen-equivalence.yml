@@ -160,7 +160,7 @@ jobs:
         env:
           CXX: ${{ steps.compiler.outputs.cxx }}
         run: |
-          "$CXX" -std=c++20 -O3 -DNDEBUG -pthread -save-temps=obj \
+          "$CXX" -std=c++20 -O3 -DNDEBUG -pthread \
             -Wall -Wextra -Wpedantic -Wconversion -Wshadow \
             -Wold-style-cast -Wcast-align -Wundef -Werror \
             -Iinclude -Ibench \
@@ -169,6 +169,19 @@ jobs:
             -isystem build/rigtorp-codegen/_deps/drogalis_spsc-src/include \
             build/rigtorp-codegen/bench_compare_codegen.cpp bench/environment.cpp \
             -o build/rigtorp-codegen/bench_compare_codegen
+      - name: Emit inlined comparator assembly without preprocessing replay
+        env:
+          CXX: ${{ steps.compiler.outputs.cxx }}
+        run: |
+          "$CXX" -std=c++20 -O3 -DNDEBUG -pthread -S \
+            -Wall -Wextra -Wpedantic -Wconversion -Wshadow \
+            -Wold-style-cast -Wcast-align -Wundef -Werror \
+            -Iinclude -Ibench \
+            -isystem build/rigtorp-codegen/_deps/rigtorp_spsc-src/include \
+            -isystem build/rigtorp-codegen/_deps/moodycamel_readerwriterqueue-src \
+            -isystem build/rigtorp-codegen/_deps/drogalis_spsc-src/include \
+            build/rigtorp-codegen/bench_compare_codegen.cpp \
+            -o build/rigtorp-codegen/bench_compare_codegen.s
       - name: Verify candidate on measured architecture and compiler
         env:
           CXX: ${{ steps.compiler.outputs.cxx }}
