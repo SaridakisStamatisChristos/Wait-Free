@@ -15,12 +15,14 @@ void check(bool condition) {
 }
 
 template <bool Split, bool Grouped, std::size_t Capacity,
-          std::size_t ControlSpan = 256, bool CachePeer = true, bool CacheOnProgress = false, bool SlotStorage = false>
+          std::size_t ControlSpan = 256, bool CachePeer = true, bool CacheOnProgress = false, bool SlotStorage = false,
+          bool InlineStorage = false>
 void model() {
     using queue = vqbench::experimental::rigtorp_codegen::dynamic_raw_queue<
         std::uint64_t, Capacity, std::allocator<std::uint64_t>,
-        Split, Grouped, ControlSpan, CachePeer, CacheOnProgress, SlotStorage>;
-    queue q;
+        Split, Grouped, ControlSpan, CachePeer, CacheOnProgress, SlotStorage, InlineStorage>;
+    auto owner = std::make_unique<queue>();
+    queue& q = *owner;
     std::deque<std::uint64_t> expected;
     std::mt19937_64 rng(20261043 + Capacity);
     for (std::uint64_t i = 0; i < 100000; ++i) {
@@ -66,10 +68,12 @@ struct tracked {
 };
 
 template <bool Split, bool Grouped, std::size_t ControlSpan = 256,
-          bool CachePeer = true, bool CacheOnProgress = false, bool SlotStorage = false>
+          bool CachePeer = true, bool CacheOnProgress = false, bool SlotStorage = false,
+          bool InlineStorage = false>
 void lifetime() {
     using queue = vqbench::experimental::rigtorp_codegen::dynamic_raw_queue<
-        tracked, 2, std::allocator<tracked>, Split, Grouped, ControlSpan, CachePeer, CacheOnProgress, SlotStorage>;
+        tracked, 2, std::allocator<tracked>,
+        Split, Grouped, ControlSpan, CachePeer, CacheOnProgress, SlotStorage, InlineStorage>;
     check(tracked::alive == 0);
     {
         tracked in(42), out;
@@ -98,10 +102,12 @@ struct throwing {
 };
 
 template <bool Split, bool Grouped, std::size_t ControlSpan = 256,
-          bool CachePeer = true, bool CacheOnProgress = false, bool SlotStorage = false>
+          bool CachePeer = true, bool CacheOnProgress = false, bool SlotStorage = false,
+          bool InlineStorage = false>
 void exception() {
     using queue = vqbench::experimental::rigtorp_codegen::dynamic_raw_queue<
-        throwing, 2, std::allocator<throwing>, Split, Grouped, ControlSpan, CachePeer, CacheOnProgress, SlotStorage>;
+        throwing, 2, std::allocator<throwing>,
+        Split, Grouped, ControlSpan, CachePeer, CacheOnProgress, SlotStorage, InlineStorage>;
     queue q;
     throwing in, out;
     throwing::fail = true;
@@ -114,11 +120,12 @@ void exception() {
 }
 
 template <bool Split, bool Grouped, std::size_t ControlSpan = 256,
-          bool CachePeer = true, bool CacheOnProgress = false, bool SlotStorage = false>
+          bool CachePeer = true, bool CacheOnProgress = false, bool SlotStorage = false,
+          bool InlineStorage = false>
 void concurrent() {
     using queue = vqbench::experimental::rigtorp_codegen::dynamic_raw_queue<
         std::uint64_t, 64, std::allocator<std::uint64_t>,
-        Split, Grouped, ControlSpan, CachePeer, CacheOnProgress, SlotStorage>;
+        Split, Grouped, ControlSpan, CachePeer, CacheOnProgress, SlotStorage, InlineStorage>;
     queue q;
     std::atomic<bool> failed{false};
     std::thread producer([&] {
@@ -139,17 +146,18 @@ void concurrent() {
 }
 
 template <bool Split, bool Grouped, std::size_t ControlSpan = 256,
-          bool CachePeer = true, bool CacheOnProgress = false, bool SlotStorage = false>
+          bool CachePeer = true, bool CacheOnProgress = false, bool SlotStorage = false,
+          bool InlineStorage = false>
 void suite() {
-    model<Split, Grouped, 1, ControlSpan, CachePeer, CacheOnProgress, SlotStorage>();
-    model<Split, Grouped, 2, ControlSpan, CachePeer, CacheOnProgress, SlotStorage>();
-    model<Split, Grouped, 4, ControlSpan, CachePeer, CacheOnProgress, SlotStorage>();
-    model<Split, Grouped, 64, ControlSpan, CachePeer, CacheOnProgress, SlotStorage>();
-    model<Split, Grouped, 1024, ControlSpan, CachePeer, CacheOnProgress, SlotStorage>();
-    model<Split, Grouped, 65536, ControlSpan, CachePeer, CacheOnProgress, SlotStorage>();
-    lifetime<Split, Grouped, ControlSpan, CachePeer, CacheOnProgress, SlotStorage>();
-    exception<Split, Grouped, ControlSpan, CachePeer, CacheOnProgress, SlotStorage>();
-    concurrent<Split, Grouped, ControlSpan, CachePeer, CacheOnProgress, SlotStorage>();
+    model<Split, Grouped, 1, ControlSpan, CachePeer, CacheOnProgress, SlotStorage, InlineStorage>();
+    model<Split, Grouped, 2, ControlSpan, CachePeer, CacheOnProgress, SlotStorage, InlineStorage>();
+    model<Split, Grouped, 4, ControlSpan, CachePeer, CacheOnProgress, SlotStorage, InlineStorage>();
+    model<Split, Grouped, 64, ControlSpan, CachePeer, CacheOnProgress, SlotStorage, InlineStorage>();
+    model<Split, Grouped, 1024, ControlSpan, CachePeer, CacheOnProgress, SlotStorage, InlineStorage>();
+    model<Split, Grouped, 65536, ControlSpan, CachePeer, CacheOnProgress, SlotStorage, InlineStorage>();
+    lifetime<Split, Grouped, ControlSpan, CachePeer, CacheOnProgress, SlotStorage, InlineStorage>();
+    exception<Split, Grouped, ControlSpan, CachePeer, CacheOnProgress, SlotStorage, InlineStorage>();
+    concurrent<Split, Grouped, ControlSpan, CachePeer, CacheOnProgress, SlotStorage, InlineStorage>();
 }
 
 struct allocation_record {
@@ -192,10 +200,10 @@ struct alignas(128) nondefault {
     ~nondefault() noexcept { --alive; }
 };
 
-template <bool Managed>
+template <bool Managed, bool Inline = false, bool Split = true>
 void allocation_and_reuse() {
     using queue = vqbench::experimental::rigtorp_codegen::dynamic_raw_queue<
-        nondefault, 2, recording_allocator<nondefault>, true, true, 256, true, true, Managed>;
+        nondefault, 2, recording_allocator<nondefault>, Split, true, 256, true, true, Managed, Inline>;
     allocation_record::allocations = 0;
     allocation_record::deallocations = 0;
     check(nondefault::alive == 0);
@@ -204,9 +212,11 @@ void allocation_and_reuse() {
         {
             queue q;
             check(nondefault::alive == 2); // No persistent/default-constructed T.
-            check(allocation_record::allocations == 1);
+            check(allocation_record::allocations == (Inline ? 0 : 1));
+            if constexpr (!Inline) {
             check(allocation_record::bytes == (3 + 2 * 2) * sizeof(nondefault));
             check(allocation_record::alignment == alignof(nondefault));
+            }
             for (std::uint64_t i = 0; i < 1000; ++i) {
                 in.value = i;
                 check(q.try_push(in) && q.try_push(in));
@@ -222,7 +232,7 @@ void allocation_and_reuse() {
             check(q.try_push(in) && q.try_push(in)); // Cleanup of live leftovers.
         }
         check(nondefault::alive == 2);
-        check(allocation_record::deallocations == 1);
+        check(allocation_record::deallocations == (Inline ? 0 : 1));
     }
     check(nondefault::alive == 0);
 }
@@ -230,6 +240,8 @@ void allocation_and_reuse() {
 void managed_storage_contract() {
     allocation_and_reuse<false>();
     allocation_and_reuse<true>();
+    allocation_and_reuse<true, true, true>();
+    allocation_and_reuse<true, true, false>();
     using namespace vqbench::experimental::rigtorp_codegen;
     static_assert(sizeof(dynamic_managed_queue<nondefault, 2>) ==
                   sizeof(dynamic_progress_queue<nondefault, 2>));
@@ -274,5 +286,10 @@ int main() {
                   alignof(dynamic_progress_queue<std::uint64_t, 64>));
     suite<true, true, 256, true, true, true>();
     suite<false, true, 256, true, true, true>();
+    suite<true, true, 256, true, true, true, true>();
+    suite<false, true, 256, true, true, true, true>();
+    static_assert(std::is_nothrow_default_constructible_v<inline_managed_queue<nondefault, 2>>);
+    static_assert(!std::is_nothrow_default_constructible_v<dynamic_managed_queue<nondefault, 2>>);
     managed_storage_contract();
 }
+

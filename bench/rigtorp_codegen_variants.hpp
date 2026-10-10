@@ -22,13 +22,16 @@ template <
     std::size_t ControlSpan = arm_destructive_span,
     bool CachePeer = true,
     bool CacheOnProgress = false,
-    bool SlotStorage = false>
+    bool SlotStorage = false,
+    bool InlineStorage = false>
 class dynamic_raw_queue final {
     static_assert(Capacity >= 1);
     static_assert(std::is_nothrow_destructible_v<T>);
     static_assert(!CacheOnProgress || CachePeer);
     static_assert(ControlSpan == arm_destructive_span ||
                   (ControlSpan == 64 && GroupOwnerCache));
+
+    static_assert(!InlineStorage || SlotStorage);
 
     using managed_slot = veriqueue::detail::slot<T>;
     using storage_type = std::conditional_t<SlotStorage, managed_slot, T>;
@@ -52,14 +55,25 @@ class dynamic_raw_queue final {
     static constexpr std::size_t owner_cache_alignment =
         GroupOwnerCache ? alignof(std::size_t) : arm_destructive_span;
 
+    struct no_inline_storage {};
+    using inline_storage_type = std::conditional_t<
+        InlineStorage, std::array<managed_slot, Capacity + 1 + 2 * padding>, no_inline_storage>;
+    static_assert(!InlineStorage || std::is_nothrow_default_constructible_v<storage_allocator>);
+
 public:
-    dynamic_raw_queue() : capacity_(Capacity + 1), slots_(nullptr) {
-        slots_ = std::allocator_traits<storage_allocator>::allocate(
-            allocator_, capacity_ + 2 * padding);
-        if constexpr (SlotStorage) {
-            // Begin the byte-buffer lifetimes without constructing T or
-            // zeroing storage. Construction and live access stay separate.
-            std::uninitialized_default_construct_n(slots_, capacity_ + 2 * padding);
+    dynamic_raw_queue() noexcept(InlineStorage) : capacity_(Capacity + 1), slots_(nullptr) {
+        if constexpr (InlineStorage) {
+            // The member array is default-initialized, never value-initialized.
+            // Its slot/byte lifetimes begin without constructing T or zeroing.
+            slots_ = inline_slots_.data();
+        } else {
+            slots_ = std::allocator_traits<storage_allocator>::allocate(
+                allocator_, capacity_ + 2 * padding);
+            if constexpr (SlotStorage) {
+                // Begin the byte-buffer lifetimes without constructing T or
+                // zeroing storage. Construction and live access stay separate.
+                std::uninitialized_default_construct_n(slots_, capacity_ + 2 * padding);
+            }
         }
     }
 
@@ -73,11 +87,14 @@ public:
             std::destroy_at(slot_ptr(read));
             read = next(read);
         }
-        if constexpr (SlotStorage) {
-            std::destroy_n(slots_, capacity_ + 2 * padding);
+        if constexpr (!InlineStorage) {
+            if constexpr (SlotStorage) {
+                std::destroy_n(slots_, capacity_ + 2 * padding);
+            }
+            std::allocator_traits<storage_allocator>::deallocate(
+                allocator_, slots_, capacity_ + 2 * padding);
         }
-        std::allocator_traits<storage_allocator>::deallocate(
-            allocator_, slots_, capacity_ + 2 * padding);
+        // Inline slot lifetimes end automatically with the member array.
     }
 
     [[nodiscard]] bool try_push(const T& value)
@@ -137,6 +154,13 @@ public:
         }
     }
 
+    [[nodiscard]] static constexpr std::array<std::size_t, 7> layout_offsets() noexcept {
+        return {offsetof(dynamic_raw_queue, capacity_), offsetof(dynamic_raw_queue, slots_),
+                offsetof(dynamic_raw_queue, write_), offsetof(dynamic_raw_queue, read_cache_),
+                offsetof(dynamic_raw_queue, read_), offsetof(dynamic_raw_queue, write_cache_),
+                offsetof(dynamic_raw_queue, inline_slots_)};
+    }
+
 private:
     // The split consumer copies before reloading its owner cursor. Peer refresh
     // uses the same compile-time policy as the fused consumer above.
@@ -194,7 +218,15 @@ private:
     alignas(ControlSpan) std::atomic<std::size_t> read_{0};
     alignas(owner_cache_alignment) std::size_t write_cache_{0};
     [[no_unique_address]] reserved_bytes reserved_;
+    // All existing control offsets remain fixed. Padding precedes/follows the
+    // usable physical ring exactly as in the heap control.
+    alignas(InlineStorage ? arm_destructive_span : 1)
+    [[no_unique_address]] inline_storage_type inline_slots_;
 };
+
+template <class T, std::size_t Capacity>
+using inline_managed_queue =
+    dynamic_raw_queue<T, Capacity, std::allocator<T>, true, true, 256, true, true, true, true>;
 
 template <class T, std::size_t Capacity>
 using dynamic_managed_queue = dynamic_raw_queue<T, Capacity, std::allocator<T>, true, true, 256, true, true, true>;
@@ -374,4 +406,5 @@ private:
 };
 
 } // namespace vqbench::experimental::rigtorp_codegen
+
 

@@ -61,9 +61,11 @@ static_assert(sizeof(probe_payload<256>) == 256);
 
 #define VQ_CASE(CAP, BYTES) \
     VQ_INIT(dynamic_progress, CAP, BYTES, vqbench::experimental::rigtorp_codegen::dynamic_progress_queue) \
+    VQ_INIT(inline_managed, CAP, BYTES, vqbench::experimental::rigtorp_codegen::inline_managed_queue) \
     VQ_INIT(dynamic_managed, CAP, BYTES, vqbench::experimental::rigtorp_codegen::dynamic_managed_queue) \
     VQ_PROBE(production, CAP, BYTES, veriqueue::spsc_queue) \
     VQ_PROBE(dynamic_raw, CAP, BYTES, vqbench::experimental::rigtorp_codegen::dynamic_raw_queue) \
+    VQ_PROBE(inline_managed, CAP, BYTES, vqbench::experimental::rigtorp_codegen::inline_managed_queue) \
     VQ_PROBE(dynamic_managed, CAP, BYTES, vqbench::experimental::rigtorp_codegen::dynamic_managed_queue) \
     VQ_PROBE(dynamic_progress, CAP, BYTES, vqbench::experimental::rigtorp_codegen::dynamic_progress_queue) \
     VQ_PROBE(dynamic_direct, CAP, BYTES, vqbench::experimental::rigtorp_codegen::dynamic_direct_queue) \
@@ -103,4 +105,5 @@ VQ_CASE(65536, 256)
 #undef VQ_NOINLINE
 
 int main() { return 0; }
+
 
