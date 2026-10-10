@@ -117,7 +117,8 @@ template <bool Split, bool Grouped, std::size_t ControlSpan = 256,
           bool CachePeer = true, bool CacheOnProgress = false, bool SlotStorage = false>
 void concurrent() {
     using queue = vqbench::experimental::rigtorp_codegen::dynamic_raw_queue<
-        std::uint64_t, 64, std::allocator<std::uint64_t>, Split, Grouped, ControlSpan, CachePeer, CacheOnProgress, SlotStorage>;
+        std::uint64_t, 64, std::allocator<std::uint64_t>,
+        Split, Grouped, ControlSpan, CachePeer, CacheOnProgress, SlotStorage>;
     queue q;
     std::atomic<bool> failed{false};
     std::thread producer([&] {
