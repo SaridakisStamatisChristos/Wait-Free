@@ -3,6 +3,8 @@ name: Performance Regression Gate
 on:
   pull_request:
     paths:
+      - 'tools/generate_counter_diagnostic.py'
+      - '.github/workflows/counter-placement-diagnostic.yml'
       - 'include/**'
       - 'bench/**'
       - 'CMakeLists.txt'
