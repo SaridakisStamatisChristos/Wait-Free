@@ -156,4 +156,5 @@ int main() {
     suite<false, false>();
     suite<true, false>();
     suite<false, true>();
+    suite<true, true>();
 }

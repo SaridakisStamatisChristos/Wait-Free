@@ -121,6 +121,9 @@ private:
 };
 
 template <class T, std::size_t Capacity>
+using dynamic_combined_queue = dynamic_raw_queue<T, Capacity, std::allocator<T>, true, true>;
+
+template <class T, std::size_t Capacity>
 using dynamic_grouped_queue = dynamic_raw_queue<T, Capacity, std::allocator<T>, false, true>;
 
 template <class T, std::size_t Capacity>
