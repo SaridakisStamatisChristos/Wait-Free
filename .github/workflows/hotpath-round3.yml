@@ -1,0 +1,188 @@
+name: Hot-path Round 3 Ablation
+
+on:
+  pull_request:
+    paths:
+      - 'bench/experimental_spsc_round3.hpp'
+      - 'bench/bench_hotpath_round3.cpp'
+      - 'tools/run_hotpath_round3.py'
+      - 'tools/analyze_hotpath_v2.py'
+      - 'tools/assembly_hotpath_round3_probe.cpp'
+      - 'tools/analyze_hotpath_round3_assembly.py'
+      - '.github/workflows/hotpath-round3.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  focused-ablation:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: x64-gcc
+            runner: ubuntu-24.04
+            cc: gcc
+            cxx: g++
+            arch: x64
+            topology_policy: x64-diagnostic
+          - name: x64-clang
+            runner: ubuntu-24.04
+            cc: clang
+            cxx: clang++
+            arch: x64
+            topology_policy: x64-diagnostic
+          - name: arm64-gcc
+            runner: ubuntu-24.04-arm
+            cc: gcc
+            cxx: g++
+            arch: arm64
+            topology_policy: default
+          - name: arm64-clang
+            runner: ubuntu-24.04-arm
+            cc: clang
+            cxx: clang++
+            arch: arm64
+            topology_policy: default
+    name: focused / ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Record environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/hotpath-round3
+          {
+            echo "commit=$GITHUB_SHA"
+            echo "runner_os=$RUNNER_OS"
+            echo "runner_arch=$RUNNER_ARCH"
+            echo "platform=${{ matrix.name }}"
+            echo "observer_counter_policy=final-only"
+            "$CXX" --version | head -1
+            uname -a
+            python tools/topology_matrix.py
+          } | tee evidence/hotpath-round3/environment.txt
+
+      - name: Validate Python tooling
+        run: >-
+          python -m py_compile
+          tools/topology_matrix.py
+          tools/run_hotpath_round3.py
+          tools/analyze_hotpath_v2.py
+          tools/analyze_hotpath_round3_assembly.py
+
+      - name: Build round-3 benchmark
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          "$CXX" -std=c++20 -O3 -DNDEBUG -pthread -Wall -Wextra -Wpedantic -Werror \
+            -Iinclude -Ibench bench/bench_hotpath_round3.cpp bench/environment.cpp \
+            -o build/bench_hotpath_round3
+
+      - name: Correctness and affinity smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          for variant in \
+            production \
+            state128 \
+            state256 \
+            consumer_first64 \
+            consumer_first128 \
+            precompute64 \
+            precompute128 \
+            consumer_first_precompute128; do
+            ./build/bench_hotpath_round3 "$variant" 64 8 20000 scalar 1
+            ./build/bench_hotpath_round3 "$variant" 1024 16 20000 scalar 1
+          done
+
+      - name: Generate and audit round-3 assembly
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/hotpath-round3/assembly
+          for payload in 8 16 64 256; do
+            "$CXX" -std=c++20 -O3 -DNDEBUG -S \
+              -DVQ_PAYLOAD_BYTES="$payload" -Iinclude -Ibench \
+              tools/assembly_hotpath_round3_probe.cpp \
+              -o "evidence/hotpath-round3/assembly/payload-${payload}.s"
+            python tools/analyze_hotpath_round3_assembly.py \
+              "evidence/hotpath-round3/assembly/payload-${payload}.s" \
+              --arch '${{ matrix.arch }}' \
+              --compiler '${{ matrix.cxx }}' \
+              --payload "$payload" \
+              --json-output "evidence/hotpath-round3/assembly/payload-${payload}.json" \
+              --markdown-output "evidence/hotpath-round3/assembly/payload-${payload}.md"
+          done
+
+      - name: Run round-3 focused scalar campaign
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/hotpath-round3/raw
+          run_cell() {
+            local capacity="$1"
+            local payload="$2"
+            local seed="$3"
+            python tools/run_hotpath_round3.py \
+              --program build/bench_hotpath_round3 \
+              --capacities "$capacity" \
+              --payloads "$payload" \
+              --mode scalar \
+              --transfers 300000 \
+              --warmups 5 \
+              --repetitions 30 \
+              --seed "$seed" \
+              --topology-policy '${{ matrix.topology_policy }}' \
+              --output "evidence/hotpath-round3/raw/c${capacity}-p${payload}.jsonl"
+          }
+          run_cell 1024 8 20261030
+          run_cell 1024 16 20261031
+          run_cell 1024 256 20261032
+          run_cell 64 8 20261033
+          run_cell 256 8 20261034
+          run_cell 65536 8 20261035
+
+      - name: Analyze paired campaign
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/analyze_hotpath_v2.py evidence/hotpath-round3/raw/*.jsonl \
+            --require-repetitions 30 \
+            --bootstrap-seed 20261030 \
+            --json-output evidence/hotpath-round3/summary.json \
+            --markdown-output evidence/hotpath-round3/summary.md
+          cat evidence/hotpath-round3/summary.md
+
+      - name: Bulk correctness smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          for batch in 4 16 64; do
+            for variant in \
+              production \
+              state128 \
+              state256 \
+              consumer_first64 \
+              consumer_first128 \
+              precompute64 \
+              precompute128 \
+              consumer_first_precompute128; do
+              ./build/bench_hotpath_round3 "$variant" 1024 8 20000 bulk "$batch"
+            done
+          done
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hotpath-round3-${{ matrix.name }}
+          path: evidence/hotpath-round3/
+          if-no-files-found: error

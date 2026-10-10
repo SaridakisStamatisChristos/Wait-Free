@@ -1,0 +1,172 @@
+name: Hot-path Round 5 Architecture-Selective Qualification
+
+on:
+  pull_request:
+    paths:
+      - 'bench/experimental_spsc_round5.hpp'
+      - 'bench/bench_hotpath_round5.cpp'
+      - 'tools/run_hotpath_round5.py'
+      - 'tools/test_hotpath_round5_layout.cpp'
+      - 'tools/analyze_hotpath_v2.py'
+      - '.github/workflows/hotpath-round5.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: x64-gcc
+            runner: ubuntu-24.04
+            cc: gcc
+            cxx: g++
+            arch: x64
+            topology_policy: x64-diagnostic
+          - name: x64-clang
+            runner: ubuntu-24.04
+            cc: clang
+            cxx: clang++
+            arch: x64
+            topology_policy: x64-diagnostic
+          - name: arm64-gcc
+            runner: ubuntu-24.04-arm
+            cc: gcc
+            cxx: g++
+            arch: arm64
+            topology_policy: default
+          - name: arm64-clang
+            runner: ubuntu-24.04-arm
+            cc: clang
+            cxx: clang++
+            arch: arm64
+            topology_policy: default
+    name: qualify / ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Record environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/hotpath-round5
+          {
+            echo "commit=$GITHUB_SHA"
+            echo "runner_os=$RUNNER_OS"
+            echo "runner_arch=$RUNNER_ARCH"
+            echo "platform=${{ matrix.name }}"
+            echo "candidate=AArch64 16-byte stripe8; sequential elsewhere"
+            "$CXX" --version | head -1
+            uname -a
+            python tools/topology_matrix.py
+          } | tee evidence/hotpath-round5/environment.txt
+
+      - name: Validate Python tooling
+        run: >-
+          python -m py_compile
+          tools/topology_matrix.py
+          tools/run_hotpath_round5.py
+          tools/analyze_hotpath_v2.py
+
+      - name: Build candidate and selector verifier
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          "$CXX" -std=c++20 -O3 -DNDEBUG -pthread -Wall -Wextra -Wpedantic -Werror \
+            -Iinclude -Ibench bench/bench_hotpath_round5.cpp bench/environment.cpp \
+            -o build/bench_hotpath_round5
+          "$CXX" -std=c++20 -O2 -Wall -Wextra -Wpedantic -Werror \
+            -Iinclude -Ibench tools/test_hotpath_round5_layout.cpp \
+            -o build/test_hotpath_round5_layout
+          ./build/test_hotpath_round5_layout
+
+      - name: Correctness and affinity smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          for capacity in 64 256 1024 65536; do
+            for payload in 8 16 64 256; do
+              ./build/bench_hotpath_round5 production "$capacity" "$payload" 50000 scalar 1
+              ./build/bench_hotpath_round5 architecture_selective "$capacity" "$payload" 50000 scalar 1
+            done
+          done
+          for batch in 4 16 64; do
+            ./build/bench_hotpath_round5 architecture_selective 1024 16 50000 bulk "$batch"
+          done
+
+      - name: Run expanded scalar qualification
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/hotpath-round5/raw
+          if [[ '${{ matrix.arch }}' == 'arm64' ]]; then
+            python tools/run_hotpath_round5.py \
+              --program build/bench_hotpath_round5 \
+              --capacities 64,256,1024,65536 \
+              --payloads 8,16,64,256 \
+              --mode scalar \
+              --transfers 1000000 \
+              --warmups 5 \
+              --repetitions 30 \
+              --seed 20261070 \
+              --topology-policy default \
+              --output evidence/hotpath-round5/raw/scalar.jsonl
+          else
+            python tools/run_hotpath_round5.py \
+              --program build/bench_hotpath_round5 \
+              --capacities 64,1024,65536 \
+              --payloads 8,16 \
+              --mode scalar \
+              --transfers 1000000 \
+              --warmups 5 \
+              --repetitions 30 \
+              --seed 20261071 \
+              --topology-policy x64-diagnostic \
+              --output evidence/hotpath-round5/raw/scalar.jsonl
+          fi
+
+      - name: Run selected bulk qualification
+        shell: bash
+        run: |
+          set -euo pipefail
+          for batch in 4 16 64; do
+            python tools/run_hotpath_round5.py \
+              --program build/bench_hotpath_round5 \
+              --capacities 1024 \
+              --payloads 16 \
+              --mode bulk \
+              --batch "$batch" \
+              --transfers 1000000 \
+              --warmups 5 \
+              --repetitions 30 \
+              --seed "$((20261080 + batch))" \
+              --topology-policy '${{ matrix.topology_policy }}' \
+              --output "evidence/hotpath-round5/raw/bulk-${batch}.jsonl"
+          done
+
+      - name: Analyze expanded qualification
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/analyze_hotpath_v2.py evidence/hotpath-round5/raw/*.jsonl \
+            --require-repetitions 30 \
+            --bootstrap-seed 20261070 \
+            --json-output evidence/hotpath-round5/summary.json \
+            --markdown-output evidence/hotpath-round5/summary.md
+          cat evidence/hotpath-round5/summary.md
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hotpath-round5-${{ matrix.name }}
+          path: evidence/hotpath-round5/
+          if-no-files-found: error
