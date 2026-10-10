@@ -21,10 +21,10 @@ class dynamic_raw_queue final {
         ((arm_destructive_span - 1) / sizeof(T)) + 1;
 
 public:
-    dynamic_raw_queue()
-        : capacity_(Capacity + 1),
-          slots_(std::allocator_traits<Allocator>::allocate(
-              allocator_, capacity_ + 2 * padding)) {}
+    dynamic_raw_queue() : capacity_(Capacity + 1), slots_(nullptr) {
+        slots_ = std::allocator_traits<Allocator>::allocate(
+            allocator_, capacity_ + 2 * padding);
+    }
 
     dynamic_raw_queue(const dynamic_raw_queue&) = delete;
     dynamic_raw_queue& operator=(const dynamic_raw_queue&) = delete;
