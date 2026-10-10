@@ -53,6 +53,12 @@ namespace veriqueue {
 #define VERIQUEUE_DETAIL_ARM64_STORAGE_STRIPE 0
 #endif
 
+#if defined(__aarch64__) && defined(__GNUC__) && !defined(__clang__)
+#define VERIQUEUE_DETAIL_GCC_ARM64_BULK_OPT __attribute__((optimize("unroll-loops")))
+#else
+#define VERIQUEUE_DETAIL_GCC_ARM64_BULK_OPT
+#endif
+
 template <
     class T,
     std::size_t Capacity,
@@ -184,6 +190,7 @@ public:
         return try_emplace(std::move(value));
     }
 
+    VERIQUEUE_DETAIL_GCC_ARM64_BULK_OPT
     [[nodiscard]] std::size_t try_push_bulk(std::span<const T> values) noexcept
         requires std::is_nothrow_copy_constructible_v<T>
     {
@@ -249,6 +256,7 @@ public:
         return true;
     }
 
+    VERIQUEUE_DETAIL_GCC_ARM64_BULK_OPT
     [[nodiscard]] std::size_t try_pop_bulk(std::span<T> output) noexcept
         requires std::is_nothrow_move_assignable_v<T>
     {
@@ -409,6 +417,7 @@ private:
     alignas(storage_alignment) std::array<detail::slot<T>, Capacity> slots_;
 };
 
+#undef VERIQUEUE_DETAIL_GCC_ARM64_BULK_OPT
 #undef VERIQUEUE_DETAIL_ARM64_STORAGE_STRIPE
 #undef VERIQUEUE_DETAIL_ARM64_SINGLE_OWNER_CURSOR
 
