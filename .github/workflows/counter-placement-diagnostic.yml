@@ -1,0 +1,180 @@
+name: Counter Placement Bottleneck Diagnostic
+
+on:
+  pull_request:
+    paths:
+      - 'tools/generate_counter_diagnostic.py'
+      - 'tools/compile_counter_diagnostic.sh'
+      - 'tools/audit_counter_code.py'
+      - 'tools/analyze_counter_diagnostic.py'
+      - 'tools/test_counter_diagnostic.py'
+      - 'docs/COUNTER_PLACEMENT_DIAGNOSTIC.md'
+      - '.github/workflows/counter-placement-diagnostic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: counter-diagnostic-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+  IMPLEMENTATIONS: veriqueue,rigtorp,boost_lockfree,moodycamel,drogalis,packed/veriqueue,packed/rigtorp,packed/boost_lockfree,packed/moodycamel,packed/drogalis,split/veriqueue,split/rigtorp,split/boost_lockfree,split/moodycamel,split/drogalis
+
+jobs:
+  tooling:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate diagnostic tooling
+        run: |
+          python -m py_compile tools/generate_counter_diagnostic.py tools/audit_counter_code.py tools/analyze_counter_diagnostic.py
+          python tools/test_counter_diagnostic.py
+          bash -n tools/compile_counter_diagnostic.sh
+
+  compare:
+    name: ${{ matrix.arch }} / ${{ matrix.compiler }} / cap-${{ matrix.capacity }}
+    needs: tooling
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64, arm64]
+        compiler: [gcc, clang]
+        capacity: [2, 64, 256, 1024, 65536]
+        include:
+          - arch: x64
+            runner: ubuntu-24.04
+            arch_id: 0
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            arch_id: 1
+          - compiler: gcc
+            cc: gcc
+            cxx: g++
+            compiler_id: 1
+          - compiler: clang
+            cc: clang
+            cxx: clang++
+            compiler_id: 2
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libboost-dev ninja-build clang
+      - name: Fetch pinned comparator headers
+        run: |
+          cmake -S . -B build/counters -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF \
+            -DVERIQUEUE_BUILD_BENCHMARKS=OFF -DVERIQUEUE_BUILD_BASELINES=ON
+      - name: Compile both harnesses and verify shared workers before measurement
+        run: bash tools/compile_counter_diagnostic.sh build/counters
+      - name: Capture compiler and runner context
+        run: |
+          mkdir -p evidence/context
+          tools/collect_machine_info.sh > evidence/context/machine.txt
+          "$CXX" --version > evidence/context/compiler.txt
+          python - <<'PY' > evidence/context/source.json
+          import json,os
+          print(json.dumps({k:os.getenv(k) for k in ('SOURCE_COMMIT','GITHUB_RUN_ID','GITHUB_RUN_ATTEMPT','RUNNER_ARCH','RUNNER_NAME')}))
+          PY
+      - name: Verify FIFO and counter placement in every measured payload
+        run: |
+          python - <<'PY'
+          import json,subprocess,sys
+          sys.path.insert(0,'tools')
+          from analyze_counter_diagnostic import LABELS,geometry
+          capacity=int('${{ matrix.capacity }}')
+          for label in LABELS:
+              for payload in (8,16,64,256):
+                  r=json.loads(subprocess.check_output(['build/counters/comparator',label,str(capacity),str(payload),'10000'],text=True))
+                  assert r['valid'] and r['affinity_valid'] and r['produced']==r['consumed']==10000
+                  assert r['checksum']==(10000*9999//2*0x9e3779b185ebca87)%(1<<64)
+                  geometry(r)
+          PY
+      - name: Sanitize both atomic storage layouts before scoring
+        if: matrix.arch == 'x64' && matrix.compiler == 'gcc' && matrix.capacity == 64
+        run: |
+          COUNTER_SANITIZERS=1 bash tools/compile_counter_diagnostic.sh build/counters
+          python - <<'PY'
+          import json,subprocess,sys
+          sys.path.insert(0,'tools')
+          from analyze_counter_diagnostic import LABELS,geometry
+          for label in LABELS:
+              for payload in (8,16,64,256):
+                  r=json.loads(subprocess.check_output(['build/counters/comparator-sanitized',label,'64',str(payload),'10000'],text=True))
+                  assert r['valid'] and r['affinity_valid'] and r['produced']==r['consumed']==10000
+                  assert r['checksum']==(10000*9999//2*0x9e3779b185ebca87)%(1<<64)
+                  geometry(r)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: counter-code-${{ matrix.arch }}-${{ matrix.compiler }}-cap${{ matrix.capacity }}
+          path: |
+            build/counters/comparator.cpp
+            build/counters/comparator.s
+            build/counters/common-code.json
+            build/counters/linked-symbols.txt
+            evidence/context
+          if-no-files-found: error
+          retention-days: 90
+      - name: Run frozen randomized fifteen-way campaign
+        run: |
+          seed=$((2026101041 + ${{ matrix.arch_id }} * 100000 + ${{ matrix.compiler_id }} * 10000 + ${{ matrix.capacity }}))
+          python tools/run_comparator_campaign.py --program build/counters/comparator \
+            --capacity '${{ matrix.capacity }}' --payloads 8,16,64,256 \
+            --implementations "$IMPLEMENTATIONS" --transfers 1000000 \
+            --warmups 5 --repetitions 50 --seed "$seed" \
+            --lane '${{ matrix.arch }}-${{ matrix.compiler }}' --architecture '${{ matrix.arch }}' \
+            --compiler '${{ matrix.compiler }}' --source-commit "$SOURCE_COMMIT" \
+            --output 'evidence/raw/${{ matrix.arch }}-${{ matrix.compiler }}-cap${{ matrix.capacity }}.jsonl'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: counter-raw-${{ matrix.arch }}-${{ matrix.compiler }}-cap${{ matrix.capacity }}
+          path: evidence/raw/*.jsonl
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate:
+    needs: compare
+    if: ${{ always() && needs.compare.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: counter-raw-*
+          path: evidence/counters/shards
+          merge-multiple: true
+      - name: Validate full80 integrity and analyze fixed contrasts
+        run: |
+          python tools/analyze_counter_diagnostic.py evidence/counters/shards \
+            evidence/counters/summary.json --source-commit "$SOURCE_COMMIT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: counter-diagnostic-summary
+          path: evidence/counters
+          if-no-files-found: error
+          retention-days: 90
