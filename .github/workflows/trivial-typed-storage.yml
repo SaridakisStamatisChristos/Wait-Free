@@ -1,0 +1,181 @@
+name: Trivial Typed Storage
+
+on:
+  pull_request:
+    paths:
+      - 'bench/trivial_typed_variants.hpp'
+      - 'bench/bench_trivial_typed_compare.cpp'
+      - '.github/workflows/trivial-typed-storage.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: trivial-typed-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+  CANDIDATES: veriqueue,typed_monotonic,typed_limit,typed_wrapped64,typed_dro_like
+  EXTERNALS: rigtorp,boost_lockfree,moodycamel,drogalis
+  IMPLEMENTATIONS: veriqueue,typed_monotonic,typed_limit,typed_wrapped64,typed_dro_like,rigtorp,boost_lockfree,moodycamel,drogalis
+
+jobs:
+  tooling:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate tooling
+        run: |
+          python -m py_compile \
+            tools/run_comparator_campaign.py \
+            tools/analyze_policy_campaign.py
+          python tools/test_policy_campaign.py
+      - name: Compile candidate smoke
+        run: |
+          g++ -std=c++20 -O3 -DNDEBUG -pthread \
+            -Wall -Wextra -Wpedantic -Wconversion -Wshadow \
+            -Wold-style-cast -Wcast-align -Wundef -Werror \
+            -Iinclude -Ibench -x c++ -o /tmp/typed-smoke - <<'CPP'
+          #include "trivial_typed_variants.hpp"
+          #include <cstdint>
+          struct p16 { std::uint64_t a; std::uint64_t b; };
+          int main() {
+              vqbench::experimental::trivial_typed::monotonic_seq_queue<p16, 64> a;
+              vqbench::experimental::trivial_typed::cached_limit_seq_queue<p16, 64> b;
+              vqbench::experimental::trivial_typed::wrapped64_inline<p16, 64> c;
+              vqbench::experimental::trivial_typed::wrapped256_heap<p16, 64> d;
+              p16 in{1, 2}, out{};
+              if (!a.try_push(in) || !a.try_pop(out)) return 1;
+              if (!b.try_push(in) || !b.try_pop(out)) return 2;
+              if (!c.try_push(in) || !c.try_pop(out)) return 3;
+              if (!d.try_push(in) || !d.try_pop(out)) return 4;
+              return out.a == 1 && out.b == 2 ? 0 : 5;
+          }
+          CPP
+          /tmp/typed-smoke
+
+  compare:
+    name: arm64 / ${{ matrix.compiler }} / cap-${{ matrix.capacity }}
+    needs: tooling
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+        capacity: [64, 256, 1024, 65536]
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y ninja-build libboost-dev clang
+      - name: Select compiler
+        id: compiler
+        shell: bash
+        run: |
+          if [[ "${{ matrix.compiler }}" == "gcc" ]]; then
+            echo "cc=gcc" >> "$GITHUB_OUTPUT"
+            echo "cxx=g++" >> "$GITHUB_OUTPUT"
+            echo "id=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "cc=clang" >> "$GITHUB_OUTPUT"
+            echo "cxx=clang++" >> "$GITHUB_OUTPUT"
+            echo "id=2" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Fetch pinned comparators
+        env:
+          CC: ${{ steps.compiler.outputs.cc }}
+          CXX: ${{ steps.compiler.outputs.cxx }}
+        run: |
+          cmake -S . -B build/trivial-typed -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DVERIQUEUE_BUILD_TESTS=OFF \
+            -DVERIQUEUE_BUILD_STRESS=OFF \
+            -DVERIQUEUE_BUILD_BENCHMARKS=OFF \
+            -DVERIQUEUE_BUILD_BASELINES=ON
+      - name: Compile comparator
+        env:
+          CXX: ${{ steps.compiler.outputs.cxx }}
+        run: |
+          "$CXX" -std=c++20 -O3 -DNDEBUG -pthread \
+            -Wall -Wextra -Wpedantic -Wconversion -Wshadow \
+            -Wold-style-cast -Wcast-align -Wundef -Werror \
+            -DVERIQUEUE_POLICY_CAPACITY=${{ matrix.capacity }} \
+            -Iinclude -Ibench \
+            -isystem build/trivial-typed/_deps/rigtorp_spsc-src/include \
+            -isystem build/trivial-typed/_deps/moodycamel_readerwriterqueue-src \
+            -isystem build/trivial-typed/_deps/drogalis_spsc-src/include \
+            bench/bench_trivial_typed_compare.cpp bench/environment.cpp \
+            -o build/trivial-typed/bench_trivial_typed_compare
+      - name: Run randomized paired campaign
+        run: |
+          seed=$((2026104100 + ${{ steps.compiler.outputs.id }} * 10000 + ${{ matrix.capacity }}))
+          output="evidence/trivial-typed/raw/arm64-${{ matrix.compiler }}-cap${{ matrix.capacity }}.jsonl"
+          python tools/run_comparator_campaign.py \
+            --program build/trivial-typed/bench_trivial_typed_compare \
+            --capacity "${{ matrix.capacity }}" \
+            --payloads 8,16,64,256 \
+            --implementations "$IMPLEMENTATIONS" \
+            --transfers 1000000 \
+            --warmups 5 \
+            --repetitions 50 \
+            --seed "$seed" \
+            --lane "arm64-${{ matrix.compiler }}" \
+            --architecture arm64 \
+            --compiler "${{ matrix.compiler }}" \
+            --source-commit "$SOURCE_COMMIT" \
+            --output "$output"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: trivial-typed-${{ matrix.compiler }}-cap${{ matrix.capacity }}
+          path: evidence/trivial-typed/raw/*.jsonl
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate:
+    name: aggregate-trivial-typed
+    needs: compare
+    if: ${{ always() && needs.compare.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: trivial-typed-*
+          path: evidence/trivial-typed/shards
+          merge-multiple: true
+      - name: Analyze
+        run: |
+          python tools/analyze_policy_campaign.py evidence/trivial-typed/shards \
+            --candidates "$CANDIDATES" \
+            --externals "$EXTERNALS" \
+            --json-output evidence/trivial-typed/summary.json \
+            --markdown-output evidence/trivial-typed/summary.md \
+            --csv-output evidence/trivial-typed/cells.csv \
+            --bootstrap-seed 20261041 \
+            --bootstrap-samples 20000
+          cat evidence/trivial-typed/summary.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: trivial-typed-summary
+          path: evidence/trivial-typed
+          if-no-files-found: error
+          retention-days: 90
