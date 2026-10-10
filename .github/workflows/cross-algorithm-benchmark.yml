@@ -1,0 +1,168 @@
+name: Cross-Algorithm Benchmark
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'include/veriqueue/spsc_queue.hpp'
+      - 'bench/bench_compare.cpp'
+      - 'bench/environment.cpp'
+      - 'bench/environment.hpp'
+      - 'bench/affinity.hpp'
+      - 'CMakeLists.txt'
+      - 'tools/run_comparator_campaign.py'
+      - 'tools/analyze_comparator_campaign.py'
+      - 'tools/test_comparator_campaign.py'
+      - '.github/workflows/cross-algorithm-benchmark.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cross-algorithm-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  tooling:
+    name: comparator-tooling
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile comparator tooling
+        run: python -m py_compile tools/run_comparator_campaign.py tools/analyze_comparator_campaign.py tools/test_comparator_campaign.py
+      - name: Run comparator tooling self-test
+        run: python tools/test_comparator_campaign.py
+
+  compare:
+    name: ${{ matrix.runner }} / ${{ matrix.compiler }} / cap-${{ matrix.capacity }}
+    needs: tooling
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+        compiler: [gcc, clang]
+        capacity: [2, 64, 256, 1024, 65536]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install benchmark dependencies
+        run: sudo apt-get update && sudo apt-get install -y ninja-build libboost-dev clang
+      - name: Resolve lane metadata
+        id: meta
+        shell: bash
+        run: |
+          if [[ "${{ matrix.runner }}" == "ubuntu-24.04-arm" ]]; then
+            arch=arm64
+            arch_id=2
+          else
+            arch=x64
+            arch_id=1
+          fi
+          if [[ "${{ matrix.compiler }}" == "gcc" ]]; then
+            cc=gcc
+            cxx=g++
+            compiler_id=1
+          else
+            cc=clang
+            cxx=clang++
+            compiler_id=2
+          fi
+          lane="${arch}-${{ matrix.compiler }}"
+          seed=$((2026101000 + arch_id * 100000 + compiler_id * 10000 + ${{ matrix.capacity }}))
+          echo "arch=$arch" >> "$GITHUB_OUTPUT"
+          echo "cc=$cc" >> "$GITHUB_OUTPUT"
+          echo "cxx=$cxx" >> "$GITHUB_OUTPUT"
+          echo "lane=$lane" >> "$GITHUB_OUTPUT"
+          echo "seed=$seed" >> "$GITHUB_OUTPUT"
+      - name: Configure pinned comparator build
+        env:
+          CC: ${{ steps.meta.outputs.cc }}
+          CXX: ${{ steps.meta.outputs.cxx }}
+        run: |
+          cmake -S . -B build/compare -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DVERIQUEUE_BUILD_TESTS=OFF \
+            -DVERIQUEUE_BUILD_STRESS=OFF \
+            -DVERIQUEUE_BUILD_BENCHMARKS=OFF \
+            -DVERIQUEUE_BUILD_BASELINES=ON
+      - name: Build common-denominator comparator
+        run: cmake --build build/compare --target bench_compare -j2
+      - name: Run randomized 5-way comparison
+        run: |
+          output="evidence/cross-algorithm/raw/${{ steps.meta.outputs.lane }}-cap${{ matrix.capacity }}.jsonl"
+          python tools/run_comparator_campaign.py \
+            --program build/compare/bench_compare \
+            --capacity "${{ matrix.capacity }}" \
+            --payloads 8,16,64,256 \
+            --implementations veriqueue,rigtorp,boost_lockfree,moodycamel,drogalis \
+            --transfers 1000000 \
+            --warmups 5 \
+            --repetitions 50 \
+            --seed "${{ steps.meta.outputs.seed }}" \
+            --lane "${{ steps.meta.outputs.lane }}" \
+            --architecture "${{ steps.meta.outputs.arch }}" \
+            --compiler "${{ matrix.compiler }}" \
+            --source-commit "${{ env.SOURCE_COMMIT }}" \
+            --output "$output"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cross-algorithm-${{ steps.meta.outputs.lane }}-cap${{ matrix.capacity }}
+          path: evidence/cross-algorithm/raw/*.jsonl
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate:
+    name: aggregate-cross-algorithm-results
+    needs: compare
+    if: ${{ always() && needs.compare.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download all benchmark shards
+        uses: actions/download-artifact@v4
+        with:
+          pattern: cross-algorithm-*
+          path: evidence/cross-algorithm/shards
+          merge-multiple: true
+      - name: Analyze paired comparison evidence
+        run: |
+          python tools/analyze_comparator_campaign.py evidence/cross-algorithm/shards \
+            --json-output evidence/cross-algorithm/summary.json \
+            --markdown-output evidence/cross-algorithm/summary.md \
+            --headline-output evidence/cross-algorithm/headline.md \
+            --csv-output evidence/cross-algorithm/cells.csv \
+            --bootstrap-seed 20261010 \
+            --bootstrap-samples 10000
+          cat evidence/cross-algorithm/headline.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cross-algorithm-summary
+          path: |
+            evidence/cross-algorithm/summary.json
+            evidence/cross-algorithm/summary.md
+            evidence/cross-algorithm/headline.md
+            evidence/cross-algorithm/cells.csv
+          if-no-files-found: error
+          retention-days: 90
