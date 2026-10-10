@@ -66,6 +66,7 @@ static_assert(sizeof(probe_payload<256>) == 256);
     VQ_INIT(dynamic_managed, CAP, BYTES, vqbench::experimental::rigtorp_codegen::dynamic_managed_queue) \
     VQ_PROBE(production, CAP, BYTES, veriqueue::spsc_queue) \
     VQ_PROBE(dynamic_raw, CAP, BYTES, vqbench::experimental::rigtorp_codegen::dynamic_raw_queue) \
+    VQ_PROBE(dynamic_common, CAP, BYTES, vqbench::experimental::rigtorp_codegen::dynamic_common_queue) \
     VQ_PROBE(dynamic_aligned, CAP, BYTES, vqbench::experimental::rigtorp_codegen::dynamic_aligned_queue) \
     VQ_PROBE(inline_managed, CAP, BYTES, vqbench::experimental::rigtorp_codegen::inline_managed_queue) \
     VQ_PROBE(dynamic_managed, CAP, BYTES, vqbench::experimental::rigtorp_codegen::dynamic_managed_queue) \

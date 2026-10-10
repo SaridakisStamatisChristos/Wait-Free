@@ -14,14 +14,23 @@ void check(bool condition) {
     if (!condition) throw std::runtime_error("dynamic consumer contract failure");
 }
 
+template <class Queue, class Allocator>
+std::unique_ptr<Queue> make_test_queue(bool aligned = false) {
+    if constexpr (std::is_constructible_v<Allocator, bool> && std::is_constructible_v<Queue, Allocator>) {
+        return std::make_unique<Queue>(Allocator{aligned});
+    } else {
+        return std::make_unique<Queue>();
+    }
+}
+
 template <bool Split, bool Grouped, std::size_t Capacity,
           std::size_t ControlSpan = 256, bool CachePeer = true, bool CacheOnProgress = false, bool SlotStorage = false,
-          bool InlineStorage = false, template <class> class Allocator = std::allocator>
+          bool InlineStorage = false, template <class> class Allocator = std::allocator, bool RuntimeAligned = false>
 void model() {
     using queue = vqbench::experimental::rigtorp_codegen::dynamic_raw_queue<
         std::uint64_t, Capacity, Allocator<std::uint64_t>,
         Split, Grouped, ControlSpan, CachePeer, CacheOnProgress, SlotStorage, InlineStorage>;
-    auto owner = std::make_unique<queue>();
+    auto owner = make_test_queue<queue, Allocator<std::uint64_t>>(RuntimeAligned);
     queue& q = *owner;
     std::deque<std::uint64_t> expected;
     std::mt19937_64 rng(20261043 + Capacity);
@@ -69,7 +78,7 @@ struct tracked {
 
 template <bool Split, bool Grouped, std::size_t ControlSpan = 256,
           bool CachePeer = true, bool CacheOnProgress = false, bool SlotStorage = false,
-          bool InlineStorage = false, template <class> class Allocator = std::allocator>
+          bool InlineStorage = false, template <class> class Allocator = std::allocator, bool RuntimeAligned = false>
 void lifetime() {
     using queue = vqbench::experimental::rigtorp_codegen::dynamic_raw_queue<
         tracked, 2, Allocator<tracked>,
@@ -78,7 +87,8 @@ void lifetime() {
     {
         tracked in(42), out;
         {
-            queue q;
+            auto owner = make_test_queue<queue, Allocator<tracked>>(RuntimeAligned);
+            queue& q = *owner;
             check(q.try_push(in));
             check(tracked::alive == 3);
             check(q.try_pop(out) && out.value == 42);
@@ -103,12 +113,13 @@ struct throwing {
 
 template <bool Split, bool Grouped, std::size_t ControlSpan = 256,
           bool CachePeer = true, bool CacheOnProgress = false, bool SlotStorage = false,
-          bool InlineStorage = false, template <class> class Allocator = std::allocator>
+          bool InlineStorage = false, template <class> class Allocator = std::allocator, bool RuntimeAligned = false>
 void exception() {
     using queue = vqbench::experimental::rigtorp_codegen::dynamic_raw_queue<
         throwing, 2, Allocator<throwing>,
         Split, Grouped, ControlSpan, CachePeer, CacheOnProgress, SlotStorage, InlineStorage>;
-    queue q;
+    auto owner = make_test_queue<queue, Allocator<throwing>>(RuntimeAligned);
+    queue& q = *owner;
     throwing in, out;
     throwing::fail = true;
     bool threw = false;
@@ -121,12 +132,13 @@ void exception() {
 
 template <bool Split, bool Grouped, std::size_t ControlSpan = 256,
           bool CachePeer = true, bool CacheOnProgress = false, bool SlotStorage = false,
-          bool InlineStorage = false, template <class> class Allocator = std::allocator>
+          bool InlineStorage = false, template <class> class Allocator = std::allocator, bool RuntimeAligned = false>
 void concurrent() {
     using queue = vqbench::experimental::rigtorp_codegen::dynamic_raw_queue<
         std::uint64_t, 64, Allocator<std::uint64_t>,
         Split, Grouped, ControlSpan, CachePeer, CacheOnProgress, SlotStorage, InlineStorage>;
-    queue q;
+    auto owner = make_test_queue<queue, Allocator<std::uint64_t>>(RuntimeAligned);
+    queue& q = *owner;
     std::atomic<bool> failed{false};
     std::thread producer([&] {
         for (std::uint64_t i = 0; i < 200000; ++i) {
@@ -147,17 +159,26 @@ void concurrent() {
 
 template <bool Split, bool Grouped, std::size_t ControlSpan = 256,
           bool CachePeer = true, bool CacheOnProgress = false, bool SlotStorage = false,
-          bool InlineStorage = false, template <class> class Allocator = std::allocator>
+          bool InlineStorage = false, template <class> class Allocator = std::allocator, bool RuntimeAligned = false>
 void suite() {
-    model<Split, Grouped, 1, ControlSpan, CachePeer, CacheOnProgress, SlotStorage, InlineStorage, Allocator>();
-    model<Split, Grouped, 2, ControlSpan, CachePeer, CacheOnProgress, SlotStorage, InlineStorage, Allocator>();
-    model<Split, Grouped, 4, ControlSpan, CachePeer, CacheOnProgress, SlotStorage, InlineStorage, Allocator>();
-    model<Split, Grouped, 64, ControlSpan, CachePeer, CacheOnProgress, SlotStorage, InlineStorage, Allocator>();
-    model<Split, Grouped, 1024, ControlSpan, CachePeer, CacheOnProgress, SlotStorage, InlineStorage, Allocator>();
-    model<Split, Grouped, 65536, ControlSpan, CachePeer, CacheOnProgress, SlotStorage, InlineStorage, Allocator>();
-    lifetime<Split, Grouped, ControlSpan, CachePeer, CacheOnProgress, SlotStorage, InlineStorage, Allocator>();
-    exception<Split, Grouped, ControlSpan, CachePeer, CacheOnProgress, SlotStorage, InlineStorage, Allocator>();
-    concurrent<Split, Grouped, ControlSpan, CachePeer, CacheOnProgress, SlotStorage, InlineStorage, Allocator>();
+    model<Split, Grouped, 1, ControlSpan, CachePeer, CacheOnProgress, SlotStorage, InlineStorage, Allocator,
+          RuntimeAligned>();
+    model<Split, Grouped, 2, ControlSpan, CachePeer, CacheOnProgress, SlotStorage, InlineStorage, Allocator,
+          RuntimeAligned>();
+    model<Split, Grouped, 4, ControlSpan, CachePeer, CacheOnProgress, SlotStorage, InlineStorage, Allocator,
+          RuntimeAligned>();
+    model<Split, Grouped, 64, ControlSpan, CachePeer, CacheOnProgress, SlotStorage, InlineStorage, Allocator,
+          RuntimeAligned>();
+    model<Split, Grouped, 1024, ControlSpan, CachePeer, CacheOnProgress, SlotStorage, InlineStorage, Allocator,
+          RuntimeAligned>();
+    model<Split, Grouped, 65536, ControlSpan, CachePeer, CacheOnProgress, SlotStorage, InlineStorage, Allocator,
+          RuntimeAligned>();
+    lifetime<Split, Grouped, ControlSpan, CachePeer, CacheOnProgress, SlotStorage, InlineStorage, Allocator,
+          RuntimeAligned>();
+    exception<Split, Grouped, ControlSpan, CachePeer, CacheOnProgress, SlotStorage, InlineStorage, Allocator,
+          RuntimeAligned>();
+    concurrent<Split, Grouped, ControlSpan, CachePeer, CacheOnProgress, SlotStorage, InlineStorage, Allocator,
+          RuntimeAligned>();
 }
 
 struct allocation_record {
@@ -188,6 +209,28 @@ struct recording_allocator {
     }
 };
 
+template <class T>
+struct recording_runtime_allocator {
+    using value_type = T;
+    bool aligned = false;
+    recording_runtime_allocator() noexcept = default;
+    explicit recording_runtime_allocator(bool mode) noexcept : aligned(mode) {}
+    template <class U>
+    recording_runtime_allocator(const recording_runtime_allocator<U>& other) noexcept : aligned(other.aligned) {}
+    [[nodiscard]] T* allocate(std::size_t count) {
+        ++allocation_record::allocations;
+        allocation_record::bytes = count * sizeof(T);
+        using allocator = vqbench::experimental::rigtorp_codegen::runtime_buffer_allocator<T>;
+        using guaranteed = vqbench::experimental::rigtorp_codegen::aligned_buffer_allocator<T>;
+        allocation_record::alignment = aligned ? guaranteed::alignment : alignof(T);
+        return allocator{aligned}.allocate(count);
+    }
+    void deallocate(T* pointer, std::size_t count) noexcept {
+        ++allocation_record::deallocations;
+        vqbench::experimental::rigtorp_codegen::runtime_buffer_allocator<T>{aligned}.deallocate(pointer, count);
+    }
+};
+
 template <std::size_t Alignment>
 struct alignas(Alignment) nondefault_value {
     static inline int alive = 0;
@@ -210,17 +253,20 @@ struct alignas(Alignment) nondefault_value {
 using nondefault = nondefault_value<128>;
 
 template <bool Managed, bool Inline = false, bool Split = true, bool Aligned = false,
-          class Value = nondefault>
+          class Value = nondefault, bool Runtime = false>
 void allocation_and_reuse() {
+    using allocator = std::conditional_t<Runtime, recording_runtime_allocator<Value>,
+                                         recording_allocator<Value, Aligned>>;
     using queue = vqbench::experimental::rigtorp_codegen::dynamic_raw_queue<
-        Value, 2, recording_allocator<Value, Aligned>, Split, true, 256, true, true, Managed, Inline>;
+        Value, 2, allocator, Split, true, 256, true, true, Managed, Inline>;
     allocation_record::allocations = 0;
     allocation_record::deallocations = 0;
     check(Value::alive == 0);
     {
         Value in(0), out(UINT64_MAX);
         {
-            queue q;
+            auto owner = make_test_queue<queue, allocator>(Aligned);
+            queue& q = *owner;
             check(Value::alive == 2); // No persistent/default-constructed T.
             check(allocation_record::allocations == (Inline ? 0 : 1));
             if constexpr (!Inline) {
@@ -314,6 +360,20 @@ int main() {
     allocation_and_reuse<true, false, false, true, nondefault_value<512>>();
     static_assert(std::is_empty_v<aligned_buffer_allocator<std::uint64_t>>);
     static_assert(!std::is_nothrow_default_constructible_v<dynamic_aligned_queue<nondefault, 2>>);
+    suite<true, true, 256, true, true, true, false, runtime_buffer_allocator, false>();
+    suite<false, true, 256, true, true, true, false, runtime_buffer_allocator, false>();
+    suite<true, true, 256, true, true, true, false, runtime_buffer_allocator, true>();
+    suite<false, true, 256, true, true, true, false, runtime_buffer_allocator, true>();
+    allocation_and_reuse<true, false, true, false, nondefault_value<128>, true>();
+    allocation_and_reuse<true, false, false, false, nondefault_value<512>, true>();
+    allocation_and_reuse<true, false, true, true, nondefault_value<128>, true>();
+    allocation_and_reuse<true, false, false, true, nondefault_value<512>, true>();
+    static_assert(sizeof(dynamic_common_queue<std::uint64_t, 64>) == 768);
+    static_assert(dynamic_common_queue<std::uint64_t, 64>::allocator_offset() == 16);
+    static_assert(sizeof(runtime_buffer_allocator<std::uint64_t>) == 1);
+    runtime_buffer_allocator<std::uint64_t> ordinary(false), aligned(true);
+    check(!(ordinary == aligned));
+    check(runtime_buffer_allocator<std::byte>(aligned).aligned);
     bool overflow_threw = false;
     try {
         static_cast<void>(aligned_buffer_allocator<nondefault>{}.allocate(

@@ -41,6 +41,31 @@ struct aligned_buffer_allocator {
     bool operator==(const aligned_buffer_allocator<U>&) const noexcept { return true; }
 };
 
+// Both modes have one queue type, one consumer/producer code instantiation and
+// fixed control offsets. This state is used only by construction/destruction.
+template <class T>
+struct runtime_buffer_allocator {
+    using value_type = T;
+    using is_always_equal = std::false_type;
+    bool aligned = false;
+
+    runtime_buffer_allocator() noexcept = default;
+    explicit runtime_buffer_allocator(bool mode) noexcept : aligned(mode) {}
+    template <class U>
+    runtime_buffer_allocator(const runtime_buffer_allocator<U>& other) noexcept : aligned(other.aligned) {}
+
+    [[nodiscard]] T* allocate(std::size_t count) {
+        if (aligned) return aligned_buffer_allocator<T>{}.allocate(count);
+        return std::allocator<T>{}.allocate(count);
+    }
+    void deallocate(T* pointer, std::size_t count) noexcept {
+        if (aligned) aligned_buffer_allocator<T>{}.deallocate(pointer, count);
+        else std::allocator<T>{}.deallocate(pointer, count);
+    }
+    template <class U>
+    bool operator==(const runtime_buffer_allocator<U>& other) const noexcept { return aligned == other.aligned; }
+};
+
 template <
     class T,
     std::size_t Capacity,
@@ -102,6 +127,16 @@ public:
                 // zeroing storage. Construction and live access stay separate.
                 std::uninitialized_default_construct_n(slots_, capacity_ + 2 * padding);
             }
+        }
+    }
+
+    // Only the new shared-code lab uses explicit runtime allocator selection.
+    // Keep the existing default constructor and all scalar methods unchanged.
+    explicit dynamic_raw_queue(const Allocator& allocator) requires (!InlineStorage)
+        : capacity_(Capacity + 1), slots_(nullptr), allocator_(allocator) {
+        slots_ = std::allocator_traits<storage_allocator>::allocate(allocator_, capacity_ + 2 * padding);
+        if constexpr (SlotStorage) {
+            std::uninitialized_default_construct_n(slots_, capacity_ + 2 * padding);
         }
     }
 
@@ -189,6 +224,23 @@ public:
         return {base % 64, base % 128, base % 256, first % 64, first % 128, first % 256};
     }
 
+    // Low address bits and unsigned distance only: never publish absolute addresses.
+    // 4096 is an observation modulus, not an assertion about page/cache geometry.
+    [[nodiscard]] std::array<std::uint64_t, 7> placement_offsets() const noexcept {
+        const auto owner = reinterpret_cast<std::uintptr_t>(this);
+        const auto write = reinterpret_cast<std::uintptr_t>(&write_);
+        const auto read = reinterpret_cast<std::uintptr_t>(&read_);
+        const auto base = reinterpret_cast<std::uintptr_t>(slots_);
+        const auto first = reinterpret_cast<std::uintptr_t>(slots_ + padding);
+        const auto distance = base >= owner ? base - owner : owner - base;
+        return {owner % 4096, write % 4096, read % 4096, base % 4096, first % 4096,
+                distance, base >= owner ? 1U : 0U};
+    }
+
+    [[nodiscard]] static constexpr std::size_t allocator_offset() noexcept {
+        return offsetof(dynamic_raw_queue, allocator_);
+    }
+
     [[nodiscard]] static constexpr std::array<std::size_t, 7> layout_offsets() noexcept {
         return {offsetof(dynamic_raw_queue, capacity_), offsetof(dynamic_raw_queue, slots_),
                 offsetof(dynamic_raw_queue, write_), offsetof(dynamic_raw_queue, read_cache_),
@@ -262,6 +314,10 @@ private:
 template <class T, std::size_t Capacity>
 using inline_managed_queue =
     dynamic_raw_queue<T, Capacity, std::allocator<T>, true, true, 256, true, true, true, true>;
+
+template <class T, std::size_t Capacity>
+using dynamic_common_queue =
+    dynamic_raw_queue<T, Capacity, runtime_buffer_allocator<T>, true, true, 256, true, true, true>;
 
 template <class T, std::size_t Capacity>
 using dynamic_aligned_queue =

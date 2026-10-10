@@ -1,4 +1,4 @@
-name: Managed Heap Buffer Alignment
+name: Common Code Placement Diagnostic
 
 on:
   pull_request:
@@ -6,10 +6,14 @@ on:
       - 'bench/rigtorp_codegen_variants.hpp'
       - 'tools/rigtorp_codegen_probe.cpp'
       - 'bench/test_rigtorp_consumer.cpp'
-      - 'tools/analyze_buffer_alignment.py'
-      - 'tools/test_buffer_alignment_analysis.py'
+      - 'tools/analyze_common_placement.py'
+      - 'tools/test_common_placement_analysis.py'
       - 'tools/storage_location_layout.cpp'
-      - 'tools/generate_buffer_alignment.py'
+      - 'tools/generate_common_placement.py'
+      - 'tools/profile_common_placement.py'
+      - 'tools/test_common_placement_profile.py'
+      - 'tools/audit_common_code.py'
+      - 'tools/test_common_code_audit.py'
       - '.github/workflows/rigtorp-codegen-equivalence.yml'
   workflow_dispatch:
 
@@ -22,9 +26,9 @@ concurrency:
 
 env:
   SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
-  CANDIDATES: veriqueue,raw_dynslot,aligned_dynslot,inline_dynslot
+  CANDIDATES: veriqueue,raw_dynslot,heap_common,align_common
   EXTERNALS: rigtorp,boost_lockfree,moodycamel,drogalis
-  IMPLEMENTATIONS: veriqueue,raw_dynslot,aligned_dynslot,inline_dynslot,rigtorp,boost_lockfree,moodycamel,drogalis
+  IMPLEMENTATIONS: veriqueue,raw_dynslot,heap_common,align_common,rigtorp,boost_lockfree,moodycamel,drogalis
 
 jobs:
   tooling:
@@ -39,9 +43,11 @@ jobs:
           python-version: '3.12'
       - name: Validate tooling
         run: |
-          python -m py_compile tools/run_comparator_campaign.py tools/analyze_policy_campaign.py tools/analyze_buffer_alignment.py tools/generate_buffer_alignment.py
+          python -m py_compile tools/run_comparator_campaign.py tools/analyze_policy_campaign.py tools/analyze_common_placement.py tools/generate_common_placement.py
           python tools/test_policy_campaign.py
-          python tools/test_buffer_alignment_analysis.py
+          python tools/test_common_placement_analysis.py
+          python tools/test_common_placement_profile.py
+          python tools/test_common_code_audit.py
       - name: Verify exact capacity, model, lifetime, exceptions and concurrent FIFO
         run: |
           g++ -std=c++20 -O2 -DNDEBUG -pthread -Wall -Wextra -Werror \
@@ -120,7 +126,7 @@ jobs:
             -DVERIQUEUE_BUILD_BASELINES=ON
       - name: Generate comparator
         run: |
-          python tools/generate_buffer_alignment.py build/rigtorp-codegen/bench_compare_codegen.cpp
+          python tools/generate_common_placement.py build/rigtorp-codegen/bench_compare_codegen.cpp
       - name: Compile comparator
         env:
           CXX: ${{ steps.compiler.outputs.cxx }}
@@ -147,6 +153,12 @@ jobs:
             -isystem build/rigtorp-codegen/_deps/drogalis_spsc-src/include \
             build/rigtorp-codegen/bench_compare_codegen.cpp \
             -o build/rigtorp-codegen/bench_compare_codegen.s
+      - name: Verify common code sharing before measurement
+        run: |
+          nm -n -C build/rigtorp-codegen/bench_compare_codegen \
+            > build/rigtorp-codegen/linked-symbols.txt
+          python tools/audit_common_code.py build/rigtorp-codegen/bench_compare_codegen.s \
+            build/rigtorp-codegen/common-code.json --symbols build/rigtorp-codegen/linked-symbols.txt
       - name: Verify candidate on measured architecture and compiler
         env:
           CXX: ${{ steps.compiler.outputs.cxx }}
@@ -156,13 +168,16 @@ jobs:
           /tmp/consumer-contract
       - uses: actions/upload-artifact@v4
         with:
-          name: buffer-alignment-inlined-assembly-${{ matrix.compiler }}-cap${{ matrix.capacity }}
-          path: build/rigtorp-codegen/*.s
+          name: common-placement-inlined-assembly-${{ matrix.compiler }}-cap${{ matrix.capacity }}
+          path: |
+            build/rigtorp-codegen/*.s
+            build/rigtorp-codegen/common-code.json
+            build/rigtorp-codegen/linked-symbols.txt
           if-no-files-found: error
           retention-days: 90
       - name: Run randomized paired campaign
         run: |
-          seed=$((2026101019 + ${{ steps.compiler.outputs.id }} * 10000 + ${{ matrix.capacity }}))
+          seed=$((2026101021 + ${{ steps.compiler.outputs.id }} * 10000 + ${{ matrix.capacity }}))
           output="evidence/rigtorp-codegen/raw/arm64-${{ matrix.compiler }}-cap${{ matrix.capacity }}.jsonl"
           python tools/run_comparator_campaign.py \
             --program build/rigtorp-codegen/bench_compare_codegen \
@@ -182,6 +197,26 @@ jobs:
         with:
           name: rigtorp-codegen-${{ matrix.compiler }}-cap${{ matrix.capacity }}
           path: evidence/rigtorp-codegen/raw/*.jsonl
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Install perf after scored campaign
+        run: |
+          sudo apt-get update
+          if ! sudo apt-get install -y linux-tools-common linux-tools-generic; then
+            echo 'Perf package installation unavailable; record capability rather than fabricate counters.'
+          fi
+      - name: Separate placement PMU diagnostic
+        run: |
+          python tools/profile_common_placement.py \
+            --program build/rigtorp-codegen/bench_compare_codegen \
+            --capacity "${{ matrix.capacity }}" --compiler "${{ matrix.compiler }}" \
+            --source-commit "$SOURCE_COMMIT" \
+            --output "evidence/rigtorp-codegen/profiles/arm64-${{ matrix.compiler }}-cap${{ matrix.capacity }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: common-placement-profile-${{ matrix.compiler }}-cap${{ matrix.capacity }}
+          path: evidence/rigtorp-codegen/profiles
           if-no-files-found: error
           retention-days: 90
 
@@ -247,7 +282,7 @@ jobs:
             -isystem build/assembly/_deps/rigtorp_spsc-src/include \
             tools/rigtorp_codegen_probe.cpp \
             -o evidence/rigtorp-codegen/assembly/${{ matrix.compiler }}.s
-          grep -E '^(production|dynamic_raw|dynamic_split|dynamic_grouped|dynamic_combined|dynamic_ctrl64|dynamic_direct|dynamic_progress|dynamic_managed|dynamic_aligned|inline_managed|static_raw|static_slot|upstream)_(push|pop|init)_c[0-9]+_p[0-9]+:' \
+          grep -E '^(production|dynamic_raw|dynamic_split|dynamic_grouped|dynamic_combined|dynamic_ctrl64|dynamic_direct|dynamic_progress|dynamic_managed|dynamic_aligned|dynamic_common|inline_managed|static_raw|static_slot|upstream)_(push|pop|init)_c[0-9]+_p[0-9]+:' \
             evidence/rigtorp-codegen/assembly/${{ matrix.compiler }}.s \
             > evidence/rigtorp-codegen/assembly/${{ matrix.compiler }}-labels.txt || true
       - uses: actions/upload-artifact@v4
@@ -283,15 +318,15 @@ jobs:
             --json-output evidence/rigtorp-codegen/summary.json \
             --markdown-output evidence/rigtorp-codegen/summary.md \
             --csv-output evidence/rigtorp-codegen/cells.csv \
-            --bootstrap-seed 2026101020 \
+            --bootstrap-seed 2026101022 \
             --bootstrap-samples 20000
-          python tools/analyze_buffer_alignment.py evidence/rigtorp-codegen/shards \
-            evidence/rigtorp-codegen/aligned-vs-ordinary-heap.json --source-commit "$SOURCE_COMMIT"
+          python tools/analyze_common_placement.py evidence/rigtorp-codegen/shards \
+            evidence/rigtorp-codegen/common-placement.json --source-commit "$SOURCE_COMMIT"
           python - <<'PY'
           from pathlib import Path
           p = Path('evidence/rigtorp-codegen/summary.md')
           s = p.read_text().replace('This is promotion evidence, not a universal SOTA claim.',
-                                   'This is scoped buffer-alignment evidence; production promotion is out of scope.')
+                                   'This is scoped common-code placement evidence; production promotion is out of scope.')
           p.write_text(s)
           PY
           cat evidence/rigtorp-codegen/summary.md >> "$GITHUB_STEP_SUMMARY"

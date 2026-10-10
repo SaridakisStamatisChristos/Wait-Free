@@ -19,11 +19,20 @@ template <std::size_t Capacity, std::size_t Bytes>
 void emit_layout() {
     using namespace vqbench::experimental::rigtorp_codegen;
     using heap = dynamic_managed_queue<layout_payload<Bytes>, Capacity>;
+    using common = dynamic_common_queue<layout_payload<Bytes>, Capacity>;
     using aligned = dynamic_aligned_queue<layout_payload<Bytes>, Capacity>;
     using inlined = inline_managed_queue<layout_payload<Bytes>, Capacity>;
     static_assert(sizeof(layout_payload<Bytes>) == Bytes);
     static_assert(std::is_standard_layout_v<heap> && std::is_standard_layout_v<inlined>);
-    static_assert(std::is_standard_layout_v<aligned>);
+    static_assert(std::is_standard_layout_v<aligned> && std::is_standard_layout_v<common>);
+    static_assert(sizeof(common) == sizeof(heap) && alignof(common) == alignof(heap));
+    static_assert(common::allocator_offset() == 16);
+    static_assert(common::layout_offsets() == heap::layout_offsets());
+    common ordinary(runtime_buffer_allocator<layout_payload<Bytes>>{false});
+    common guaranteed(runtime_buffer_allocator<layout_payload<Bytes>>{true});
+    if (guaranteed.buffer_offsets() != std::array<std::size_t, 6>{}) {
+        throw std::runtime_error("runtime allocator alignment failed");
+    }
     static_assert(sizeof(aligned) == sizeof(heap) && alignof(aligned) == alignof(heap));
     static_assert(aligned::layout_offsets() == heap::layout_offsets());
     aligned observed;
@@ -42,6 +51,7 @@ void emit_layout() {
     constexpr auto first_live = i[6] + padding * Bytes;
     static_assert(first_live >= i[5] + 256);
     std::cout << "{\"capacity\":" << Capacity << ",\"payload_bytes\":" << Bytes
+              << ",\"common_size\":" << sizeof(common) << ",\"runtime_allocator_offset\":16"
               << ",\"aligned_size\":" << sizeof(aligned)
               << ",\"heap_size\":" << sizeof(heap) << ",\"inline_size\":" << sizeof(inlined)
               << ",\"alignment\":" << alignof(inlined) << ",\"control_offsets\":[";
