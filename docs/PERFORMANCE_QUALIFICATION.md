@@ -6,7 +6,7 @@ VeriQueue treats comparative performance as a measured property of a declared en
 
 A qualification run may support statements only about the measured architecture, compiler, topology, payload, capacity, workload, and statistical protocol. It does not establish that VeriQueue is universally fastest or superior on unmeasured hardware.
 
-The current benchmark verdict rule is fixed before results are inspected:
+The benchmark verdict rule is fixed before results are inspected:
 
 - **WIN** when the paired-ratio bootstrap 95% confidence interval lower bound is greater than `1.03`;
 - **LOSS** when the upper bound is less than `0.97`;
@@ -25,11 +25,20 @@ Every run admitted to one performance evidence freeze must identify the same exa
 - `Portability Qualification`;
 - `Performance Regression Gate`.
 
-These workflow names are stable evidence identifiers. They are preserved because frozen manifests and the validator use them as provenance keys.
+These workflow names are stable evidence identifiers because frozen manifests and the validator use them as provenance keys.
 
 ## Independent full measurements
 
-A complete hosted qualification contains three to five successful `Final Performance Campaign` runs from the same source SHA. The workflow name is retained as a stable historical/evidence identifier even though this document is the evergreen description of the protocol.
+The active full-measurement workflow is `Performance Qualification`. A complete hosted qualification contains three to five successful full runs from one source SHA.
+
+Full runs may be launched manually or by creating branches named:
+
+```text
+qualification/run-1
+qualification/run-2
+...
+qualification/run-5
+```
 
 Each full run contains independent jobs for:
 
@@ -55,9 +64,11 @@ Comparator revisions are pinned by the build and must not be silently changed wh
 
 ## Characterization versus comparative evidence
 
-The same workflow can collect VeriQueue-only throughput, burst, latency, payload, bulk/scalar/consume, and assembly characterization. These outputs are useful for mechanism analysis but are not automatically comparative evidence. Comparative claims remain tied to the correctness-gated comparator matrix and its paired statistics.
+The qualification workflow can also collect VeriQueue-only throughput, burst, latency, payload, bulk/scalar/consume, and assembly characterization. These outputs are useful for mechanism analysis but are not automatically comparative evidence. Comparative claims remain tied to the correctness-gated comparator matrix and its paired statistics.
 
-## Evidence freezing
+## Evidence publication
+
+`Publish Performance Evidence` validates the selected run set, freezes GitHub Actions artifacts under `evidence/campaigns/YYYY-MM-DD/<source-sha>/`, independently verifies checksums and provenance, regenerates the performance scoreboard, and opens an evidence-only pull request.
 
 A complete qualification is admitted only after the validator confirms:
 
@@ -68,10 +79,12 @@ A complete qualification is admitted only after the validator confirms:
 5. every full performance run contains all four architecture/compiler artifacts;
 6. run indices and fixed protocol metadata are internally consistent.
 
-The evidence freezer then stores selected artifacts under `evidence/campaigns/YYYY-MM-DD/<source-sha>/`, writes a SHA-256 ledger, independently verifies it, and regenerates the performance scoreboard from checksum-valid paired summaries. See [`EVIDENCE_FREEZING.md`](EVIDENCE_FREEZING.md).
+The publisher never creates a release or tag. See [`EVIDENCE_FREEZING.md`](EVIDENCE_FREEZING.md).
 
-## Research history
+## Legacy evidence compatibility
 
-The current protocol evolved through a sequence of evidence-only performance experiments. Their dated records, including original PR/campaign identifiers where necessary for provenance, are archived under [`../research/`](../research/). Those historical identifiers are not current milestones and historical hypotheses are not promoted into product claims merely because they were tested.
+Older frozen evidence may name the workflow `Final Performance Campaign` and use branches named `final-campaign/run-N`. `tools/validate_performance_qualification.py` accepts those names **only as legacy provenance aliases** so historical evidence remains verifiable. New runs and automation use `Performance Qualification` and `qualification/run-N`.
+
+Historical workflow definitions and experimental tooling are archived under [`../research/`](../research/). They are not active CI and do not define the current product.
 
 The source of truth for established claims remains [`EVIDENCE_LEDGER.md`](EVIDENCE_LEDGER.md).

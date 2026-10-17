@@ -1,0 +1,263 @@
+name: Publish Performance Evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_ids:
+        description: 'Comma-separated qualification + 3-5 full performance run IDs from one source SHA'
+        required: true
+        type: string
+      evidence_date:
+        description: 'Optional YYYY-MM-DD evidence date'
+        required: false
+        type: string
+  workflow_run:
+    workflows: ['Performance Qualification']
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: publish-performance-evidence
+  cancel-in-progress: false
+
+jobs:
+  validate-freeze:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'create' &&
+       github.event.workflow_run.head_branch == 'qualification/run-4')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Confirm publisher is running from default branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF_NAME" == "$DEFAULT_BRANCH" ]] || {
+            echo "Evidence publisher must run from default branch '$DEFAULT_BRANCH'." >&2
+            exit 1
+          }
+      - name: Resolve complete source run set
+        id: resolve
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MANUAL_RUN_IDS: ${{ inputs.run_ids }}
+          MANUAL_EVIDENCE_DATE: ${{ inputs.evidence_date }}
+          AUTO_SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            [[ -n "$MANUAL_RUN_IDS" ]] || { echo 'Manual publication requires run_ids.' >&2; exit 1; }
+            echo "run_ids=$MANUAL_RUN_IDS" >> "$GITHUB_OUTPUT"
+            echo "evidence_date=$MANUAL_EVIDENCE_DATE" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+          import urllib.request
+
+          repo = os.environ['GITHUB_REPOSITORY']
+          token = os.environ['GITHUB_TOKEN']
+          source_sha = os.environ['AUTO_SOURCE_SHA']
+          request = urllib.request.Request(
+              f'https://api.github.com/repos/{repo}/actions/runs?head_sha={source_sha}&per_page=100',
+              headers={
+                  'Accept': 'application/vnd.github+json',
+                  'Authorization': f'Bearer {token}',
+                  'X-GitHub-Api-Version': '2022-11-28',
+                  'User-Agent': 'veriqueue-performance-evidence-resolver',
+              },
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              runs = json.load(response)['workflow_runs']
+
+          def successful(name):
+              return [
+                  run for run in runs
+                  if run.get('name') == name
+                  and run.get('head_sha') == source_sha
+                  and run.get('conclusion') == 'success'
+              ]
+
+          required = [
+              'CI',
+              'Sanitizers',
+              'Fuzz Smoke',
+              'Model Check',
+              'Portability Qualification',
+              'Performance Regression Gate',
+          ]
+          selected = []
+          for name in required:
+              candidates = successful(name)
+              if not candidates:
+                  raise SystemExit(f'missing successful {name!r} run for {source_sha}')
+              selected.append(max(candidates, key=lambda item: int(item['id'])))
+
+          for run_index in (2, 3, 4):
+              branch = f'qualification/run-{run_index}'
+              candidates = [
+                  run for run in successful('Performance Qualification')
+                  if run.get('event') == 'create' and run.get('head_branch') == branch
+              ]
+              if not candidates:
+                  raise SystemExit(f'missing successful full qualification run for {branch!r}')
+              selected.append(max(candidates, key=lambda item: int(item['id'])))
+
+          ids = [str(int(run['id'])) for run in selected]
+          if len(ids) != len(set(ids)):
+              raise SystemExit('automatic qualification run selection produced duplicate run IDs')
+          print('run_ids=' + ','.join(ids))
+          print('source_sha=' + source_sha)
+          print('evidence_date=')
+          PY
+      - name: Validate complete performance qualification
+        id: validate
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_RUN_IDS: ${{ steps.resolve.outputs.run_ids }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/validate_performance_qualification.py \
+            --repository "$GITHUB_REPOSITORY" \
+            --run-ids "$SOURCE_RUN_IDS" \
+            --token "$GITHUB_TOKEN" \
+            --output /tmp/performance-qualification-validation.json
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          report = json.load(open('/tmp/performance-qualification-validation.json', encoding='utf-8'))
+          print(f"source_commit={report['source_commit']}")
+          PY
+      - name: Freeze selected GitHub evidence
+        id: freeze
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_RUN_IDS: ${{ steps.resolve.outputs.run_ids }}
+          EVIDENCE_DATE: ${{ steps.resolve.outputs.evidence_date }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(
+            --repository "$GITHUB_REPOSITORY"
+            --run-ids "$SOURCE_RUN_IDS"
+            --output-base evidence/campaigns
+            --result-json /tmp/evidence-freeze-result.json
+          )
+          if [[ -n "$EVIDENCE_DATE" ]]; then
+            args+=(--campaign-date "$EVIDENCE_DATE")
+          fi
+          python tools/freeze_github_evidence.py "${args[@]}"
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          result = json.load(open('/tmp/evidence-freeze-result.json', encoding='utf-8'))
+          print(f"evidence_root={result['campaign_root']}")
+          print(f"evidence_date={result['campaign_date']}")
+          print(f"source_commit={result['source_commit']}")
+          PY
+      - name: Require validator and freezer source SHA agreement
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ '${{ steps.validate.outputs.source_commit }}' == '${{ steps.freeze.outputs.source_commit }}' ]] || {
+            echo 'Validator/freezer source SHA mismatch.' >&2
+            exit 1
+          }
+      - name: Preserve qualification validation report
+        env:
+          EVIDENCE_ROOT: ${{ steps.freeze.outputs.evidence_root }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp /tmp/performance-qualification-validation.json "$EVIDENCE_ROOT/performance-qualification-validation.json"
+          python - <<'PY'
+          import importlib.util
+          import os
+          import pathlib
+          path = pathlib.Path('tools/freeze_github_evidence.py')
+          spec = importlib.util.spec_from_file_location('freeze_github_evidence', path)
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          module._write_checksums(pathlib.Path(os.environ['EVIDENCE_ROOT']))
+          PY
+      - name: Independently verify permanent evidence
+        run: python tools/verify_frozen_evidence.py '${{ steps.freeze.outputs.evidence_root }}'
+      - name: Regenerate evidence-derived performance scoreboard
+        run: >-
+          python tools/generate_performance_scoreboard.py
+          --evidence-root evidence/campaigns
+          --output docs/PERFORMANCE_SCOREBOARD.md
+      - name: Reject oversized Git objects
+        shell: bash
+        run: |
+          set -euo pipefail
+          oversized="$(find '${{ steps.freeze.outputs.evidence_root }}' -type f -size +95M -print -quit)"
+          if [[ -n "$oversized" ]]; then
+            echo "Frozen evidence contains a file larger than 95 MiB: $oversized" >&2
+            exit 1
+          fi
+      - name: Create evidence branch and pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVIDENCE_ROOT: ${{ steps.freeze.outputs.evidence_root }}
+          EVIDENCE_DATE: ${{ steps.freeze.outputs.evidence_date }}
+          SOURCE_COMMIT: ${{ steps.freeze.outputs.source_commit }}
+          SOURCE_RUN_IDS: ${{ steps.resolve.outputs.run_ids }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch="evidence/qualification-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -c "$branch"
+          git add "$EVIDENCE_ROOT" docs/PERFORMANCE_SCOREBOARD.md
+          git diff --cached --quiet && {
+            echo 'Performance qualification produced no repository changes.' >&2
+            exit 1
+          }
+          git commit -m "evidence: freeze performance qualification ${EVIDENCE_DATE}"
+          git push origin "$branch"
+
+          cat > /tmp/evidence-pr-body.md <<EOF
+          ## Performance qualification evidence
+
+          Source commit: \`${SOURCE_COMMIT}\`
+          Selected source run IDs: \`${SOURCE_RUN_IDS}\`
+          Frozen evidence: \`${EVIDENCE_ROOT}\`
+
+          The run set passed \`tools/validate_performance_qualification.py\`, including:
+
+          - required CI, sanitizer, fuzz, model-check, portability, and paired regression workflow classes;
+          - 3-5 independent full Performance Qualification runs;
+          - all x64/ARM64 GCC/Clang performance artifacts per run;
+          - exact full protocol validation (5 warmups, 30 measured repetitions, fixed matrix and thresholds);
+          - one exact source SHA across all selected runs.
+
+          The evidence was independently checksum-verified and the performance scoreboard regenerated from frozen paired summaries only.
+
+          No tag or release is created by this workflow.
+          EOF
+
+          gh pr create \
+            --base "$DEFAULT_BRANCH" \
+            --head "$branch" \
+            --title "Performance evidence: ${EVIDENCE_DATE} ${SOURCE_COMMIT:0:12}" \
+            --body-file /tmp/evidence-pr-body.md

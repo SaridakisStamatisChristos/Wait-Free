@@ -10,11 +10,11 @@ on:
       - 'tools/analyze_regression_campaign.py'
       - 'tools/test_regression_campaign.py'
       - 'docs/PERFORMANCE_REGRESSION_POLICY.md'
-      - 'docs/FINAL_SOTA_CAMPAIGN.md'
-      - 'tools/validate_final_campaign.py'
-      - 'tools/test_final_campaign.py'
-      - '.github/workflows/final-performance-campaign.yml'
-      - '.github/workflows/finalize-sota-campaign.yml'
+      - 'docs/PERFORMANCE_QUALIFICATION.md'
+      - 'tools/validate_performance_qualification.py'
+      - 'tools/test_performance_qualification.py'
+      - '.github/workflows/performance-qualification.yml'
+      - '.github/workflows/publish-performance-evidence.yml'
       - '.github/workflows/performance-regression.yml'
 
 permissions:
