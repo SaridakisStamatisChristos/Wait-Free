@@ -1,0 +1,221 @@
+name: Performance Qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_index:
+        description: 'Independent qualification run index'
+        required: true
+        type: choice
+        options: ['1', '2', '3', '4', '5']
+  create:
+  pull_request:
+    paths:
+      - '.github/workflows/performance-qualification.yml'
+      - '.github/workflows/publish-performance-evidence.yml'
+      - 'tools/validate_performance_qualification.py'
+      - 'tools/test_performance_qualification.py'
+      - 'docs/PERFORMANCE_QUALIFICATION.md'
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile qualification tooling
+        run: >-
+          python -m py_compile
+          tools/validate_performance_qualification.py
+          tools/test_performance_qualification.py
+          tools/freeze_github_evidence.py
+      - name: Run qualification validation tests
+        run: python -m unittest -v tools/test_performance_qualification.py
+
+  benchmark:
+    if: >-
+      github.event_name != 'create' ||
+      (github.event.ref_type == 'branch' && startsWith(github.event.ref, 'qualification/run-'))
+    name: ${{ matrix.arch }} / ${{ matrix.compiler }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: linux-x64
+            compiler: gcc
+            cc: gcc
+            cxx: g++
+          - runner: ubuntu-24.04
+            arch: linux-x64
+            compiler: clang
+            cc: clang
+            cxx: clang++
+          - runner: ubuntu-24.04-arm
+            arch: linux-arm64
+            compiler: gcc
+            cc: gcc
+            cxx: g++
+          - runner: ubuntu-24.04-arm
+            arch: linux-arm64
+            compiler: clang
+            cc: clang
+            cxx: clang++
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install benchmark dependencies
+        run: sudo apt-get update && sudo apt-get install -y libboost-dev ninja-build
+      - name: Resolve qualification protocol
+        id: protocol
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$GITHUB_EVENT_NAME" in
+            workflow_dispatch)
+              run_index='${{ inputs.run_index }}'
+              ;;
+            create)
+              branch='${{ github.event.ref }}'
+              if [[ ! "$branch" =~ ^qualification/run-([1-5])$ ]]; then
+                echo "Create-triggered full qualification requires qualification/run-[1-5], got '$branch'." >&2
+                exit 1
+              fi
+              run_index="${BASH_REMATCH[1]}"
+              ;;
+            *)
+              echo 'full=false' >> "$GITHUB_OUTPUT"
+              echo 'capacities=64' >> "$GITHUB_OUTPUT"
+              echo 'payloads=8' >> "$GITHUB_OUTPUT"
+              echo 'transfers=10000' >> "$GITHUB_OUTPUT"
+              echo 'warmups=0' >> "$GITHUB_OUTPUT"
+              echo 'repetitions=2' >> "$GITHUB_OUTPUT"
+              echo 'run_index=0' >> "$GITHUB_OUTPUT"
+              echo 'seed=20261009' >> "$GITHUB_OUTPUT"
+              exit 0
+              ;;
+          esac
+
+          echo 'full=true' >> "$GITHUB_OUTPUT"
+          echo 'capacities=2,64,256,1024,65536' >> "$GITHUB_OUTPUT"
+          echo 'payloads=8,16,64,256' >> "$GITHUB_OUTPUT"
+          echo 'transfers=100000' >> "$GITHUB_OUTPUT"
+          echo 'warmups=5' >> "$GITHUB_OUTPUT"
+          echo 'repetitions=30' >> "$GITHUB_OUTPUT"
+          echo "run_index=$run_index" >> "$GITHUB_OUTPUT"
+          echo "seed=$((20261009 + run_index))" >> "$GITHUB_OUTPUT"
+      - name: Capture environment and fixed protocol
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/performance-qualification
+          stdlib="$($CXX -dM -E -x c++ /dev/null | grep -E '__GLIBCXX__|_LIBCPP_VERSION' | tr '\n' ';' || true)"
+          {
+            echo "github_sha=$GITHUB_SHA"
+            echo "github_run_id=$GITHUB_RUN_ID"
+            echo "github_run_attempt=$GITHUB_RUN_ATTEMPT"
+            echo "event_name=$GITHUB_EVENT_NAME"
+            echo "trigger_ref=${GITHUB_REF_NAME:-unknown}"
+            echo "qualification_run_index=${{ steps.protocol.outputs.run_index }}"
+            echo "runner_name=$RUNNER_NAME"
+            echo "runner_os=$RUNNER_OS"
+            echo "runner_arch=$RUNNER_ARCH"
+            echo "runner_image_os=${ImageOS:-unknown}"
+            echo "runner_image_version=${ImageVersion:-unknown}"
+            echo "matrix_arch=${{ matrix.arch }}"
+            echo "matrix_compiler=${{ matrix.compiler }}"
+            echo "compiler_path=$(command -v "$CXX")"
+            echo "stdlib=${stdlib:-unknown}"
+            "$CXX" --version | head -1 | sed 's/^/compiler_version=/'
+          } > evidence/performance-qualification/run-context.txt
+          tools/collect_machine_info.sh > evidence/performance-qualification/machine.txt
+          python tools/topology_matrix.py > evidence/performance-qualification/topology-matrix.json
+          python - <<'PY' > evidence/performance-qualification/protocol.json
+          import json
+          print(json.dumps({
+              "mode": "full" if "${{ steps.protocol.outputs.full }}" == "true" else "pull-request-smoke",
+              "run_index": int("${{ steps.protocol.outputs.run_index }}"),
+              "capacities": [int(x) for x in "${{ steps.protocol.outputs.capacities }}".split(',')],
+              "payload_bytes": [int(x) for x in "${{ steps.protocol.outputs.payloads }}".split(',')],
+              "transfers": int("${{ steps.protocol.outputs.transfers }}"),
+              "warmups": int("${{ steps.protocol.outputs.warmups }}"),
+              "repetitions": int("${{ steps.protocol.outputs.repetitions }}"),
+              "campaign_seed": int("${{ steps.protocol.outputs.seed }}"),
+              "bootstrap_seed": int("${{ steps.protocol.outputs.seed }}"),
+              "win_ci_lower_gt": 1.03,
+              "loss_ci_upper_lt": 0.97,
+          }, indent=2, sort_keys=True))
+          PY
+      - name: Configure benchmark laboratory
+        run: >-
+          cmake -S . -B build/qualification -G Ninja -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          -DVERIQUEUE_BUILD_TESTS=OFF -DVERIQUEUE_BUILD_STRESS=OFF
+          -DVERIQUEUE_BUILD_BENCHMARKS=ON -DVERIQUEUE_BUILD_BASELINES=ON
+      - name: Build benchmark laboratory
+        run: cmake --build build/qualification -j2
+      - name: Preserve exact compiler commands
+        run: cp build/qualification/compile_commands.json evidence/performance-qualification/compile_commands.json
+      - name: Run comparative qualification
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/run_compare_campaign.py \
+            --program build/qualification/bench_compare \
+            --capacities '${{ steps.protocol.outputs.capacities }}' \
+            --payloads '${{ steps.protocol.outputs.payloads }}' \
+            --transfers '${{ steps.protocol.outputs.transfers }}' \
+            --warmups '${{ steps.protocol.outputs.warmups }}' \
+            --repetitions '${{ steps.protocol.outputs.repetitions }}' \
+            --seed '${{ steps.protocol.outputs.seed }}' \
+            --output evidence/performance-qualification/raw-compare.jsonl
+      - name: Analyze paired comparative qualification
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/analyze_compare_campaign.py \
+            evidence/performance-qualification/raw-compare.jsonl \
+            --json-output evidence/performance-qualification/summary.json \
+            --markdown-output evidence/performance-qualification/summary.md \
+            --bootstrap-seed '${{ steps.protocol.outputs.seed }}'
+          cat evidence/performance-qualification/summary.md
+      - name: Run characterization harnesses
+        if: steps.protocol.outputs.full == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERIQUEUE_TRANSFERS=500000 build/qualification/bench_throughput \
+            > evidence/performance-qualification/characterization-throughput.jsonl
+          build/qualification/bench_bursts \
+            > evidence/performance-qualification/characterization-bursts.jsonl
+          build/qualification/bench_latency \
+            > evidence/performance-qualification/characterization-latency.jsonl
+          build/qualification/bench_payload \
+            > evidence/performance-qualification/characterization-payload.jsonl
+          build/qualification/bench_bulk 1000000 \
+            > evidence/performance-qualification/characterization-bulk.jsonl
+      - name: Bulk correctness smoke in PR mode
+        if: steps.protocol.outputs.full != 'true'
+        run: build/qualification/bench_bulk 10000 > evidence/performance-qualification/characterization-bulk.jsonl
+      - name: Assembly audit
+        if: always()
+        shell: bash
+        run: CXX="$CXX" tools/audit_assembly.sh evidence/performance-qualification/assembly.s | tee evidence/performance-qualification/assembly-audit.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hosted-performance-${{ matrix.arch }}-${{ matrix.compiler }}
+          path: evidence/performance-qualification/
