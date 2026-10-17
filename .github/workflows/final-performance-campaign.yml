@@ -15,7 +15,7 @@ on:
       - '.github/workflows/finalize-sota-campaign.yml'
       - 'tools/validate_final_campaign.py'
       - 'tools/test_final_campaign.py'
-      - 'docs/FINAL_SOTA_CAMPAIGN.md'
+      - 'docs/PERFORMANCE_QUALIFICATION.md'
 
 permissions:
   contents: read

@@ -18,8 +18,8 @@ This ledger prevents experimental language from silently becoming marketing lang
 | Rigtorp/Boost comparison laboratory builds | verified | benchmark-build job in CI run `37925976300` |
 | Representative hot path has no detected mutex/allocation/CAS/locked instruction | assembly-audited for representative specialization/compiler | CI run `37925976300`; repeated PASS in benchmark run `37928700809` |
 | Synchronization/control path is wait-free | reasoned at algorithm level | bounded-operation argument in `PROGRESS_GUARANTEE.md` |
-| Shared-runner same-LLC comparison at capacity 1024 / 8-byte payload | empirically validated on named GitHub-hosted runner | run `37928700809`: VeriQueue 126.6305 M/s median, Rigtorp 36.01845 M/s, Boost.Lockfree 47.4820 M/s; 20 repetitions; frozen under `evidence/benchmarks/shared-runner-2026-10-09/` |
-| Shared-runner SMT-sibling comparison at capacity 1024 / 8-byte payload | empirically validated on named GitHub-hosted runner | run `37928700809`: VeriQueue 148.1585 M/s median, Rigtorp 169.0880 M/s, Boost.Lockfree 113.3785 M/s; 20 repetitions; frozen under `evidence/benchmarks/shared-runner-2026-10-09/` |
+| Shared-runner same-LLC comparison at capacity 1024 / 8-byte payload | empirically validated on named GitHub-hosted runner | run `37928700809`: VeriQueue 126.6305 M/s median, Rigtorp 36.01845 M/s, Boost.Lockfree 47.4820 M/s; 20 repetitions; frozen under `research/benchmarks/shared-runner-2026-10-09/` |
+| Shared-runner SMT-sibling comparison at capacity 1024 / 8-byte payload | empirically validated on named GitHub-hosted runner | run `37928700809`: VeriQueue 148.1585 M/s median, Rigtorp 169.0880 M/s, Boost.Lockfree 113.3785 M/s; 20 repetitions; frozen under `research/benchmarks/shared-runner-2026-10-09/` |
 | GitHub-hosted benchmark PMU counters available | not established / unavailable | `perf_event_paranoid=4`; failure preserved in the frozen Actions artifact |
 | Faster than Rigtorp/Boost on controlled dedicated hardware | unsupported until self-hosted comparative benchmark evidence is produced | mini-PC campaign required |
 | Universally fastest SPSC queue | unsupported | must not claim |

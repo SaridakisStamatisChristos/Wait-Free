@@ -1,6 +1,8 @@
-# VeriQueue — Wait-Free SPSC Queue + Concurrent Verification Laboratory
+# VeriQueue
 
-VeriQueue is a deliberately small bounded single-producer/single-consumer FIFO queue surrounded by an unusually large falsification apparatus.
+> Header-only C++20 bounded SPSC queue with a wait-free synchronization/control path and a verification-first concurrency laboratory.
+
+VeriQueue is a deliberately small single-producer/single-consumer FIFO queue surrounded by an unusually large falsification apparatus.
 
 The queue is fixed-capacity, allocation-free on the hot path, uses raw object storage, cached remote cursors, cache-line-separated control state, and only acquire/release synchronization. Its synchronization/control path contains no retry loop whose completion depends on another thread: for valid SPSC use, that path is **wait-free**. End-to-end operation latency can still depend on user-supplied constructors, moves, assignments, callbacks, and destructors.
 
@@ -9,7 +11,8 @@ The queue is fixed-capacity, allocation-free on the hot path, uses raw object st
 ## What is implemented
 
 - C++20 header-only `spsc_queue<T, Capacity, CacheLine, Index>`; CI also qualifies C++23 consumers.
-- Power-of-two bounded ring, preallocated storage, no mutexes, no CAS/RMW in the queue hot path.
+- Power-of-two bounded ring with exactly `Capacity` usable slots.
+- Preallocated storage, no mutexes, and no CAS/RMW in the queue hot path.
 - Producer/consumer private cursors with cached remote indices.
 - Release publication of constructed elements and consumed slots; acquire observation on the opposite side.
 - Scalar push/emplace/pop, batched push/pop, and callback-based consume APIs.
@@ -23,7 +26,40 @@ The queue is fixed-capacity, allocation-free on the hot path, uses raw object st
 - Porcupine-based independent linearizability checker plus HTML visualization support.
 - Mutation campaign catalogue and verifier-effectiveness ledger.
 - Affinity-aware custom benchmark harnesses, raw JSONL output, environment capture, latency percentiles, and analysis tooling.
-- Separate evidence directories so claims can point at preserved artifacts rather than prose.
+- Separate evidence and research directories so claims can point at preserved artifacts rather than prose.
+
+## Architecture and memory flow
+
+```mermaid
+flowchart LR
+    subgraph Producer
+        LT[local_tail]
+        CH[cached_head]
+    end
+
+    subgraph Ring[Bounded ring: exactly Capacity usable slots]
+        S[raw slot storage\nconstruct -> live T -> destroy]
+    end
+
+    subgraph Consumer
+        LH[local_head]
+        CT[cached_tail]
+    end
+
+    PT[(published_tail)]
+    PH[(published_head)]
+
+    LT -->|select slot / construct T| S
+    S -->|release-store after construction| PT
+    PT -->|acquire-load when cached tail says empty| CT
+    CT -->|authorize read / move / destroy| S
+    S -->|advance after destruction| LH
+    LH -->|release-store slot reuse| PH
+    PH -->|acquire-load when cached head says full| CH
+    CH -->|authorize slot reuse| LT
+```
+
+The producer is the sole writer of its local tail and cached head; the consumer is the sole writer of its local head and cached tail. Cross-thread communication is restricted to `published_tail` and `published_head`. Both sides normally operate from cached remote cursors and perform the peer acquire load only on the corresponding empty/full slow path. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and [`docs/MEMORY_MODEL.md`](docs/MEMORY_MODEL.md).
 
 ## API
 
@@ -145,7 +181,13 @@ python3 tools/run_bench.py --repetitions 20
 python3 tools/analyze_bench.py evidence/benchmarks/raw.jsonl
 ```
 
-The benchmark system is designed to preserve negative results and topology sensitivity. See [`docs/BENCHMARK_METHODOLOGY.md`](docs/BENCHMARK_METHODOLOGY.md).
+The benchmark system is designed to preserve negative results and topology sensitivity. See [`docs/BENCHMARK_METHODOLOGY.md`](docs/BENCHMARK_METHODOLOGY.md), [`docs/BASELINES.md`](docs/BASELINES.md), and the current [`performance qualification protocol`](docs/PERFORMANCE_QUALIFICATION.md).
+
+## Evidence and research history
+
+Current verification and benchmark claims are tracked in [`docs/EVIDENCE_LEDGER.md`](docs/EVIDENCE_LEDGER.md). Machine-generated or deliberately frozen evidence belongs under [`evidence/`](evidence/). Dated benchmark captures, validation snapshots, and historical optimization/protocol records that are useful for reproducing the research path live under [`research/`](research/).
+
+Historical PR numbers, campaign labels, and prior claim language are retained only inside dated research records where they identify the experiment that produced the evidence. They are not current product milestones or performance claims.
 
 ## Scope and limitations
 
